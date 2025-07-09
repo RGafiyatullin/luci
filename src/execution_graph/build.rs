@@ -148,7 +148,11 @@ fn build_graph<'a>(
             }
 
             EventKind::Bind(def_bind) => {
-                let EventBind { dst, src } = def_bind;
+                let EventBind {
+                    dst,
+                    src,
+                    no_extra: _,
+                } = def_bind;
                 let dst = dst.clone();
                 let src = src.clone();
                 let key = vertices.bind.insert(VertexBind { dst, src });
@@ -161,6 +165,7 @@ fn build_graph<'a>(
                     message_data,
                     from,
                     to,
+                    no_extra: _,
                 } = def_recv;
 
                 let type_fqn = type_aliases
@@ -188,6 +193,7 @@ fn build_graph<'a>(
                     to,
                     message_type,
                     message_data,
+                    no_extra: _,
                 } = def_send;
 
                 let type_fqn = type_aliases
@@ -215,7 +221,12 @@ fn build_graph<'a>(
                 EventKey::Send(key)
             }
             EventKind::Respond(def_respond) => {
-                let EventRespond { from, to, data } = def_respond;
+                let EventRespond {
+                    from,
+                    to,
+                    data,
+                    no_extra: _,
+                } = def_respond;
 
                 let causing_event_key = idx_keys.get(&to).ok_or(BuildError::UnknownEvent(&to))?;
                 let EventKey::Recv(recv_key) = causing_event_key else {
