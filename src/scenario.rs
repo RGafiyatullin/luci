@@ -75,10 +75,17 @@ pub struct EventDef {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EventKind {
+    Bind(EventBind),
     Recv(EventRecv),
     Send(EventSend),
     Respond(EventRespond),
     Delay(#[serde(with = "humantime_serde")] Duration),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventBind {
+    pub dst: Value,
+    pub src: Msg,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
