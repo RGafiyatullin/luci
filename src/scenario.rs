@@ -88,7 +88,7 @@ pub enum EventKind {
     Recv(EventRecv),
     Send(EventSend),
     Respond(EventRespond),
-    Delay(#[serde(with = "humantime_serde")] Duration),
+    Delay(EventDelay),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -140,6 +140,16 @@ pub struct EventRespond {
 
     pub to: EventName,
     pub data: Msg,
+
+    #[serde(flatten)]
+    pub no_extra: NoExtra,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventDelay {
+    #[serde(with = "humantime_serde")]
+    #[serde(rename = "for")]
+    pub delay_for: Duration,
 
     #[serde(flatten)]
     pub no_extra: NoExtra,

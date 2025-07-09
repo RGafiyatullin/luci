@@ -447,7 +447,6 @@ impl<'a> Runner<'a> {
 
                 actually_fired_events.push(EventKey::Send(k));
             }
-
             ReadyEventKey::Respond(k) => {
                 let VertexRespond {
                     respond_to,
@@ -634,7 +633,7 @@ impl<'a> Runner<'a> {
                     if let Some((sleep_until, delay_key)) = self.delays.pop_first() {
                         debug!(
                             "nothing to do — sleeping for {:?}...",
-                            vertices.delay[delay_key].0
+                            vertices.delay[delay_key].period,
                         );
 
                         tokio::time::sleep_until(sleep_until).await;
@@ -664,7 +663,7 @@ impl<'a> Runner<'a> {
                         self.ready_events.insert(d);
 
                         if let EventKey::Delay(k) = d {
-                            let duration = vertices.delay[k].0;
+                            let duration = vertices.delay[k].period;
                             let instant = Instant::now()
                                 .checked_add(duration)
                                 .expect("please pretty please");

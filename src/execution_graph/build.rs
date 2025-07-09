@@ -8,7 +8,7 @@ use tracing::{debug, trace};
 use crate::{
     execution_graph::{EventKey, VertexBind},
     messages,
-    scenario::{EventBind, EventRecv, EventRespond, EventSend},
+    scenario::{EventBind, EventDelay, EventRecv, EventRespond, EventSend},
 };
 use crate::{
     execution_graph::{
@@ -142,8 +142,14 @@ fn build_graph<'a>(
         let after = resolve_event_ids(&idx_keys, &event.after).collect::<Result<Vec<_>, _>>()?;
 
         let this_key = match &event.kind {
-            EventKind::Delay(duration) => {
-                let key = vertices.delay.insert(VertexDelay(*duration));
+            EventKind::Delay(def_delay) => {
+                let EventDelay {
+                    delay_for,
+                    no_extra: _,
+                } = def_delay;
+                let delay_for = *delay_for;
+
+                let key = vertices.delay.insert(VertexDelay { period: delay_for });
                 EventKey::Delay(key)
             }
 

@@ -37,7 +37,8 @@ events:
   - id: delay-1
     after:
       - p1-bro-back-to-p0
-    delay: 10s
+    delay:
+      for: 10s
 
   - id: p0-pings-p1
     require: reached
@@ -67,7 +68,8 @@ events:
   - id: delay-2
     after:
       - p1-pongs-p0
-    delay: 10s
+    delay:
+      for: 10s
   
   - id: p0-pings-p1-again
     require: reached
@@ -86,7 +88,8 @@ events:
   - id: delay-3
     after:
       - p0-pings-p1-again
-    delay: 10s
+    delay:
+      for: 10s
 
   - id: p0-byes-p1
     require: reached
@@ -116,4 +119,5 @@ events:
   - id: delay-4
     after:
       - p0-byes-p1
-    delay: 10m
+    delay:
+      for: 10m
