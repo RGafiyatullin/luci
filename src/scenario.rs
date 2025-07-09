@@ -88,7 +88,7 @@ pub enum EventKind {
     Recv(EventRecv),
     Send(EventSend),
     Respond(EventRespond),
-    Delay(#[serde(with = "humantime_serde")] Duration),
+    Delay(EventDelay),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -146,9 +146,34 @@ pub struct EventRespond {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventDelay {
+    #[serde(with = "humantime_serde")]
+    #[serde(rename = "for")]
+    pub delay_for: Duration,
+
+    #[serde(with = "humantime_serde")]
+    #[serde(rename = "step")]
+    #[serde(default = "defaults::default_delay_step")]
+    pub delay_step: Duration,
+
+    #[serde(flatten)]
+    pub no_extra: NoExtra,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Msg {
-    Exact(Value),
+    #[serde(alias = "exact")]
+    Literal(Value),
     Bind(Value),
-    Injected(String),
+    #[serde(alias = "injected")]
+    Inject(String),
+}
+
+mod defaults {
+    use std::time::Duration;
+
+    pub fn default_delay_step() -> Duration {
+        Duration::from_millis(25)
+    }
 }

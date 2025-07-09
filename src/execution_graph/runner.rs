@@ -7,13 +7,14 @@ use elfo::_priv::MessageKind;
 use elfo::{test::Proxy, Addr, Blueprint, Envelope, Message};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::time::Duration;
 use tokio::time::Instant;
 use tracing::{debug, info, trace};
 
 use crate::{
     execution_graph::{
-        EventKey, ExecutionGraph, KeyDelay, KeyRecv, KeyRespond, KeySend, VertexBind, VertexRecv,
-        VertexRespond, VertexSend,
+        EventKey, ExecutionGraph, KeyDelay, KeyRecv, KeyRespond, KeySend, VertexBind, VertexDelay,
+        VertexRecv, VertexRespond, VertexSend,
     },
     messages,
     scenario::{ActorName, EventName, Msg, RequiredToBe},
@@ -88,7 +89,13 @@ pub struct Runner<'a> {
     proxies: Vec<Proxy>,
     bindings: HashMap<String, Value>,
     envelopes: HashMap<KeyRecv, Envelope>,
-    delays: BTreeSet<(Instant, KeyDelay)>,
+    delays: Delays,
+}
+
+#[derive(Default)]
+struct Delays {
+    deadlines: BTreeSet<(Instant, KeyDelay, Duration)>,
+    steps: BTreeSet<(Duration, KeyDelay, Instant)>,
 }
 
 #[derive(Default)]
@@ -184,8 +191,17 @@ impl<'a> Runner<'a> {
         C: for<'de> serde::de::Deserializer<'de>,
     {
         let proxies = vec![elfo::test::proxy(blueprint, config).await];
+        let mut delays = Delays::default();
 
         let ready_events = graph.vertices.entry_points.clone();
+
+        let now = Instant::now();
+        ready_events.iter().copied().for_each(|k| {
+            if let EventKey::Delay(k) = k {
+                delays.insert(now, k, &graph.vertices.delay[k]);
+            }
+        });
+
         let key_requires_values = graph
             .vertices
             .key_unblocks_values
@@ -208,13 +224,13 @@ impl<'a> Runner<'a> {
 
             ready_events,
             key_requires_values,
+            delays,
 
             proxies,
             actors: Default::default(),
             dummies: Default::default(),
             bindings: Default::default(),
             envelopes: Default::default(),
-            delays: Default::default(),
         }
     }
 
@@ -351,10 +367,10 @@ impl<'a> Runner<'a> {
                     let VertexBind { dst, src } = &vertices.bind[bind_key];
 
                     let value = match src {
-                        Msg::Exact(value) => value.clone(),
+                        Msg::Literal(value) => value.clone(),
                         Msg::Bind(template) => messages::render(template.clone(), &self.bindings)
                             .map_err(RunError::Marshalling)?,
-                        Msg::Injected(_key) => {
+                        Msg::Inject(_key) => {
                             return Err(RunError::Marshalling(
                                 "can't use injected values in bind-nodes".into(),
                             ))
@@ -447,7 +463,6 @@ impl<'a> Runner<'a> {
 
                 actually_fired_events.push(EventKey::Send(k));
             }
-
             ReadyEventKey::Respond(k) => {
                 let VertexRespond {
                     respond_to,
@@ -504,12 +519,12 @@ impl<'a> Runner<'a> {
                 actually_fired_events.push(EventKey::Respond(k));
             }
 
-            ReadyEventKey::RecvOrDelay => {
+            ReadyEventKey::RecvOrDelay => 'recv_or_delay: loop {
                 for p in self.proxies.iter_mut() {
                     p.sync().await;
                 }
 
-                debug!(" receiving...");
+                trace!(" receiving...");
 
                 let ready_recv_keys = {
                     let mut tmp = self
@@ -529,6 +544,8 @@ impl<'a> Runner<'a> {
 
                 trace!("ready_recv_keys: {:#?}", ready_recv_keys);
 
+                let mut unmatched_envelopes = 0;
+
                 for (proxy_idx, proxy) in self.proxies.iter_mut().enumerate() {
                     trace!(" try_recv at proxies[{}]", proxy_idx);
                     let Some(envelope) = proxy.try_recv().await else {
@@ -541,6 +558,8 @@ impl<'a> Runner<'a> {
                     trace!("  from: {:?}", sent_from);
                     trace!("  to:   {:?}", sent_to_opt);
                     trace!("  msg-name: {}", envelope.message().name());
+
+                    let mut envelope_unused = true;
 
                     for recv_key in ready_recv_keys.iter().copied() {
                         trace!(
@@ -626,23 +645,48 @@ impl<'a> Runner<'a> {
                         self.ready_events.remove(&EventKey::Recv(recv_key));
                         actually_fired_events.push(EventKey::Recv(recv_key));
 
+                        envelope_unused = false;
                         break;
+                    }
+
+                    if envelope_unused {
+                        unmatched_envelopes += 1;
                     }
                 }
 
-                if actually_fired_events.is_empty() {
-                    if let Some((sleep_until, delay_key)) = self.delays.pop_first() {
-                        debug!(
+                match (actually_fired_events.is_empty(), unmatched_envelopes == 0) {
+                    (true, true) => {
+                        let now = Instant::now();
+                        let (sleep_until, expired_keys) = self.delays.next(now);
+
+                        trace!(
                             "nothing to do — sleeping for {:?}...",
-                            vertices.delay[delay_key].0
+                            sleep_until.checked_duration_since(now),
                         );
 
                         tokio::time::sleep_until(sleep_until).await;
-                        self.ready_events.remove(&EventKey::Delay(delay_key));
-                        actually_fired_events.push(EventKey::Delay(delay_key));
+
+                        let some_keys_expired = !expired_keys.is_empty();
+
+                        for delay_key in expired_keys {
+                            self.ready_events.remove(&EventKey::Delay(delay_key));
+                            actually_fired_events.push(EventKey::Delay(delay_key));
+                        }
+
+                        if some_keys_expired || sleep_until == now {
+                            break 'recv_or_delay;
+                        }
+                    }
+                    (true, false) => {
+                        trace!("no fired events, but some unhandled envelopes");
+                    }
+
+                    (false, _) => {
+                        trace!("some events fired. Good!");
+                        break 'recv_or_delay;
                     }
                 }
-            }
+            },
         };
 
         for fired_event in actually_fired_events.iter() {
@@ -664,11 +708,7 @@ impl<'a> Runner<'a> {
                         self.ready_events.insert(d);
 
                         if let EventKey::Delay(k) = d {
-                            let duration = vertices.delay[k].0;
-                            let instant = Instant::now()
-                                .checked_add(duration)
-                                .expect("please pretty please");
-                            self.delays.insert((instant, k));
+                            self.delays.insert(Instant::now(), k, &vertices.delay[k]);
                         }
                     }
                 }
@@ -801,5 +841,53 @@ impl Dummies {
         }
         self.excluded.insert(actor_name);
         Ok(())
+    }
+}
+
+impl Delays {
+    pub fn next(&mut self, now: Instant) -> (Instant, Vec<KeyDelay>) {
+        let mut expired = vec![];
+
+        assert_eq!(self.deadlines.len(), self.steps.len());
+
+        let closest_deadline = loop {
+            let Some(&(deadline, key, step)) = self.deadlines.first() else {
+                break now;
+            };
+            if deadline < now {
+                self.deadlines.remove(&(deadline, key, step));
+                self.steps.remove(&(step, key, deadline));
+
+                expired.push(key);
+            } else {
+                break deadline;
+            }
+        };
+
+        assert_eq!(self.deadlines.len(), self.steps.len());
+
+        let smallest_step = self
+            .steps
+            .first()
+            .map_or(Duration::ZERO, |(step, _, _)| *step);
+
+        let effective_deadline = now
+            .checked_add(smallest_step)
+            .unwrap_or(now)
+            .min(closest_deadline);
+
+        (effective_deadline, expired)
+    }
+
+    pub fn insert(&mut self, now: Instant, key: KeyDelay, delay_vertex: &VertexDelay) {
+        let delay_for = delay_vertex.delay_for;
+        let step = delay_vertex.delay_step;
+
+        let deadline = now.checked_add(delay_for).expect("please pretty please");
+
+        let new_d_entry = self.deadlines.insert((deadline, key, step));
+        let new_s_entry = self.steps.insert((step, key, deadline));
+
+        assert!(new_d_entry && new_s_entry);
     }
 }

@@ -131,7 +131,7 @@ where
         trace!("      bind-to: {:?}", bind_to);
 
         match bind_to {
-            Msg::Exact(value) => {
+            Msg::Literal(value) => {
                 if serialized == *value {
                     Some(Default::default())
                 } else {
@@ -147,7 +147,7 @@ where
                 }
             }
 
-            Msg::Injected(_name) => Some(Default::default()),
+            Msg::Inject(_name) => Some(Default::default()),
         }
     }
     fn marshall(
@@ -163,11 +163,11 @@ where
                 let a = AnyMessage::new(m);
                 Ok(a)
             }
-            Msg::Injected(name) => {
+            Msg::Inject(name) => {
                 let a = messages.values.get(&name).cloned().ok_or("no such value")?;
                 Ok(a)
             }
-            Msg::Exact(value) => {
+            Msg::Literal(value) => {
                 let m: M = serde_json::from_value(value)?;
                 let a = AnyMessage::new(m);
                 Ok(a)
@@ -194,7 +194,7 @@ where
         trace!("      bind-to: {:?}", bind_to);
 
         match bind_to {
-            Msg::Exact(value) => {
+            Msg::Literal(value) => {
                 if serialized == *value {
                     Some(Default::default())
                 } else {
@@ -210,7 +210,7 @@ where
                 }
             }
 
-            Msg::Injected(_name) => Some(Default::default()),
+            Msg::Inject(_name) => Some(Default::default()),
         }
     }
     fn marshall(
@@ -226,11 +226,11 @@ where
                 let a = AnyMessage::new(m);
                 Ok(a)
             }
-            Msg::Injected(name) => {
+            Msg::Inject(name) => {
                 let a = messages.values.get(&name).cloned().ok_or("no such value")?;
                 Ok(a)
             }
-            Msg::Exact(value) => {
+            Msg::Literal(value) => {
                 let m: Rq::Wrapper = serde_json::from_value(value)?;
                 let a = AnyMessage::new(m);
                 Ok(a)
@@ -257,7 +257,7 @@ where
         trace!("      bind-to: {:?}", bind_to);
 
         match bind_to {
-            Msg::Exact(value) => {
+            Msg::Literal(value) => {
                 if serialized == *value {
                     Some(Default::default())
                 } else {
@@ -273,7 +273,7 @@ where
                 }
             }
 
-            Msg::Injected(_name) => Some(Default::default()),
+            Msg::Inject(_name) => Some(Default::default()),
         }
     }
     fn marshall(
@@ -289,11 +289,11 @@ where
                 let a = AnyMessage::new(w);
                 Ok(a)
             }
-            Msg::Injected(name) => {
+            Msg::Inject(name) => {
                 let a = messages.values.get(&name).cloned().ok_or("no such value")?;
                 Ok(a)
             }
-            Msg::Exact(value) => {
+            Msg::Literal(value) => {
                 let w: Rq::Wrapper = serde_json::from_value(value)?;
                 let a = AnyMessage::new(w);
                 Ok(a)
@@ -331,7 +331,7 @@ where
                         Err(e) => Err(e.into()),
                     }
                 }
-                Msg::Injected(name) => {
+                Msg::Inject(name) => {
                     let a = messages.values.get(&name).cloned().ok_or("no such value")?;
                     if let Ok(response) = a.downcast::<Rq::Wrapper>() {
                         proxy.respond(token, response.into());
@@ -340,7 +340,7 @@ where
                         Err("couldn't cast".into())
                     }
                 }
-                Msg::Exact(value) => {
+                Msg::Literal(value) => {
                     let de: Result<Rq::Wrapper, _> = serde_json::from_value(value);
                     match de {
                         Ok(w) => {
