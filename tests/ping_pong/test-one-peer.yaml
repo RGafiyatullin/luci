@@ -1,0 +1,119 @@
+types:
+  - use: ping_pong::proto::Bro
+    as:  Bro
+  - use: ping_pong::proto::Ping
+    as:  Ping
+  - use: ping_pong::proto::Pong
+    as:  Pong
+  - use: ping_pong::proto::Bye
+    as:  Bye
+
+cast:
+  - p0
+  - p1
+
+events:
+  - id: initial-bro
+    require: reached
+    recv:
+      type: Bro
+      from: p0
+      data:
+        exact:
+          - luci
+          - Bro
+          - ~
+  
+  - id: p1-bro-back-to-p0
+    after:
+      - initial-bro
+    send:
+      from: p1
+      to: p0
+      type: Bro
+      data:
+        exact: ~
+  
+  - id: delay-1
+    after:
+      - p1-bro-back-to-p0
+    delay: 10s
+
+  - id: p0-pings-p1
+    require: reached
+    after:
+      - delay-1
+    recv:
+      from: p0
+      to: p1
+      type: Ping
+      data:
+        bind:
+          - luci
+          - Ping
+          - req_id: $REQ_ID[0:1][1]
+      
+  - id: p1-pongs-p0
+    after:
+      - p0-pings-p1
+    send:
+      from: p1
+      to: p0
+      type: Pong
+      data:
+        bind:
+          req_id: $REQ_ID[0:1][1]
+  
+  - id: delay-2
+    after:
+      - p1-pongs-p0
+    delay: 10s
+  
+  - id: p0-pings-p1-again
+    require: reached
+    after:
+      - delay-2
+    recv:
+      from: p0
+      to: p1
+      type: Ping
+      data:
+        bind:
+          - luci
+          - Ping
+          - req_id: $REQ_ID[0:1][2]
+  
+  - id: delay-3
+    after:
+      - p0-pings-p1-again
+    delay: 10s
+
+  - id: p0-byes-p1
+    require: reached
+    after:
+      - delay-3
+    recv:
+      from: p0
+      to: p1
+      type: Bye
+      data:
+        bind:
+          - luci
+          - Bye
+          - ~
+
+  - id: no-more-pings-from-p0-to-p1
+    require: unreached
+    after:
+      - p0-pings-p1-again
+    recv:
+      from: p0
+      to: p1
+      type: Ping
+      data:
+        bind: $_
+
+  - id: delay-4
+    after:
+      - p0-byes-p1
+    delay: 10m

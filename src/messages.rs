@@ -124,7 +124,7 @@ where
         if !envelope.is::<M>() {
             return None;
         }
-        
+
         let serialized = serde_json::to_value(envelope.message()).ok()?;
 
         trace!("      serialized: {:?}", serialized);
@@ -250,7 +250,7 @@ where
         if !envelope.is::<Rq::Wrapper>() {
             return None;
         }
-        
+
         let serialized = serde_json::to_value(envelope.message()).ok()?;
 
         trace!("      serialized: {:?}", serialized);
@@ -356,7 +356,11 @@ where
     }
 }
 
-fn bind_to_pattern(value: Value, pattern: &Value, bindings: &mut HashMap<String, Value>) -> bool {
+pub fn bind_to_pattern(
+    value: Value,
+    pattern: &Value,
+    bindings: &mut HashMap<String, Value>,
+) -> bool {
     use std::collections::hash_map::Entry::*;
     match (value, pattern) {
         (_, Value::String(wildcard)) if wildcard == "$_" => true,
@@ -392,7 +396,7 @@ fn bind_to_pattern(value: Value, pattern: &Value, bindings: &mut HashMap<String,
     }
 }
 
-fn render(template: Value, bindings: &HashMap<String, Value>) -> Result<Value, AnError> {
+pub fn render(template: Value, bindings: &HashMap<String, Value>) -> Result<Value, AnError> {
     match template {
         Value::String(wildcard) if wildcard == "$_" => Err("can't render $_".into()),
         Value::String(var_name) if var_name.starts_with('$') => bindings

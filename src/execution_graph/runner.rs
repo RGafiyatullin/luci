@@ -5,17 +5,18 @@ use std::{
 
 use elfo::_priv::MessageKind;
 use elfo::{test::Proxy, Addr, Blueprint, Envelope, Message};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::time::Instant;
-use tracing::{debug, trace};
+use tracing::{debug, info, trace};
 
 use crate::{
     execution_graph::{
-        EventKey, ExecutionGraph, KeyDelay, KeyRecv, KeyRespond, KeySend, VertexRecv,
+        EventKey, ExecutionGraph, KeyDelay, KeyRecv, KeyRespond, KeySend, VertexBind, VertexRecv,
         VertexRespond, VertexSend,
     },
     messages,
-    scenario::{ActorName, EventName},
+    scenario::{ActorName, EventName, Msg, RequiredToBe},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -23,13 +24,13 @@ pub enum RunError {
     #[error("event is not ready: {:?}", _0)]
     EventIsNotReady(ReadyEventKey),
 
-    #[error("name already taken by a dummy: {:?}", _0)]
+    #[error("name already taken by a dummy: {}", _0)]
     DummyName(ActorName),
 
-    #[error("name already taken by an actor: {:?}", _0)]
+    #[error("name already taken by an actor: {}", _0)]
     ActorName(ActorName),
 
-    #[error("name has not yet been bound to an address: {:?}", _0)]
+    #[error("name has not yet been bound to an address: {}", _0)]
     UnboundName(ActorName),
 
     #[error("no request envelope found")]
@@ -41,6 +42,7 @@ pub enum RunError {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ReadyEventKey {
+    Bind,
     RecvOrDelay,
     Send(KeySend),
     Respond(KeyRespond),
@@ -49,6 +51,7 @@ pub enum ReadyEventKey {
 impl From<EventKey> for ReadyEventKey {
     fn from(e: EventKey) -> Self {
         match e {
+            EventKey::Bind(_) => Self::Bind,
             EventKey::Send(k) => Self::Send(k),
             EventKey::Respond(k) => Self::Respond(k),
             EventKey::Delay(_) | EventKey::Recv(_) => Self::RecvOrDelay,
@@ -59,6 +62,7 @@ impl TryFrom<ReadyEventKey> for EventKey {
     type Error = ();
     fn try_from(e: ReadyEventKey) -> Result<Self, Self::Error> {
         match e {
+            ReadyEventKey::Bind => Err(()),
             ReadyEventKey::Send(k) => Ok(Self::Send(k)),
             ReadyEventKey::Respond(k) => Ok(Self::Respond(k)),
             ReadyEventKey::RecvOrDelay => Err(()),
@@ -66,10 +70,15 @@ impl TryFrom<ReadyEventKey> for EventKey {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Report {
+    pub reached: HashMap<EventName, RequiredToBe>,
+    pub unreached: HashMap<EventName, RequiredToBe>,
+}
+
 pub struct Runner<'a> {
     graph: &'a ExecutionGraph,
 
-    mandatory_events: HashSet<EventKey>,
     ready_events: BTreeSet<EventKey>,
     key_requires_values: HashMap<EventKey, HashSet<EventKey>>,
 
@@ -98,6 +107,68 @@ struct Dummies {
     excluded: HashSet<ActorName>,
 }
 
+impl Report {
+    pub fn is_ok(&self) -> bool {
+        self.reached
+            .iter()
+            .all(|(_, r)| matches!(r, RequiredToBe::Reached))
+            && self
+                .unreached
+                .iter()
+                .all(|(_, r)| matches!(r, RequiredToBe::Unreached))
+    }
+    pub fn message(&self) -> String {
+        let r_r = self
+            .reached
+            .iter()
+            .filter(|(_, r)| matches!(r, RequiredToBe::Reached))
+            .count();
+        let r_u = self
+            .reached
+            .iter()
+            .filter(|(_, r)| matches!(r, RequiredToBe::Unreached))
+            .count();
+        let u_r = self
+            .unreached
+            .iter()
+            .filter(|(_, r)| matches!(r, RequiredToBe::Reached))
+            .count();
+        let u_u = self
+            .unreached
+            .iter()
+            .filter(|(_, r)| matches!(r, RequiredToBe::Unreached))
+            .count();
+
+        let mut out = format!(
+            r#"
+Reached:
+    Ok:  {r_r}
+    Err: {r_u}
+Unreached:
+    Ok:  {u_u}
+    Err: {u_r}
+"#
+        );
+
+        for (e, _) in self
+            .unreached
+            .iter()
+            .filter(|(_, r)| matches!(r, RequiredToBe::Reached))
+        {
+            out.push_str(format!("! unreached {}\n", { e }).as_str());
+        }
+        for (e, _) in self
+            .reached
+            .iter()
+            .filter(|(_, r)| matches!(r, RequiredToBe::Unreached))
+        {
+            out.push_str(format!("! reached   {}\n", { e }).as_str());
+        }
+
+        out
+    }
+}
+
 impl ExecutionGraph {
     pub async fn make_runner<C>(&self, blueprint: Blueprint, config: C) -> Runner<'_>
     where
@@ -114,7 +185,6 @@ impl<'a> Runner<'a> {
     {
         let proxies = vec![elfo::test::proxy(blueprint, config).await];
 
-        let mandatory_events = graph.vertices.mandatory.clone();
         let ready_events = graph.vertices.entry_points.clone();
         let key_requires_values = graph
             .vertices
@@ -136,7 +206,6 @@ impl<'a> Runner<'a> {
         Self {
             graph,
 
-            mandatory_events,
             ready_events,
             key_requires_values,
 
@@ -149,7 +218,52 @@ impl<'a> Runner<'a> {
         }
     }
 
+    pub async fn run(mut self) -> Result<Report, RunError> {
+        let mut unreached = self.graph.vertices.required.clone();
+        let mut reached = HashMap::new();
+        loop {
+            let Some(event_key) = self.ready_events().next() else {
+                break;
+            };
+
+            info!("firing: {:?}", event_key);
+
+            let fired_events = self.fire_event(event_key).await?;
+            info!("fired events: {:?}", fired_events);
+
+            if fired_events.is_empty() {
+                info!("no more progress. I think we're done here.");
+                break;
+            }
+
+            for event_id in fired_events {
+                let Some(r) = unreached.remove(&event_id) else {
+                    continue;
+                };
+                reached.insert(event_id, r);
+            }
+        }
+
+        let reached = reached
+            .into_iter()
+            .map(|(k, v)| (self.event_name(k).cloned().expect("bad event-key"), v))
+            .collect();
+        let unreached = unreached
+            .into_iter()
+            .map(|(k, v)| (self.event_name(k).cloned().expect("bad event-key"), v))
+            .collect();
+
+        Ok(Report { reached, unreached })
+    }
+
     pub fn ready_events(&self) -> impl Iterator<Item = ReadyEventKey> + '_ {
+        let binds = self
+            .ready_events
+            .iter()
+            .copied()
+            .filter(|k| matches!(k, EventKey::Bind(_)))
+            .map(ReadyEventKey::from)
+            .take(1);
         let send_and_respond = self
             .ready_events
             .iter()
@@ -163,16 +277,13 @@ impl<'a> Runner<'a> {
             .copied()
             .filter(|k| matches!(k, EventKey::Recv(_) | EventKey::Delay(_)))
             .map(ReadyEventKey::from)
-            .next();
+            .take(1);
 
-        send_and_respond.chain(recv_or_delay)
+        binds.chain(send_and_respond).chain(recv_or_delay)
     }
 
     pub fn event_name(&self, event_key: EventKey) -> Option<&EventName> {
         self.graph.vertices.names.get(&event_key)
-    }
-    pub fn mandatory_events(&self) -> impl Iterator<Item = EventKey> + '_ {
-        self.mandatory_events.iter().copied()
     }
 
     pub async fn fire_event(
@@ -186,11 +297,12 @@ impl<'a> Runner<'a> {
                 return Err(RunError::EventIsNotReady(ready_event_key));
             }
         } else {
-            if !self
-                .ready_events
-                .iter()
-                .any(|e| matches!(e, EventKey::Recv(_) | EventKey::Delay(_)))
-            {
+            if !self.ready_events.iter().any(|e| {
+                matches!(
+                    e,
+                    EventKey::Recv(_) | EventKey::Delay(_) | EventKey::Bind(_)
+                )
+            }) {
                 return Err(RunError::EventIsNotReady(ready_event_key));
             }
         }
@@ -206,13 +318,78 @@ impl<'a> Runner<'a> {
 
             debug!("firing {:?}...", event_name);
         } else {
-            debug!("receiving...");
+            debug!("doing {:?}", ready_event_key);
         }
 
         let ExecutionGraph { messages, vertices } = self.graph;
 
         let mut actually_fired_events = vec![];
         match ready_event_key {
+            ReadyEventKey::Bind => {
+                let ready_bind_keys = {
+                    let mut tmp = self
+                        .ready_events
+                        .iter()
+                        .filter_map(|e| {
+                            if let EventKey::Bind(k) = e {
+                                Some(*k)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    tmp.sort_by_key(|k| vertices.priority.get(&EventKey::Bind(*k)));
+                    tmp
+                };
+
+                trace!("ready_bind_keys: {:#?}", ready_bind_keys);
+
+                for bind_key in ready_bind_keys {
+                    self.ready_events.remove(&EventKey::Bind(bind_key));
+
+                    trace!(" binding {:?}", bind_key);
+                    let VertexBind { dst, src } = &vertices.bind[bind_key];
+
+                    let value = match src {
+                        Msg::Exact(value) => value.clone(),
+                        Msg::Bind(template) => messages::render(template.clone(), &self.bindings)
+                            .map_err(RunError::Marshalling)?,
+                        Msg::Injected(_key) => {
+                            return Err(RunError::Marshalling(
+                                "can't use injected values in bind-nodes".into(),
+                            ))
+                        }
+                    };
+
+                    let mut kv = Default::default();
+                    if !messages::bind_to_pattern(value, dst, &mut kv) {
+                        trace!("  could not bind {:?}", bind_key);
+                        continue;
+                    }
+
+                    let Ok(kv) = kv
+                        .into_iter()
+                        .map(|(k, v1)| {
+                            if self.bindings.get(&k).is_some_and(|v0| !v1.eq(v0)) {
+                                Err(())
+                            } else {
+                                Ok((k, v1))
+                            }
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                    else {
+                        trace!("  binding mismatch");
+                        continue;
+                    };
+
+                    for (k, v) in kv {
+                        trace!("  bind {} <- {:?}", k, v);
+                        self.bindings.insert(k, v);
+                    }
+
+                    actually_fired_events.push(EventKey::Bind(bind_key));
+                }
+            }
             ReadyEventKey::Send(k) => {
                 let VertexSend {
                     send_from,
@@ -469,8 +646,6 @@ impl<'a> Runner<'a> {
         };
 
         for fired_event in actually_fired_events.iter() {
-            self.mandatory_events.remove(fired_event);
-
             if let Some(ds) = vertices.key_unblocks_values.get(fired_event) {
                 for d in ds.iter().copied() {
                     let std::collections::hash_map::Entry::Occupied(mut remove_from) =

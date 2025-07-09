@@ -1,20 +1,22 @@
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{BTreeSet, HashMap},
     sync::Arc,
     time::Duration,
 };
 
+use serde_json::Value;
 use slotmap::{new_key_type, SlotMap};
 
 use crate::{
     messages::Messages,
-    scenario::{ActorName, EventName, Msg},
+    scenario::{ActorName, EventName, Msg, RequiredToBe},
 };
 
 mod build;
 mod runner;
 
 new_key_type! {
+    pub struct KeyBind;
     pub struct KeySend;
     pub struct KeyRecv;
     pub struct KeyRespond;
@@ -23,6 +25,7 @@ new_key_type! {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum EventKey {
+    Bind(KeyBind),
     Send(KeySend),
     Recv(KeyRecv),
     Respond(KeyRespond),
@@ -38,9 +41,10 @@ pub struct ExecutionGraph {
 #[derive(Debug, Default)]
 struct Vertices {
     priority: HashMap<EventKey, usize>,
-    mandatory: HashSet<EventKey>,
+    required: HashMap<EventKey, RequiredToBe>,
     names: HashMap<EventKey, EventName>,
 
+    bind: SlotMap<KeyBind, VertexBind>,
     send: SlotMap<KeySend, VertexSend>,
     recv: SlotMap<KeyRecv, VertexRecv>,
     respond: SlotMap<KeyRespond, VertexRespond>,
@@ -73,6 +77,12 @@ struct VertexRespond {
     request_fqn: Arc<str>,
     respond_from: Option<ActorName>,
     message_data: Msg,
+}
+
+#[derive(Debug)]
+struct VertexBind {
+    dst: Value,
+    src: Msg,
 }
 
 #[derive(Debug)]

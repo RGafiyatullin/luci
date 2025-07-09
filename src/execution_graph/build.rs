@@ -5,7 +5,11 @@ use std::{
 
 use tracing::{debug, trace};
 
-use crate::{execution_graph::EventKey, messages};
+use crate::{
+    execution_graph::{EventKey, VertexBind},
+    messages,
+    scenario::{EventBind, EventRecv, EventRespond, EventSend},
+};
 use crate::{
     execution_graph::{
         ExecutionGraph, VertexDelay, VertexRecv, VertexRespond, VertexSend, Vertices,
@@ -16,25 +20,25 @@ use crate::{
 
 #[derive(Debug, thiserror::Error)]
 pub enum BuildError<'a> {
-    #[error("unknown event: {:?}", _0)]
+    #[error("unknown event: {}", _0)]
     UnknownEvent(&'a EventName),
 
-    #[error("not a request: {:?}", _0)]
+    #[error("not a request: {}", _0)]
     NotARequest(&'a EventName),
 
-    #[error("unknown actor: {:?}", _0)]
+    #[error("unknown actor: {}", _0)]
     UnknownActor(&'a ActorName),
 
-    #[error("unknown FQN: {:?}", _0)]
+    #[error("unknown FQN: {}", _0)]
     UnknownFqn(&'a str),
 
-    #[error("unknown alias: {:?}", _0)]
+    #[error("unknown alias: {}", _0)]
     UnknownAlias(&'a MessageName),
 
-    #[error("duplicate alias: {:?}", _0)]
+    #[error("duplicate alias: {}", _0)]
     DuplicateAlias(&'a MessageName),
 
-    #[error("duplicate actor name: {:?}", _0)]
+    #[error("duplicate actor name: {}", _0)]
     DuplicateActorName(&'a ActorName),
 
     #[error("invalid data: {}", _0)]
@@ -74,6 +78,7 @@ impl Builder {
         debug!("building the graph...");
         let vertices = build_graph(&scenario.events, &type_aliases, &actors, &messages)?;
 
+        debug!("- bind-vertices:\t{}", vertices.bind.len());
         debug!("- send-vertices:\t{}", vertices.send.len());
         debug!("- recv-vertices:\t{}", vertices.recv.len());
         debug!("- respond-vertices:\t{}", vertices.respond.len());
@@ -134,7 +139,6 @@ fn build_graph<'a>(
         debug!(" processing event[{:?}]...", event.id);
 
         let this_name = &event.id;
-        let is_mandatory = event.mandatory;
         let after = resolve_event_ids(&idx_keys, &event.after).collect::<Result<Vec<_>, _>>()?;
 
         let this_key = match &event.kind {
@@ -142,43 +146,56 @@ fn build_graph<'a>(
                 let key = vertices.delay.insert(VertexDelay(*duration));
                 EventKey::Delay(key)
             }
-            EventKind::Recv(def_recv) => {
-                let type_fqn = type_aliases
-                    .get(&def_recv.message_type)
-                    .cloned()
-                    .ok_or(BuildError::UnknownAlias(&def_recv.message_type))?;
 
-                for a in def_recv
-                    .to
-                    .as_ref()
-                    .into_iter()
-                    .chain(def_recv.from.as_ref())
-                {
+            EventKind::Bind(def_bind) => {
+                let EventBind { dst, src } = def_bind;
+                let dst = dst.clone();
+                let src = src.clone();
+                let key = vertices.bind.insert(VertexBind { dst, src });
+
+                EventKey::Bind(key)
+            }
+            EventKind::Recv(def_recv) => {
+                let EventRecv {
+                    message_type,
+                    message_data,
+                    from,
+                    to,
+                } = def_recv;
+
+                let type_fqn = type_aliases
+                    .get(message_type)
+                    .cloned()
+                    .ok_or(BuildError::UnknownAlias(&message_type))?;
+
+                for a in to.as_ref().into_iter().chain(from) {
                     if !actors.contains(a) {
                         return Err(BuildError::UnknownActor(a));
                     }
                 }
 
-                // let marshaller = messages.resolve(&type_fqn).expect("an invalid fqn");
-                // let _ = marshaller
-                //     .marshall(&Default::default(), def_recv.message_data.clone())
-                //     .map_err(BuildError::InvalidData)?;
-
                 let key = vertices.recv.insert(VertexRecv {
-                    match_from: def_recv.from.clone(),
-                    match_to: def_recv.to.clone(),
+                    match_from: from.clone(),
+                    match_to: to.clone(),
                     match_type: type_fqn,
-                    match_message: def_recv.message_data.clone(),
+                    match_message: message_data.clone(),
                 });
                 EventKey::Recv(key)
             }
             EventKind::Send(def_send) => {
-                let type_fqn = type_aliases
-                    .get(&def_send.message_type)
-                    .cloned()
-                    .ok_or(BuildError::UnknownAlias(&def_send.message_type))?;
+                let EventSend {
+                    from,
+                    to,
+                    message_type,
+                    message_data,
+                } = def_send;
 
-                for a in def_send.to.as_ref().into_iter().chain([&def_send.from]) {
+                let type_fqn = type_aliases
+                    .get(message_type)
+                    .cloned()
+                    .ok_or(BuildError::UnknownAlias(message_type))?;
+
+                for a in to.as_ref().into_iter().chain([from]) {
                     if !actors.contains(&a) {
                         return Err(BuildError::UnknownActor(&a));
                     }
@@ -189,20 +206,20 @@ fn build_graph<'a>(
                 //     .map_err(BuildError::InvalidData)?;
 
                 let key = vertices.send.insert(VertexSend {
-                    send_from: def_send.from.clone(),
-                    send_to: def_send.to.clone(),
+                    send_from: from.clone(),
+                    send_to: to.clone(),
                     message_type: type_fqn,
                     // TODO: try actually marshalling this value using this `type_fqn`.
-                    message_data: def_send.message_data.clone(),
+                    message_data: message_data.clone(),
                 });
                 EventKey::Send(key)
             }
             EventKind::Respond(def_respond) => {
-                let causing_event_key = idx_keys
-                    .get(&def_respond.to)
-                    .ok_or(BuildError::UnknownEvent(&def_respond.to))?;
+                let EventRespond { from, to, data } = def_respond;
+
+                let causing_event_key = idx_keys.get(&to).ok_or(BuildError::UnknownEvent(&to))?;
                 let EventKey::Recv(recv_key) = causing_event_key else {
-                    return Err(BuildError::NotARequest(&def_respond.to));
+                    return Err(BuildError::NotARequest(&to));
                 };
                 let request_fqn = vertices
                     .recv.get(*recv_key)
@@ -212,19 +229,23 @@ fn build_graph<'a>(
                 // TODO: 1. Check whether the `request_fqn` is a request.
                 // TODO: 2. Try actually marshalling this value using `request_fqn`.
 
-                if let Some(bad_actor) = def_respond.from.as_ref().filter(|a| !actors.contains(a)) {
+                if let Some(bad_actor) = from.as_ref().filter(|a| !actors.contains(a)) {
                     return Err(BuildError::UnknownActor(bad_actor));
                 }
 
                 let key = vertices.respond.insert(VertexRespond {
                     respond_to: *recv_key,
                     request_fqn,
-                    respond_from: def_respond.from.clone(),
-                    message_data: def_respond.data.clone(),
+                    respond_from: from.clone(),
+                    message_data: data.clone(),
                 });
                 EventKey::Respond(key)
             }
         };
+
+        if let Some(required_to_be) = event.require {
+            vertices.required.insert(this_key, required_to_be);
+        }
 
         if after.is_empty() {
             let should_be_a_new_element = vertices.entry_points.insert(this_key);
@@ -250,9 +271,6 @@ fn build_graph<'a>(
 
         trace!("  done: {:?} -> {:?}", this_name, this_key);
 
-        if is_mandatory {
-            vertices.mandatory.insert(this_key);
-        }
         priority.push(this_key);
         idx_keys.insert(this_name, this_key);
     }
