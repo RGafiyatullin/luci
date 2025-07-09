@@ -3,6 +3,9 @@ use std::{sync::Arc, time::Duration};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+mod no_extra;
+use no_extra::NoExtra;
+
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, derive_more::Display,
 )]
@@ -54,6 +57,9 @@ pub struct Scenario {
     pub types: Vec<TypeAlias>,
     pub cast: Vec<ActorName>,
     pub events: Vec<EventDef>,
+
+    #[serde(flatten)]
+    pub no_extra: NoExtra,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,6 +76,9 @@ pub struct EventDef {
 
     #[serde(flatten)]
     pub kind: EventKind,
+
+    #[serde(flatten)]
+    pub no_extra: NoExtra,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -86,6 +95,9 @@ pub enum EventKind {
 pub struct EventBind {
     pub dst: Value,
     pub src: Msg,
+
+    #[serde(flatten)]
+    pub no_extra: NoExtra,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,6 +112,9 @@ pub struct EventRecv {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to: Option<ActorName>,
+
+    #[serde(flatten)]
+    pub no_extra: NoExtra,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,6 +128,9 @@ pub struct EventSend {
     pub message_type: MessageName,
     #[serde(rename = "data")]
     pub message_data: Msg,
+
+    #[serde(flatten)]
+    pub no_extra: NoExtra,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,6 +140,9 @@ pub struct EventRespond {
 
     pub to: EventName,
     pub data: Msg,
+
+    #[serde(flatten)]
+    pub no_extra: NoExtra,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
