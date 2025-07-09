@@ -1,6 +1,22 @@
 [package]
 name = "luci"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
+derive_more = {version = "^2.0.1", features = ["debug", "from"]}
+futures = "^0.3"
+ghost = "^0.1"
+humantime-serde = "1"
+insta = {version = "^1", features = ["yaml"]}
+parking_lot = "^0.12"
+serde = {version = "^1", features = ["derive"]}
+serde_json = "^1"
+serde_yaml = "^0.9"
+slotmap = {version = "^1"}
+thiserror = "^1"
+tokio = {version = "^1", features = ["test-util", "time"]}
+tracing = "^0.1"
+
+elfo = {version = "0.2.0-alpha.18", features = ["test-util"]}
+elfo-configurer = { version = "0.2.0-alpha.18" }

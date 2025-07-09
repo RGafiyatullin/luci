@@ -1,1 +1,6 @@
 /target
+/.vscode
+/tests/priv-*
+/tests/snapshots/priv_*
+
+Cargo.lock
