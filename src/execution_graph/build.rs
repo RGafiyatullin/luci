@@ -145,11 +145,16 @@ fn build_graph<'a>(
             EventKind::Delay(def_delay) => {
                 let EventDelay {
                     delay_for,
+                    delay_step,
                     no_extra: _,
                 } = def_delay;
                 let delay_for = *delay_for;
+                let delay_step = *delay_step;
 
-                let key = vertices.delay.insert(VertexDelay { period: delay_for });
+                let key = vertices.delay.insert(VertexDelay {
+                    delay_for,
+                    delay_step,
+                });
                 EventKey::Delay(key)
             }
 

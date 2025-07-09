@@ -151,6 +151,11 @@ pub struct EventDelay {
     #[serde(rename = "for")]
     pub delay_for: Duration,
 
+    #[serde(with = "humantime_serde")]
+    #[serde(rename = "step")]
+    #[serde(default = "defaults::default_delay_step")]
+    pub delay_step: Duration,
+
     #[serde(flatten)]
     pub no_extra: NoExtra,
 }
@@ -158,7 +163,17 @@ pub struct EventDelay {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Msg {
-    Exact(Value),
+    #[serde(alias = "exact")]
+    Literal(Value),
     Bind(Value),
-    Injected(String),
+    #[serde(alias = "injected")]
+    Inject(String),
+}
+
+mod defaults {
+    use std::time::Duration;
+
+    pub fn default_delay_step() -> Duration {
+        Duration::from_millis(25)
+    }
 }

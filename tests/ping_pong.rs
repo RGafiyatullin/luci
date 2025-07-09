@@ -75,6 +75,7 @@ pub mod pinger {
                 }
                 proto::Bro => {
                     if peers.insert(sender) {
+                        info!("BRO! {}", sender);
                         if let Err(reason) = ctx.send_to(sender, proto::Bro).await {
                             warn!("error while bro-eing back {}: {}", sender, reason);
                         }
@@ -85,6 +86,7 @@ pub mod pinger {
                     let _ = ctx.send_to(sender, proto::Pong { req_id });
                 }
                 proto::Pong => {
+                    info!("received a pong");
                     eviction_candidates.remove(&sender);
                 }
             })

@@ -87,5 +87,6 @@ struct VertexBind {
 
 #[derive(Debug)]
 struct VertexDelay {
-    period: Duration,
+    delay_for: Duration,
+    delay_step: Duration,
 }
