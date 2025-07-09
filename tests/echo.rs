@@ -57,24 +57,5 @@ async fn run_scenario(scenario_text: &str) {
         .await
         .expect("runner.run");
 
-    let mut okay = true;
-    for (event_name, required) in report
-        .reached
-        .into_iter()
-        .filter(|(_, r)| matches!(r, RequiredToBe::Unreached))
-        .chain(
-            report
-                .unreached
-                .into_iter()
-                .filter(|(_, r)| matches!(r, RequiredToBe::Reached)),
-        )
-    {
-        okay = false;
-        let opposite = match required {
-            RequiredToBe::Reached => "unreached",
-            RequiredToBe::Unreached => "reached",
-        };
-        eprintln!("- {}: {}", event_name, opposite);
-    }
-    assert!(okay);
+    assert!(report.is_ok(), "{}", report.message());
 }
