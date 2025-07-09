@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{BTreeSet, HashMap},
     sync::Arc,
     time::Duration,
 };
@@ -8,7 +8,7 @@ use slotmap::{new_key_type, SlotMap};
 
 use crate::{
     messages::Messages,
-    scenario::{ActorName, EventName, Msg},
+    scenario::{ActorName, EventName, Msg, RequiredToBe},
 };
 
 mod build;
@@ -38,7 +38,7 @@ pub struct ExecutionGraph {
 #[derive(Debug, Default)]
 struct Vertices {
     priority: HashMap<EventKey, usize>,
-    mandatory: HashSet<EventKey>,
+    required: HashMap<EventKey, RequiredToBe>,
     names: HashMap<EventKey, EventName>,
 
     send: SlotMap<KeySend, VertexSend>,

@@ -124,7 +124,7 @@ where
         if !envelope.is::<M>() {
             return None;
         }
-        
+
         let serialized = serde_json::to_value(envelope.message()).ok()?;
 
         trace!("      serialized: {:?}", serialized);
@@ -250,7 +250,7 @@ where
         if !envelope.is::<Rq::Wrapper>() {
             return None;
         }
-        
+
         let serialized = serde_json::to_value(envelope.message()).ok()?;
 
         trace!("      serialized: {:?}", serialized);

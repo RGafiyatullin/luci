@@ -16,25 +16,25 @@ use crate::{
 
 #[derive(Debug, thiserror::Error)]
 pub enum BuildError<'a> {
-    #[error("unknown event: {:?}", _0)]
+    #[error("unknown event: {}", _0)]
     UnknownEvent(&'a EventName),
 
-    #[error("not a request: {:?}", _0)]
+    #[error("not a request: {}", _0)]
     NotARequest(&'a EventName),
 
-    #[error("unknown actor: {:?}", _0)]
+    #[error("unknown actor: {}", _0)]
     UnknownActor(&'a ActorName),
 
-    #[error("unknown FQN: {:?}", _0)]
+    #[error("unknown FQN: {}", _0)]
     UnknownFqn(&'a str),
 
-    #[error("unknown alias: {:?}", _0)]
+    #[error("unknown alias: {}", _0)]
     UnknownAlias(&'a MessageName),
 
-    #[error("duplicate alias: {:?}", _0)]
+    #[error("duplicate alias: {}", _0)]
     DuplicateAlias(&'a MessageName),
 
-    #[error("duplicate actor name: {:?}", _0)]
+    #[error("duplicate actor name: {}", _0)]
     DuplicateActorName(&'a ActorName),
 
     #[error("invalid data: {}", _0)]
@@ -134,7 +134,6 @@ fn build_graph<'a>(
         debug!(" processing event[{:?}]...", event.id);
 
         let this_name = &event.id;
-        let is_mandatory = event.mandatory;
         let after = resolve_event_ids(&idx_keys, &event.after).collect::<Result<Vec<_>, _>>()?;
 
         let this_key = match &event.kind {
@@ -226,6 +225,10 @@ fn build_graph<'a>(
             }
         };
 
+        if let Some(required_to_be) = event.require {
+            vertices.required.insert(this_key, required_to_be);
+        }
+
         if after.is_empty() {
             let should_be_a_new_element = vertices.entry_points.insert(this_key);
             assert!(
@@ -250,9 +253,6 @@ fn build_graph<'a>(
 
         trace!("  done: {:?} -> {:?}", this_name, this_key);
 
-        if is_mandatory {
-            vertices.mandatory.insert(this_key);
-        }
         priority.push(this_key);
         idx_keys.insert(this_name, this_key);
     }
