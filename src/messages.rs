@@ -195,7 +195,10 @@ where
             return None;
         }
 
-        let serialized = serde_json::to_value(envelope.message()).ok()?;
+        let Value::Array(mut triple) = serde_json::to_value(envelope.message()).ok()? else {
+            panic!("AnyMessage has changed serialization format?")
+        };
+        let serialized = std::mem::take(&mut triple[2]);
 
         trace!("      serialized: {:?}", serialized);
         trace!("      bind-to: {:?}", bind_to);
@@ -258,7 +261,10 @@ where
             return None;
         }
 
-        let serialized = serde_json::to_value(envelope.message()).ok()?;
+        let Value::Array(mut triple) = serde_json::to_value(envelope.message()).ok()? else {
+            panic!("AnyMessage has changed serialization format?")
+        };
+        let serialized = std::mem::take(&mut triple[2]);
 
         trace!("      serialized: {:?}", serialized);
         trace!("      bind-to: {:?}", bind_to);
