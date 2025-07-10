@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use elfo::{test::Proxy, AnyMessage, Envelope, ResponseToken};
+use elfo::{test::Proxy, AnyMessage, AnyMessageRef, Envelope, ResponseToken};
 use futures::{future::LocalBoxFuture, FutureExt};
 use ghost::phantom;
 use serde_json::Value;
@@ -68,6 +68,10 @@ impl<R> DynRespond for R where R: for<'a> Respond<'a> {}
 impl Messages {
     pub fn new() -> Self {
         Default::default()
+    }
+
+    pub fn value(&self, key: &str) -> Option<AnyMessageRef> {
+        self.values.get(key).map(|am| am.as_ref())
     }
 
     pub fn with<S>(mut self, supported: S) -> Self

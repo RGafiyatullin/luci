@@ -242,10 +242,14 @@ impl<'a> Runner<'a> {
                 break;
             };
 
-            info!("firing: {:?}", event_key);
+            debug!("firing: {:?}", event_key);
 
             let fired_events = self.fire_event(event_key).await?;
-            info!("fired events: {:?}", fired_events);
+
+            for ek in fired_events.iter() {
+                let en = self.event_name(*ek).expect("unknown event-key");
+                info!("fired event: {}", en);
+            }
 
             if fired_events.is_empty() {
                 info!("no more progress. I think we're done here.");
@@ -370,10 +374,12 @@ impl<'a> Runner<'a> {
                         Msg::Literal(value) => value.clone(),
                         Msg::Bind(template) => messages::render(template.clone(), &self.bindings)
                             .map_err(RunError::Marshalling)?,
-                        Msg::Inject(_key) => {
-                            return Err(RunError::Marshalling(
-                                "can't use injected values in bind-nodes".into(),
-                            ))
+                        Msg::Inject(key) => {
+                            eprintln!("BINDING INJECTED[{:?}]", key);
+                            let m = messages.value(key).ok_or(RunError::Marshalling(
+                                format!("no such key: {:?}", key).into(),
+                            ))?;
+                            serde_json::to_value(m).expect("can't serialize a message?")
                         }
                     };
 
