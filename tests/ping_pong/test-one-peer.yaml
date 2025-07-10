@@ -24,10 +24,7 @@ events:
       type: Bro
       from: p0
       data:
-        exact:
-          - luci
-          - Bro
-          - ~
+        exact: ~
   
   - id: p1-bro-back-to-p0
     after:
@@ -48,9 +45,7 @@ events:
       type: Ping
       data:
         bind:
-          - luci
-          - Ping
-          - req_id: $REQ_ID[0:1][1]
+          req_id: $REQ_ID[0:1][1]
       
   - id: p1-pongs-p0
     after:
@@ -72,9 +67,7 @@ events:
       type: Ping
       data:
         bind:
-          - luci
-          - Ping
-          - req_id: $REQ_ID[0:1][2]
+          req_id: $REQ_ID[0:1][2]
   
   - id: p0-byes-p1
     require: reached
@@ -85,10 +78,7 @@ events:
       to: p1
       type: Bye
       data:
-        bind:
-          - luci
-          - Bye
-          - ~
+        bind: ~
 
   - id: no-more-pings-from-p0-to-p1
     require: unreached
