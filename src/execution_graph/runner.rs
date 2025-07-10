@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::Duration;
 use tokio::time::Instant;
-use tracing::{debug, info, trace};
+use tracing::{debug, info, trace, warn};
 
 use crate::{
     execution_graph::{
@@ -242,10 +242,14 @@ impl<'a> Runner<'a> {
                 break;
             };
 
-            info!("firing: {:?}", event_key);
+            debug!("firing: {:?}", event_key);
 
             let fired_events = self.fire_event(event_key).await?;
-            info!("fired events: {:?}", fired_events);
+
+            for ek in fired_events.iter() {
+                let en = self.event_name(*ek).expect("unknown event-key");
+                info!("fired event: {}", en);
+            }
 
             if fired_events.is_empty() {
                 info!("no more progress. I think we're done here.");
@@ -370,10 +374,11 @@ impl<'a> Runner<'a> {
                         Msg::Literal(value) => value.clone(),
                         Msg::Bind(template) => messages::render(template.clone(), &self.bindings)
                             .map_err(RunError::Marshalling)?,
-                        Msg::Inject(_key) => {
-                            return Err(RunError::Marshalling(
-                                "can't use injected values in bind-nodes".into(),
-                            ))
+                        Msg::Inject(key) => {
+                            let m = messages.value(key).ok_or(RunError::Marshalling(
+                                format!("no such key: {:?}", key).into(),
+                            ))?;
+                            serde_json::to_value(m).expect("can't serialize a message?")
                         }
                     };
 
@@ -399,7 +404,7 @@ impl<'a> Runner<'a> {
                     };
 
                     for (k, v) in kv {
-                        trace!("  bind {} <- {:?}", k, v);
+                        info!("  bind {} <- {:?}", k, v);
                         self.bindings.insert(k, v);
                     }
 
@@ -552,6 +557,8 @@ impl<'a> Runner<'a> {
                         continue;
                     };
 
+                    let envelope_message_name = envelope.message().name();
+
                     let sent_from = envelope.sender();
                     let sent_to_opt = Some(proxy.addr()).filter(|_| proxy_idx != 0);
 
@@ -629,7 +636,7 @@ impl<'a> Runner<'a> {
                         };
 
                         for (k, v) in kv {
-                            trace!("    bind {} <- {:?}", k, v);
+                            info!("    bind {} <- {:?}", k, v);
                             self.bindings.insert(k, v);
                         }
                         if let Some(from_name) = match_from {
@@ -650,6 +657,7 @@ impl<'a> Runner<'a> {
                     }
 
                     if envelope_unused {
+                        warn!("unmatched envelope with message {}", envelope_message_name);
                         unmatched_envelopes += 1;
                     }
                 }

@@ -23,6 +23,9 @@ pub enum BuildError<'a> {
     #[error("unknown event: {}", _0)]
     UnknownEvent(&'a EventName),
 
+    #[error("duplicate event: {}", _0)]
+    DuplicateEventName(&'a EventName),
+
     #[error("not a request: {}", _0)]
     NotARequest(&'a EventName),
 
@@ -294,7 +297,9 @@ fn build_graph<'a>(
         trace!("  done: {:?} -> {:?}", this_name, this_key);
 
         priority.push(this_key);
-        idx_keys.insert(this_name, this_key);
+        if let Some(_conflicting_key) = idx_keys.insert(this_name, this_key) {
+            return Err(BuildError::DuplicateEventName(&event.id));
+        }
     }
 
     vertices.priority = priority
