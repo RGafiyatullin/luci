@@ -375,7 +375,6 @@ impl<'a> Runner<'a> {
                         Msg::Bind(template) => messages::render(template.clone(), &self.bindings)
                             .map_err(RunError::Marshalling)?,
                         Msg::Inject(key) => {
-                            eprintln!("BINDING INJECTED[{:?}]", key);
                             let m = messages.value(key).ok_or(RunError::Marshalling(
                                 format!("no such key: {:?}", key).into(),
                             ))?;
