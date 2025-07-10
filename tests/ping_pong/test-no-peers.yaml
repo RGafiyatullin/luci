@@ -12,7 +12,4 @@ events:
       from: p0
       type: Bro
       data:
-        exact:
-          - luci
-          - Bro
-          - ~
+        exact: ~

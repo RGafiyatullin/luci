@@ -22,36 +22,12 @@ events:
       to: dummy
       type: V
       data:
-        bind: $TRIPLE
-  
-  - id: bind-triple
-    require: reached
-    after:
-      - recv
-    bind:
-      dst:
-        $PROTOCOL
-        $MESSAGE
-        $PAYLOAD
-      src:
-        bind: $TRIPLE
-  
-  - id: bind-only-payload
-    require: reached
-    after:
-      - recv
-    bind:
-      dst:
-        - $_
-        - $_
-        - $PAYLOAD
-      src:
-        bind: $TRIPLE
+        bind: $PAYLOAD
   
   - id: bind-payload-one
     require: reached
     after:
-      - bind-only-payload
+      - recv
     bind:
       dst:
         one: $ONE
@@ -61,7 +37,7 @@ events:
   - id: bind-payload-two
     require: reached
     after:
-      - bind-only-payload
+      - recv
     bind:
       dst:
         two: $TWO
@@ -71,7 +47,7 @@ events:
   - id: bind-payload-three
     require: reached
     after:
-      - bind-only-payload
+      - recv
     bind:
       dst:
         three: $THREE
@@ -81,7 +57,7 @@ events:
   - id: bind-invalid
     require: unreached
     after:
-      - bind-only-payload
+      - recv
     bind:
       dst:
         four: $FOUR
