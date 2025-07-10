@@ -1,0 +1,38 @@
+types:
+  - use: echo::proto::V
+    as:  V
+  - use: echo::proto::R
+    as:  R
+
+cast:
+  - actor
+  - dummy
+
+events:
+  - id: bind
+    bind:
+      dst: $PAYLOAD
+      src:
+        literal:
+          one: vienas
+          two: du
+          three: trys
+  
+  - id: send
+    after:
+      - bind
+    send:
+      from: dummy
+      type: V
+      data:
+        bind: $PAYLOAD
+  
+  - id: recv
+    after:
+      - send
+    recv:
+      to: dummy
+      type: V
+      data:
+        bind: $PAYLOAD
+  
