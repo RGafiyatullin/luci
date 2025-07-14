@@ -1,0 +1,10 @@
+---
+source: tests/scenarios.rs
+expression: scenario
+---
+Scenario {
+    types: [],
+    cast: [],
+    events: [],
+    no_extra: NoExtra,
+}
