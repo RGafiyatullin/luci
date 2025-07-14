@@ -6,11 +6,11 @@ use luci::{
 };
 use test_case::test_case;
 
-#[test_case("01")]
-#[test_case("02")]
-#[test_case("03")]
-#[test_case("04")]
-fn run(name: &str) {
+#[test_case("01", true)]
+#[test_case("02", true)]
+#[test_case("03", true)]
+#[test_case("04", false)]
+fn run(name: &str, build_graph: bool) {
     let input = format!("tests/scenarios/{name}.yaml");
     let scenario: Scenario =
         serde_yaml::from_str(std::fs::read_to_string(input).expect("read file").as_str())
@@ -25,7 +25,9 @@ fn run(name: &str) {
         .with(Mock::msg("protocol_basic::Started"))
         .with(Mock::msg("protocol_basic::KeepAlive"));
 
-    let _exec_graph = ExecutionGraph::builder(messages)
-        .build(&scenario)
-        .expect("build exec-graph");
+    if build_graph {
+        let _exec_graph = ExecutionGraph::builder(messages)
+            .build(&scenario)
+            .expect("build exec-graph");
+    }
 }

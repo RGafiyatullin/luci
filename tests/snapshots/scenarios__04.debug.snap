@@ -1,0 +1,132 @@
+---
+source: tests/scenarios.rs
+expression: scenario
+---
+Scenario {
+    types: [
+        TypeAlias {
+            type_name: "protocol_basic::KeepAlive",
+            type_alias: MessageName(
+                "KeepAlive",
+            ),
+        },
+    ],
+    sub: [
+        SubDef {
+            def_path: "04/startup.yaml",
+            sub_name: SubName(
+                "startup",
+            ),
+            no_extra: NoExtra,
+        },
+    ],
+    cast: [
+        ActorName(
+            "a",
+        ),
+        ActorName(
+            "b",
+        ),
+    ],
+    events: [
+        EventDef {
+            id: EventName(
+                "total-test-duration",
+            ),
+            require: None,
+            after: [],
+            kind: Delay(
+                EventDelay {
+                    delay_for: 15s,
+                    delay_step: 1s,
+                    no_extra: NoExtra,
+                },
+            ),
+            no_extra: NoExtra,
+        },
+        EventDef {
+            id: EventName(
+                "standard-startup-routine",
+            ),
+            require: None,
+            after: [],
+            kind: Call(
+                EventCallSub {
+                    sub: SubName(
+                        "startup",
+                    ),
+                    cast: [
+                        CallSubBindActor {
+                            outer_name: ActorName(
+                                "a",
+                            ),
+                            inner_name: ActorName(
+                                "subject",
+                            ),
+                            no_extra: NoExtra,
+                        },
+                        CallSubBindActor {
+                            outer_name: ActorName(
+                                "b",
+                            ),
+                            inner_name: ActorName(
+                                "object",
+                            ),
+                            no_extra: NoExtra,
+                        },
+                    ],
+                    input: CallSubBindValue {
+                        dst: String("$component_id"),
+                        src: Literal(
+                            String("the-thingy"),
+                        ),
+                        no_extra: NoExtra,
+                    },
+                    output: CallSubBindValue {
+                        dst: String("$the_thingys_launch_id"),
+                        src: Bind(
+                            String("$launch_id"),
+                        ),
+                        no_extra: NoExtra,
+                    },
+                    no_extra: NoExtra,
+                },
+            ),
+            no_extra: NoExtra,
+        },
+        EventDef {
+            id: EventName(
+                "the-thingy-is-alive",
+            ),
+            require: Some(
+                Reached,
+            ),
+            after: [],
+            kind: Recv(
+                EventRecv {
+                    message_type: MessageName(
+                        "KeepAlive",
+                    ),
+                    message_data: Bind(
+                        Object {
+                            "launch_id": String("$the_thingys_launch_id"),
+                        },
+                    ),
+                    from: Some(
+                        ActorName(
+                            "b",
+                        ),
+                    ),
+                    to: Some(
+                        ActorName(
+                            "a",
+                        ),
+                    ),
+                    no_extra: NoExtra,
+                },
+            ),
+            no_extra: NoExtra,
+        },
+    ],
+    no_extra: NoExtra,
+}

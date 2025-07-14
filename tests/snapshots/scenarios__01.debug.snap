@@ -4,6 +4,7 @@ expression: scenario
 ---
 Scenario {
     types: [],
+    sub: [],
     cast: [],
     events: [],
     no_extra: NoExtra,

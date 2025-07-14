@@ -7,7 +7,7 @@ mod names;
 pub use names::*;
 
 mod call_sub;
-pub use call_sub::*;
+pub(crate) use call_sub::*;
 
 mod no_extra;
 use no_extra::NoExtra;

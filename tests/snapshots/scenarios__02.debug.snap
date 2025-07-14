@@ -11,6 +11,7 @@ Scenario {
             ),
         },
     ],
+    sub: [],
     cast: [],
     events: [],
     no_extra: NoExtra,

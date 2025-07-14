@@ -1,21 +1,21 @@
+---
+source: tests/scenarios.rs
+expression: scenario
+---
 types:
-  - use: protocol_basic::KeepAlive
-    as:  KeepAlive
-
+  - use: "protocol_basic::KeepAlive"
+    as: KeepAlive
+sub:
+  - load: 04/startup.yaml
+    as: startup
 cast:
   - a
   - b
-
-sub:
-  - load: 04/startup.yaml
-    as:   startup
-
 events:
   - id: total-test-duration
     delay:
       for: 15s
       step: 1s
-    
   - id: standard-startup-routine
     call:
       sub: startup
@@ -25,27 +25,19 @@ events:
         - use: b
           as: object
       input:
-        dst:
-          $component_id
+        dst: $component_id
         src:
-          literal:
-            the-thingy
+          literal: the-thingy
       output:
-        dst:
-          $the_thingys_launch_id
+        dst: $the_thingys_launch_id
         src:
-          bind:
-            $launch_id
-  
+          bind: $launch_id
   - id: the-thingy-is-alive
     require: reached
     recv:
-      from: b
-      to: a
       type: KeepAlive
       data:
         bind:
           launch_id: $the_thingys_launch_id
-
-
-
+      from: b
+      to: a
