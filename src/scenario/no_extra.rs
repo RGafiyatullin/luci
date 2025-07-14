@@ -3,7 +3,7 @@ use serde::{
     Deserialize, Serialize,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Default)]
 pub struct NoExtra;
 
 impl<'de> Deserialize<'de> for NoExtra {
