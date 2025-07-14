@@ -1,28 +1,16 @@
-use std::{sync::Arc, time::Duration};
+use std::{path::PathBuf, time::Duration};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+mod names;
+pub use names::*;
+
+mod call_sub;
+pub use call_sub::*;
+
 mod no_extra;
 use no_extra::NoExtra;
-
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, derive_more::Display,
-)]
-#[display("ACT:{_0}")]
-pub struct ActorName(Arc<str>);
-
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, derive_more::Display,
-)]
-#[display("EVT:{_0}")]
-pub struct EventName(Arc<str>);
-
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, derive_more::Display,
-)]
-#[display("MSG:{_0}")]
-pub struct MessageName(Arc<str>);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TypeAlias {
@@ -54,110 +42,126 @@ pub enum RequiredToBe {
 pub struct Scenario {
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub types: Vec<TypeAlias>,
-    pub cast: Vec<ActorName>,
-    pub events: Vec<EventDef>,
+    pub(crate) types: Vec<TypeAlias>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) sub: Vec<SubDef>,
+
+    pub(crate) cast: Vec<ActorName>,
+    pub(crate) events: Vec<EventDef>,
 
     #[serde(flatten)]
-    pub no_extra: NoExtra,
+    pub(crate) no_extra: NoExtra,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct SubDef {
+    #[serde(rename = "load")]
+    pub(crate) def_path: PathBuf,
+    #[serde(rename = "as")]
+    pub(crate) sub_name: SubName,
+
+    #[serde(flatten)]
+    pub(crate) no_extra: NoExtra,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventDef {
-    pub id: EventName,
+    pub(crate) id: EventName,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub require: Option<RequiredToBe>,
+    pub(crate) require: Option<RequiredToBe>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub after: Vec<EventName>,
+    pub(crate) after: Vec<EventName>,
 
     #[serde(flatten)]
-    pub kind: EventKind,
+    pub(crate) kind: EventKind,
 
     #[serde(flatten)]
-    pub no_extra: NoExtra,
+    pub(crate) no_extra: NoExtra,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum EventKind {
+pub(crate) enum EventKind {
     Bind(EventBind),
     Recv(EventRecv),
     Send(EventSend),
     Respond(EventRespond),
+    Call(EventCallSub),
     Delay(EventDelay),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EventBind {
-    pub dst: Value,
-    pub src: Msg,
+pub(crate) struct EventBind {
+    pub(crate) dst: Value,
+    pub(crate) src: Msg,
 
     #[serde(flatten)]
-    pub no_extra: NoExtra,
+    pub(crate) no_extra: NoExtra,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EventRecv {
+pub(crate) struct EventRecv {
     #[serde(rename = "type")]
-    pub message_type: MessageName,
+    pub(crate) message_type: MessageName,
     #[serde(rename = "data")]
-    pub message_data: Msg,
+    pub(crate) message_data: Msg,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub from: Option<ActorName>,
+    pub(crate) from: Option<ActorName>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub to: Option<ActorName>,
+    pub(crate) to: Option<ActorName>,
 
     #[serde(flatten)]
-    pub no_extra: NoExtra,
+    pub(crate) no_extra: NoExtra,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventSend {
-    pub from: ActorName,
+    pub(crate) from: ActorName,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub to: Option<ActorName>,
+    pub(crate) to: Option<ActorName>,
 
     #[serde(rename = "type")]
-    pub message_type: MessageName,
+    pub(crate) message_type: MessageName,
     #[serde(rename = "data")]
-    pub message_data: Msg,
+    pub(crate) message_data: Msg,
 
     #[serde(flatten)]
-    pub no_extra: NoExtra,
+    pub(crate) no_extra: NoExtra,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventRespond {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub from: Option<ActorName>,
+    pub(crate) from: Option<ActorName>,
 
-    pub to: EventName,
-    pub data: Msg,
+    pub(crate) to: EventName,
+    pub(crate) data: Msg,
 
     #[serde(flatten)]
-    pub no_extra: NoExtra,
+    pub(crate) no_extra: NoExtra,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventDelay {
     #[serde(with = "humantime_serde")]
     #[serde(rename = "for")]
-    pub delay_for: Duration,
+    pub(crate) delay_for: Duration,
 
     #[serde(with = "humantime_serde")]
     #[serde(rename = "step")]
     #[serde(default = "defaults::default_delay_step")]
-    pub delay_step: Duration,
+    pub(crate) delay_step: Duration,
 
     #[serde(flatten)]
-    pub no_extra: NoExtra,
+    pub(crate) no_extra: NoExtra,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -173,7 +177,7 @@ pub enum Msg {
 mod defaults {
     use std::time::Duration;
 
-    pub fn default_delay_step() -> Duration {
+    pub(crate) fn default_delay_step() -> Duration {
         Duration::from_millis(25)
     }
 }

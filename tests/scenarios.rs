@@ -9,6 +9,7 @@ use test_case::test_case;
 #[test_case("01")]
 #[test_case("02")]
 #[test_case("03")]
+#[test_case("04")]
 fn run(name: &str) {
     let input = format!("tests/scenarios/{name}.yaml");
     let scenario: Scenario =
@@ -21,7 +22,8 @@ fn run(name: &str) {
         .with(Mock::msg("one::two::Three"))
         .with(Mock::req("one::two::IsAThree"))
         .with(Mock::msg("protocol_basic::Start"))
-        .with(Mock::msg("protocol_basic::Started"));
+        .with(Mock::msg("protocol_basic::Started"))
+        .with(Mock::msg("protocol_basic::KeepAlive"));
 
     let _exec_graph = ExecutionGraph::builder(messages)
         .build(&scenario)

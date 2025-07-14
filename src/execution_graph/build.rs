@@ -266,6 +266,8 @@ fn build_graph<'a>(
                 });
                 EventKey::Respond(key)
             }
+
+            EventKind::Call(def_call) => unimplemented!("def-call: {:?}", def_call),
         };
 
         if let Some(required_to_be) = event.require {

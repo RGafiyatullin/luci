@@ -1,0 +1,49 @@
+types:
+  - use: protocol_basic::KeepAlive
+    as:  KeepAlive
+
+cast:
+  - a
+  - b
+
+sub:
+  - load: 04/startup.yaml
+    as:   startup
+
+events:
+  - id: total-test-duration
+    delay:
+      for: 15s
+      step: 1s
+    
+  - id: standard-startup-routine
+    call:
+      sub: startup
+      cast:
+        - use: a
+          as: subject
+        - use: b
+          as: object
+      input:
+        dst:
+          $component_id
+        src:
+          the-thingy
+      output:
+        dst:
+          $the_thingys_launch_id
+        src:
+          $launch_id
+  
+  - id: the-thingy-is-alive
+    require: reached
+    recv:
+      from: b
+      to: a
+      type: KeepAlive
+      data:
+        bind:
+          launch_id: $the_thingys_launch_id
+
+
+
