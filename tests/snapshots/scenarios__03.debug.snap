@@ -1,0 +1,89 @@
+---
+source: tests/scenarios.rs
+expression: scenario
+---
+Scenario {
+    types: [
+        TypeAlias {
+            type_name: "protocol_basic::Start",
+            type_alias: MessageName(
+                "Start",
+            ),
+        },
+        TypeAlias {
+            type_name: "protocol_basic::Started",
+            type_alias: MessageName(
+                "Started",
+            ),
+        },
+    ],
+    cast: [
+        ActorName(
+            "a",
+        ),
+        ActorName(
+            "b",
+        ),
+    ],
+    events: [
+        EventDef {
+            id: EventName(
+                "b-starts-a",
+            ),
+            require: None,
+            after: [],
+            kind: Send(
+                EventSend {
+                    from: ActorName(
+                        "b",
+                    ),
+                    to: None,
+                    message_type: MessageName(
+                        "Start",
+                    ),
+                    message_data: Literal(
+                        Null,
+                    ),
+                    no_extra: NoExtra,
+                },
+            ),
+            no_extra: NoExtra,
+        },
+        EventDef {
+            id: EventName(
+                "a-reports-to-b",
+            ),
+            require: Some(
+                Reached,
+            ),
+            after: [
+                EventName(
+                    "b-starts-a",
+                ),
+            ],
+            kind: Recv(
+                EventRecv {
+                    message_type: MessageName(
+                        "Started",
+                    ),
+                    message_data: Literal(
+                        Null,
+                    ),
+                    from: Some(
+                        ActorName(
+                            "a",
+                        ),
+                    ),
+                    to: Some(
+                        ActorName(
+                            "b",
+                        ),
+                    ),
+                    no_extra: NoExtra,
+                },
+            ),
+            no_extra: NoExtra,
+        },
+    ],
+    no_extra: NoExtra,
+}

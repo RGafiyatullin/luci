@@ -1,0 +1,29 @@
+types:
+  - use: protocol_basic::Start
+    as:  Start
+  - use: protocol_basic::Started
+    as:  Started
+
+cast:
+  - a
+  - b
+
+events:
+  - id: b-starts-a
+    send:
+      from: b
+      type: Start
+      data:
+        literal: ~
+  
+  - id: a-reports-to-b
+    require: reached
+    after:
+      - b-starts-a
+    recv:
+      from: a
+      to: b
+      type: Started
+      data:
+        literal: ~
+
