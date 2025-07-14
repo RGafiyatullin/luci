@@ -1,0 +1,9 @@
+---
+source: tests/scenarios.rs
+expression: scenario
+---
+types:
+  - use: "one::two::Three"
+    as: TheThree
+cast: []
+events: []

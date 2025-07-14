@@ -1,8 +1,13 @@
 use insta::{assert_debug_snapshot, assert_yaml_snapshot};
-use luci::{execution_graph::ExecutionGraph, messages::Messages, scenario::Scenario};
+use luci::{
+    execution_graph::ExecutionGraph,
+    messages::{Messages, Mock},
+    scenario::Scenario,
+};
 use test_case::test_case;
 
 #[test_case("01")]
+#[test_case("02")]
 fn run(name: &str) {
     let input = format!("tests/scenarios/{name}.yaml");
     let scenario: Scenario =
@@ -11,7 +16,9 @@ fn run(name: &str) {
     assert_debug_snapshot!(format!("{name}.debug"), scenario);
     assert_yaml_snapshot!(format!("{name}.yaml"), scenario);
 
-    let messages = Messages::new();
+    let messages = Messages::new()
+        .with(Mock::msg("one::two::Three"))
+        .with(Mock::req("one::two::IsAThree"));
 
     let _exec_graph = ExecutionGraph::builder(messages)
         .build(&scenario)

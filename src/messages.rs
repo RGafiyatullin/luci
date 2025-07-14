@@ -28,6 +28,12 @@ pub struct Injected {
     pub value: AnyMessage,
 }
 
+#[derive(Debug)]
+pub struct Mock {
+    fqn: String,
+    is_request: bool,
+}
+
 #[derive(Default, derive_more::Debug)]
 pub struct Messages {
     #[debug(skip)]
@@ -366,6 +372,60 @@ where
             }
         }
         .boxed_local()
+    }
+}
+
+impl Marshal for Mock {
+    fn bind(&self, _envelope: &Envelope, _bind_to: &Msg) -> Option<Vec<(String, Value)>> {
+        panic!("it's mock!")
+    }
+    fn marshall(
+        &self,
+        _messages: &Messages,
+        _bindings: &HashMap<String, Value>,
+        _value: Msg,
+    ) -> Result<AnyMessage, AnError> {
+        panic!("it's mock!")
+    }
+    fn response(&self) -> Option<&dyn DynRespond> {
+        let r: &dyn DynRespond = self;
+        Some(r).filter(|_| self.is_request)
+    }
+}
+
+impl<'a> Respond<'a> for Mock {
+    fn respond(
+        &self,
+        _proxy: &'a mut Proxy,
+        _token: ResponseToken,
+        _messages: Arc<Messages>,
+        _bindings: HashMap<String, Value>,
+        _value: Msg,
+    ) -> LocalBoxFuture<'a, Result<(), AnError>> {
+        panic!("it's mock!")
+    }
+}
+
+impl SupportedMessage for Mock {
+    fn register(self, messages: &mut Messages) {
+        let fqn = self.fqn.as_str().into();
+        let marshaller = Box::new(self);
+        let should_be_none = messages.marshallers.insert(fqn, marshaller);
+        assert!(should_be_none.is_none(), "duplicate FQN");
+    }
+}
+
+impl Mock {
+    pub fn new(fqn: impl Into<String>, is_request: bool) -> Self {
+        let fqn = fqn.into();
+        Self { fqn, is_request }
+    }
+    pub fn msg(fqn: impl Into<String>) -> Self {
+        Self::new(fqn, false)
+    }
+
+    pub fn req(fqn: impl Into<String>) -> Self {
+        Self::new(fqn, true)
     }
 }
 

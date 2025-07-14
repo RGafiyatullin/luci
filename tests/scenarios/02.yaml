@@ -1,0 +1,5 @@
+types:
+  - use: one::two::Three
+    as:  TheThree
+cast: []
+events: []

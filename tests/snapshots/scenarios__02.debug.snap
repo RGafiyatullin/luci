@@ -1,0 +1,17 @@
+---
+source: tests/scenarios.rs
+expression: scenario
+---
+Scenario {
+    types: [
+        TypeAlias {
+            type_name: "one::two::Three",
+            type_alias: MessageName(
+                "TheThree",
+            ),
+        },
+    ],
+    cast: [],
+    events: [],
+    no_extra: NoExtra,
+}
