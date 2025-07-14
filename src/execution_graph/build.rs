@@ -102,9 +102,10 @@ fn type_aliases<'a>(
         let Vacant(entry) = aliases.entry(import.type_alias.to_owned()) else {
             return Err(BuildError::DuplicateAlias(&import.type_alias));
         };
-        let _marshaller = messages
-            .resolve(&import.type_name)
-            .ok_or(BuildError::UnknownFqn(&import.type_name))?;
+        // TODO: uncomment in PLT-14379
+        // let _marshaller = messages
+        //     .resolve(&import.type_name)
+        //     .ok_or(BuildError::UnknownFqn(&import.type_name))?;
 
         entry.insert(import.type_name.as_str().into());
     }
