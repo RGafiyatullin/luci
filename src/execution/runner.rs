@@ -35,6 +35,9 @@ pub enum RunError {
     #[error("no request envelope found")]
     NoRequest,
 
+    #[error("bind: {}", _0)]
+    BindError(bindings::BindError),
+
     #[error("marshalling error: {}", _0)]
     Marshalling(messages::AnError),
 }
@@ -305,7 +308,7 @@ impl<'a> Runner<'a> {
             let value = match src {
                 Msg::Literal(value) => value.clone(),
                 Msg::Bind(template) => {
-                    bindings::render(template.clone(), &scope_txn).map_err(RunError::Marshalling)?
+                    bindings::render(template.clone(), &scope_txn).map_err(RunError::BindError)?
                 }
                 Msg::Inject(key) => {
                     let m = messages.value(key).ok_or(RunError::Marshalling(

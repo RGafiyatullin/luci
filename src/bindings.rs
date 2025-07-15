@@ -8,7 +8,11 @@ use tracing::info;
 
 use crate::names::ActorName;
 
-pub type AnError = Box<dyn std::error::Error + Send + Sync + 'static>;
+#[derive(Debug, thiserror::Error)]
+pub enum BindError {
+    #[error("unbound value: {}", _0)]
+    UnboundValue(String),
+}
 
 #[derive(Debug, Default)]
 pub(crate) struct Scope {
@@ -153,13 +157,13 @@ pub(crate) fn bind_to_pattern(value: Value, pattern: &Value, bindings: &mut Txn)
     }
 }
 
-pub(crate) fn render(template: Value, bindings: &dyn ReadState) -> Result<Value, AnError> {
+pub(crate) fn render(template: Value, bindings: &dyn ReadState) -> Result<Value, BindError> {
     match template {
-        Value::String(wildcard) if wildcard == "$_" => Err("can't render $_".into()),
+        Value::String(wildcard) if wildcard == "$_" => Err(BindError::UnboundValue(wildcard)),
         Value::String(var_name) if var_name.starts_with('$') => bindings
             .value_of(&var_name)
             .cloned()
-            .ok_or_else(|| format!("unknown var: {:?}", var_name).into()),
+            .ok_or_else(|| BindError::UnboundValue(var_name)),
         Value::Array(items) => Ok(Value::Array(
             items
                 .into_iter()
