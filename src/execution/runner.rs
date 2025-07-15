@@ -74,17 +74,10 @@ impl TryFrom<ReadyEventKey> for EventKey {
 
 pub struct Runner<'a> {
     executable: &'a Executable,
-
     ready_events: BTreeSet<EventKey>,
     key_requires_values: HashMap<EventKey, HashSet<EventKey>>,
-
-    // actors: Actors,
-    // dummies: Dummies,
-    // bindings: HashMap<String, Value>,
     scope: bindings::Scope,
-
     proxies: Vec<Proxy>,
-
     envelopes: HashMap<KeyRecv, Envelope>,
     delays: Delays,
 }
