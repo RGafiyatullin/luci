@@ -399,7 +399,7 @@ impl<'a> Runner<'a> {
 
                     if let Some(from_name) = match_from {
                         trace!("expecting source: {:?}", from_name);
-                        if !scope_txn.name_actor(from_name, sent_from) {
+                        if !scope_txn.bind_actor(from_name, sent_from) {
                             trace!(
                                 "could not bind source [name: {}; addr: {}]",
                                 from_name,
@@ -416,7 +416,7 @@ impl<'a> Runner<'a> {
                                 bind_to_name,
                                 sent_to_address
                             );
-                            if !scope_txn.name_actor(bind_to_name, sent_to_address) {
+                            if !scope_txn.bind_actor(bind_to_name, sent_to_address) {
                                 trace!(
                                     "could not bind destination [name: {}; addr: {}]",
                                     bind_to_name,

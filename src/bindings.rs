@@ -59,7 +59,7 @@ impl<'a> Txn<'a> {
         old_opt.or(new_opt)
     }
 
-    pub(crate) fn set_value(&mut self, key: &str, value: &Value) -> bool {
+    pub(crate) fn bind_value(&mut self, key: &str, value: &Value) -> bool {
         if let Some(defined_in_state) = self.values_old.get(key) {
             defined_in_state == value
         } else {
@@ -73,7 +73,7 @@ impl<'a> Txn<'a> {
         }
     }
 
-    pub(crate) fn name_actor(&mut self, name: &ActorName, addr: Addr) -> bool {
+    pub(crate) fn bind_actor(&mut self, name: &ActorName, addr: Addr) -> bool {
         if let Some(existing_name) = self.name_of(addr) {
             return existing_name == name;
         }
@@ -107,7 +107,7 @@ pub(crate) fn bind_to_pattern(value: Value, pattern: &Value, bindings: &mut Txn)
         (_, Value::String(wildcard)) if wildcard == "$_" => true,
 
         (value, Value::String(var_name)) if var_name.starts_with('$') => {
-            bindings.set_value(&var_name, &value)
+            bindings.bind_value(&var_name, &value)
         }
 
         (Value::Null, Value::Null) => true,
@@ -188,9 +188,9 @@ mod tests {
             assert!(binder.value_of("a").is_none());
             assert!(binder.value_of("b").is_none());
 
-            assert!(binder.set_value("a", &json!("a")));
-            assert!(binder.set_value("a", &json!("a")));
-            assert!(!binder.set_value("a", &json!("b")));
+            assert!(binder.bind_value("a", &json!("a")));
+            assert!(binder.bind_value("a", &json!("a")));
+            assert!(!binder.bind_value("a", &json!("b")));
         }
 
         assert!(values.value_of("a").is_none());
@@ -201,9 +201,9 @@ mod tests {
             assert!(binder.value_of("a").is_none());
             assert!(binder.value_of("b").is_none());
 
-            assert!(binder.set_value("a", &json!("a")));
-            assert!(binder.set_value("a", &json!("a")));
-            assert!(!binder.set_value("a", &json!("b")));
+            assert!(binder.bind_value("a", &json!("a")));
+            assert!(binder.bind_value("a", &json!("a")));
+            assert!(!binder.bind_value("a", &json!("b")));
 
             binder.commit();
         }
