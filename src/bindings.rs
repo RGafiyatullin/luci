@@ -8,6 +8,8 @@ use tracing::info;
 
 use crate::names::ActorName;
 
+pub type AnError = Box<dyn std::error::Error + Send + Sync + 'static>;
+
 #[derive(Debug, Default)]
 pub(crate) struct Scope {
     values: HashMap<String, Value>,
@@ -97,6 +99,57 @@ impl<'a> Txn<'a> {
                 .into_iter()
                 .inspect(|(k, v)| info!("SET ACTOR {:?} <- {:?}", k, v)),
         );
+    }
+}
+
+pub(crate) fn bind_to_pattern(value: Value, pattern: &Value, bindings: &mut Txn) -> bool {
+    match (value, pattern) {
+        (_, Value::String(wildcard)) if wildcard == "$_" => true,
+
+        (value, Value::String(var_name)) if var_name.starts_with('$') => {
+            bindings.set_value(&var_name, &value)
+        }
+
+        (Value::Null, Value::Null) => true,
+        (Value::Bool(v), Value::Bool(p)) => v == *p,
+        (Value::String(v), Value::String(p)) => v == *p,
+        (Value::Number(v), Value::Number(p)) => v == *p,
+        (Value::Array(values), Value::Array(patterns)) => {
+            values.len() == patterns.len()
+                && values
+                    .into_iter()
+                    .zip(patterns)
+                    .all(|(v, p)| bind_to_pattern(v, p, bindings))
+        }
+
+        (Value::Object(mut v), Value::Object(p)) => p.iter().all(|(pk, pv)| {
+            v.remove(pk)
+                .is_some_and(|vv| bind_to_pattern(vv, pv, bindings))
+        }),
+
+        (_, _) => false,
+    }
+}
+
+pub(crate) fn render(template: Value, bindings: &Txn) -> Result<Value, AnError> {
+    match template {
+        Value::String(wildcard) if wildcard == "$_" => Err("can't render $_".into()),
+        Value::String(var_name) if var_name.starts_with('$') => bindings
+            .value_of(&var_name)
+            .cloned()
+            .ok_or_else(|| format!("unknown var: {:?}", var_name).into()),
+        Value::Array(items) => Ok(Value::Array(
+            items
+                .into_iter()
+                .map(|item| render(item, bindings))
+                .collect::<Result<_, _>>()?,
+        )),
+        Value::Object(kv) => Ok(Value::Object(
+            kv.into_iter()
+                .map(|(k, v)| render(v, bindings).map(move |v| (k, v)))
+                .collect::<Result<_, _>>()?,
+        )),
+        as_is => Ok(as_is),
     }
 }
 

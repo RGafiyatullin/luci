@@ -304,7 +304,7 @@ impl<'a> Runner<'a> {
             let value = match src {
                 Msg::Literal(value) => value.clone(),
                 Msg::Bind(template) => {
-                    messages::render(template.clone(), &scope_txn).map_err(RunError::Marshalling)?
+                    bindings::render(template.clone(), &scope_txn).map_err(RunError::Marshalling)?
                 }
                 Msg::Inject(key) => {
                     let m = messages.value(key).ok_or(RunError::Marshalling(
@@ -314,7 +314,7 @@ impl<'a> Runner<'a> {
                 }
             };
 
-            if !messages::bind_to_pattern(value, dst, &mut scope_txn) {
+            if !bindings::bind_to_pattern(value, dst, &mut scope_txn) {
                 trace!("  could not bind {:?}", bind_key);
                 continue;
             }

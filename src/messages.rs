@@ -198,7 +198,7 @@ where
             let token = token.into_received::<Rq>();
             match value {
                 Msg::Bind(template) => {
-                    let value = render(template, &bindings)?;
+                    let value = bindings::render(template, &bindings)?;
                     let de: Result<Rq::Wrapper, _> = serde_json::from_value(value);
                     match de {
                         Ok(w) => {
@@ -247,7 +247,7 @@ fn extract_message_payload(envelope: &Envelope) -> Option<Value> {
 fn do_bind(bind_to: &Msg, serialized: Value, bindings: &mut bindings::Txn) -> bool {
     match bind_to {
         Msg::Literal(value) => serialized == *value,
-        Msg::Bind(pattern) => bind_to_pattern(serialized, pattern, bindings),
+        Msg::Bind(pattern) => bindings::bind_to_pattern(serialized, pattern, bindings),
         Msg::Inject(_name) => false,
     }
 }
@@ -259,7 +259,7 @@ fn do_marshal<M: Message>(
 ) -> Result<AnyMessage, AnError> {
     match msg {
         Msg::Bind(template) => {
-            let value = render(template, bindings)?;
+            let value = bindings::render(template, bindings)?;
             let m: M = serde_json::from_value(value)?;
             let a = AnyMessage::new(m);
             Ok(a)
@@ -273,58 +273,5 @@ fn do_marshal<M: Message>(
             let a = AnyMessage::new(m);
             Ok(a)
         }
-    }
-}
-
-// ------
-
-pub(crate) fn bind_to_pattern(value: Value, pattern: &Value, bindings: &mut bindings::Txn) -> bool {
-    match (value, pattern) {
-        (_, Value::String(wildcard)) if wildcard == "$_" => true,
-
-        (value, Value::String(var_name)) if var_name.starts_with('$') => {
-            bindings.set_value(&var_name, &value)
-        }
-
-        (Value::Null, Value::Null) => true,
-        (Value::Bool(v), Value::Bool(p)) => v == *p,
-        (Value::String(v), Value::String(p)) => v == *p,
-        (Value::Number(v), Value::Number(p)) => v == *p,
-        (Value::Array(values), Value::Array(patterns)) => {
-            values.len() == patterns.len()
-                && values
-                    .into_iter()
-                    .zip(patterns)
-                    .all(|(v, p)| bind_to_pattern(v, p, bindings))
-        }
-
-        (Value::Object(mut v), Value::Object(p)) => p.iter().all(|(pk, pv)| {
-            v.remove(pk)
-                .is_some_and(|vv| bind_to_pattern(vv, pv, bindings))
-        }),
-
-        (_, _) => false,
-    }
-}
-
-pub(crate) fn render(template: Value, bindings: &bindings::Txn) -> Result<Value, AnError> {
-    match template {
-        Value::String(wildcard) if wildcard == "$_" => Err("can't render $_".into()),
-        Value::String(var_name) if var_name.starts_with('$') => bindings
-            .value_of(&var_name)
-            .cloned()
-            .ok_or_else(|| format!("unknown var: {:?}", var_name).into()),
-        Value::Array(items) => Ok(Value::Array(
-            items
-                .into_iter()
-                .map(|item| render(item, bindings))
-                .collect::<Result<_, _>>()?,
-        )),
-        Value::Object(kv) => Ok(Value::Object(
-            kv.into_iter()
-                .map(|(k, v)| render(v, bindings).map(move |v| (k, v)))
-                .collect::<Result<_, _>>()?,
-        )),
-        as_is => Ok(as_is),
     }
 }
