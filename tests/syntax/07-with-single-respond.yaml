@@ -1,0 +1,12 @@
+types:
+  - use: A
+    as:  A
+cast:
+  - Pablo
+events:
+  - id: the-respond
+    respond:
+      from: Pablo
+      to_request: something-that-did-not-happen
+      data:
+        literal: ~

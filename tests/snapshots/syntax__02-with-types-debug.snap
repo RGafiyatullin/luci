@@ -1,0 +1,23 @@
+---
+source: tests/syntax.rs
+expression: scenario
+---
+Scenario {
+    types: [
+        DefTypeAlias {
+            type_name: "One",
+            type_alias: MessageName(
+                "T1",
+            ),
+        },
+        DefTypeAlias {
+            type_name: "Two",
+            type_alias: MessageName(
+                "T2",
+            ),
+        },
+    ],
+    cast: [],
+    events: [],
+    no_extra: NoExtra,
+}

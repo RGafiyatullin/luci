@@ -28,6 +28,12 @@ pub struct Injected {
     pub value: AnyMessage,
 }
 
+#[derive(derive_more::Debug)]
+pub struct Mock {
+    fqn: String,
+    is_request: bool,
+}
+
 /// Manages [Msg] marshalling.
 ///
 /// Marshalling happens in two ways:
@@ -120,6 +126,19 @@ impl MarshallingRegistry {
     }
 }
 
+impl Mock {
+    pub fn new(fqn: impl Into<String>, is_request: bool) -> Self {
+        let fqn = fqn.into();
+        Self { fqn, is_request }
+    }
+    pub fn regular(fqn: impl Into<String>) -> Self {
+        Self::new(fqn, false)
+    }
+    pub fn request(fqn: impl Into<String>) -> Self {
+        Self::new(fqn, true)
+    }
+}
+
 impl<M> RegisterMarshaller for Regular<M>
 where
     M: elfo::Message,
@@ -143,6 +162,52 @@ where
 impl RegisterMarshaller for Injected {
     fn register(self, marshalling: &mut MarshallingRegistry) {
         marshalling.values.insert(self.key, self.value);
+    }
+}
+
+impl RegisterMarshaller for Mock {
+    fn register(self, messages: &mut MarshallingRegistry) {
+        let fqn = self.fqn.clone();
+        let should_be_none = messages.marshallers.insert(fqn, Box::new(self));
+        assert!(should_be_none.is_none(), "duplicate FQN");
+    }
+}
+
+impl Marshal for Mock {
+    fn marshal_outbound_message(
+        &self,
+        _messages: &MarshallingRegistry,
+        _bindings: &bindings::Scope,
+        _msg: Msg,
+    ) -> Result<AnyMessage, AnError> {
+        panic!("it's a mock!")
+    }
+
+    fn match_inbound_message(
+        &self,
+        _envelope: &Envelope,
+        _msg: &Msg,
+        _bindings: &mut bindings::Txn,
+    ) -> bool {
+        panic!("it's a mock!")
+    }
+
+    fn response(&self) -> Option<&dyn DynRespond> {
+        let dyn_respond: &dyn DynRespond = self;
+        Some(dyn_respond).filter(|_| self.is_request)
+    }
+}
+
+impl<'a> Respond<'a> for Mock {
+    fn respond(
+        &self,
+        _proxy: &'a mut Proxy,
+        _token: ResponseToken,
+        _marshalling: &'a MarshallingRegistry,
+        _bindings: &'a bindings::Scope,
+        _msg: Msg,
+    ) -> LocalBoxFuture<'a, Result<(), AnError>> {
+        panic!("it's a mock!")
     }
 }
 

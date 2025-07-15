@@ -1,0 +1,14 @@
+types:
+  - use: A
+    as:  A
+cast:
+  - Pedro
+  - Jorge
+events:
+  - id: the-recv
+    send:
+      from: Pedro
+      to: Jorge
+      type: A
+      data:
+        literal: ~
