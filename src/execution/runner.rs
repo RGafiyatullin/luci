@@ -2,11 +2,12 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use elfo::_priv::MessageKind;
 use elfo::{test::Proxy, Blueprint, Envelope, Message};
-use slotmap::{new_key_type, SlotMap};
+use slotmap::{new_key_type, SecondaryMap, SlotMap};
 use std::time::Duration;
 use tokio::time::Instant;
 use tracing::{debug, info, trace, warn};
 
+use crate::execution::KeyScope;
 use crate::{
     bindings,
     execution::{
@@ -43,7 +44,7 @@ pub enum RunError {
 }
 
 /// A key for an event that is ready to be processed by [Runner].
-/// 
+///
 /// A trimmed version of [EventKey].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ReadyEventKey {
@@ -80,7 +81,12 @@ pub struct Runner<'a> {
     executable: &'a Executable,
     ready_events: BTreeSet<EventKey>,
     key_requires_values: HashMap<EventKey, HashSet<EventKey>>,
+
+    #[deprecated(note = "use scopes[executable.root_scope_key]")]
     scope: bindings::Scope,
+
+    scopes: SecondaryMap<KeyScope, bindings::Scope>,
+
     main_proxy_key: ProxyKey,
     proxies: SlotMap<ProxyKey, Proxy>,
     envelopes: HashMap<KeyRecv, Envelope>,
@@ -110,7 +116,7 @@ impl Executable {
 
 impl<'a> Runner<'a> {
     /// Runs the test for which the runner was set up.
-    /// 
+    ///
     /// Returns;
     /// - [Report] containing a text description of the test run if test was
     ///   completed without errors, either successfully or not.
@@ -287,8 +293,9 @@ impl<'a> Runner<'a> {
         actually_fired_events: &mut Vec<EventKey>,
     ) -> Result<(), RunError> {
         let Executable {
-            marshalling: messages,
+            marshalling,
             events,
+            ..
         } = self.executable;
 
         let ready_bind_keys = {
@@ -321,7 +328,7 @@ impl<'a> Runner<'a> {
                     bindings::render(template.clone(), &self.scope).map_err(RunError::BindError)?
                 }
                 Msg::Inject(key) => {
-                    let m = messages.value(key).ok_or(RunError::Marshalling(
+                    let m = marshalling.value(key).ok_or(RunError::Marshalling(
                         format!("no such key: {:?}", key).into(),
                     ))?;
                     serde_json::to_value(m).expect("can't serialize a message?")
@@ -348,8 +355,9 @@ impl<'a> Runner<'a> {
         actually_fired_events: &mut Vec<EventKey>,
     ) -> Result<(), RunError> {
         let Executable {
-            marshalling: messages,
-            events: vertices,
+            marshalling,
+            events,
+            ..
         } = self.executable;
 
         'recv_or_delay: loop {
@@ -369,7 +377,7 @@ impl<'a> Runner<'a> {
                         }
                     })
                     .collect::<Vec<_>>();
-                tmp.sort_by_key(|k| vertices.priority.get(&EventKey::Recv(*k)));
+                tmp.sort_by_key(|k| events.priority.get(&EventKey::Recv(*k)));
                 tmp
             };
 
@@ -398,18 +406,18 @@ impl<'a> Runner<'a> {
                     trace!(
                         "   matching against {:?} [{:?}]",
                         recv_key,
-                        vertices.names.get(&EventKey::Recv(recv_key)).unwrap()
+                        events.names.get(&EventKey::Recv(recv_key)).unwrap()
                     );
                     let EventRecv {
                         fqn: match_type,
                         from: match_from,
                         to: match_to,
                         payload: match_message,
-                    } = &vertices.recv[recv_key];
+                    } = &events.recv[recv_key];
 
                     let mut scope_txn = self.scope.txn();
 
-                    let marshaller = messages.resolve(&match_type).expect("bad FQN");
+                    let marshaller = marshalling.resolve(&match_type).expect("bad FQN");
 
                     if let Some(from_name) = match_from {
                         trace!("expecting source: {:?}", from_name);
@@ -515,6 +523,7 @@ impl<'a> Runner<'a> {
         let Executable {
             marshalling: messages,
             events: vertices,
+            ..
         } = self.executable;
         let EventSend {
             from: send_from,
@@ -592,6 +601,7 @@ impl<'a> Runner<'a> {
         let Executable {
             marshalling: messages,
             events: vertices,
+            ..
         } = self.executable;
 
         let EventRespond {
@@ -655,7 +665,7 @@ impl<'a> Runner<'a> {
 }
 
 impl<'a> Runner<'a> {
-    async fn new<C>(graph: &'a Executable, blueprint: Blueprint, config: C) -> Self
+    async fn new<C>(executable: &'a Executable, blueprint: Blueprint, config: C) -> Self
     where
         C: for<'de> serde::de::Deserializer<'de>,
     {
@@ -666,16 +676,16 @@ impl<'a> Runner<'a> {
 
         let mut delays = Delays::default();
 
-        let ready_events = graph.events.entry_points.clone();
+        let ready_events = executable.events.entry_points.clone();
 
         let now = Instant::now();
         ready_events.iter().copied().for_each(|k| {
             if let EventKey::Delay(k) = k {
-                delays.insert(now, k, &graph.events.delay[k]);
+                delays.insert(now, k, &executable.events.delay[k]);
             }
         });
 
-        let key_requires_values = graph
+        let key_requires_values = executable
             .events
             .key_unblocks_values
             .iter()
@@ -692,14 +702,21 @@ impl<'a> Runner<'a> {
                     acc
                 },
             );
+
+        let mut scopes: SecondaryMap<KeyScope, bindings::Scope> = Default::default();
+        scopes.insert(executable.root_scope_key, Default::default());
+
         Self {
-            executable: graph,
+            executable,
             ready_events,
             key_requires_values,
             delays,
             main_proxy_key,
             proxies,
+
             scope: Default::default(),
+            scopes,
+
             envelopes: Default::default(),
         }
     }

@@ -30,6 +30,10 @@ new_key_type! {
     pub struct KeyDelay;
 }
 
+new_key_type! {
+    pub struct KeyScope;
+}
+
 /// A key corresponding to some event during test execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum EventKey {
@@ -44,7 +48,13 @@ pub enum EventKey {
 pub struct Executable {
     marshalling: MarshallingRegistry,
     events: Events,
+
+    root_scope_key: KeyScope,
+    scopes: SlotMap<KeyScope, ScopeInfo>,
 }
+
+#[derive(Debug)]
+struct ScopeInfo {}
 
 #[derive(Debug, Default)]
 struct Events {

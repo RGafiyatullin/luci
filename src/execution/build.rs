@@ -7,7 +7,9 @@ use slotmap::SlotMap;
 use tracing::{debug, trace};
 
 use crate::{
-    execution::{EventBind, EventKey, KeyBind, KeyDelay, KeyRecv, KeyRespond, KeySend},
+    execution::{
+        EventBind, EventKey, KeyBind, KeyDelay, KeyRecv, KeyRespond, KeyScope, KeySend, ScopeInfo,
+    },
     marshalling,
     scenario::{DefEventBind, DefEventDelay, DefEventRecv, DefEventRespond, DefEventSend},
 };
@@ -77,9 +79,15 @@ impl Executable {
         debug!("- delay-vertices:\t{}", vertices.delay.len());
 
         debug!("done!");
+
+        let mut scopes: SlotMap<KeyScope, ScopeInfo> = Default::default();
+        let root_scope_key = scopes.insert(ScopeInfo {});
+
         Ok(Executable {
             marshalling,
             events: vertices,
+            root_scope_key,
+            scopes,
         })
     }
 }
