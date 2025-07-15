@@ -135,7 +135,7 @@ where
         let serialized = extract_message_payload(envelope)
             .expect("AnyMessage has changed serialization format?");
 
-        do_bind(bind_to, serialized, bindings)
+        do_match_message(bind_to, serialized, bindings)
     }
     fn make_outbound_message(
         &self,
@@ -143,7 +143,7 @@ where
         bindings: &dyn ReadState,
         msg: Msg,
     ) -> Result<AnyMessage, AnError> {
-        do_marshal::<M>(messages, bindings, msg)
+        do_make_message::<M>(messages, bindings, msg)
     }
     fn response(&self) -> Option<&'static dyn DynRespond> {
         None
@@ -167,7 +167,7 @@ where
         let serialized = extract_message_payload(envelope)
             .expect("AnyMessage has changed serialization format?");
 
-        do_bind(bind_to, serialized, bindings)
+        do_match_message(bind_to, serialized, bindings)
     }
     fn make_outbound_message(
         &self,
@@ -175,7 +175,7 @@ where
         bindings: &dyn ReadState,
         msg: Msg,
     ) -> Result<AnyMessage, AnError> {
-        do_marshal::<Rq::Wrapper>(messages, bindings, msg)
+        do_make_message::<Rq::Wrapper>(messages, bindings, msg)
     }
     fn response(&self) -> Option<&'static dyn DynRespond> {
         Some(&Response::<Rq>)
@@ -244,7 +244,7 @@ fn extract_message_payload(envelope: &Envelope) -> Option<Value> {
     Some(payload)
 }
 
-fn do_bind(bind_to: &Msg, serialized: Value, bindings: &mut bindings::Txn) -> bool {
+fn do_match_message(bind_to: &Msg, serialized: Value, bindings: &mut bindings::Txn) -> bool {
     match bind_to {
         Msg::Literal(value) => serialized == *value,
         Msg::Bind(pattern) => bindings::bind_to_pattern(serialized, pattern, bindings),
@@ -252,7 +252,7 @@ fn do_bind(bind_to: &Msg, serialized: Value, bindings: &mut bindings::Txn) -> bo
     }
 }
 
-fn do_marshal<M: Message>(
+fn do_make_message<M: Message>(
     messages: &Messages,
     bindings: &dyn ReadState,
     msg: Msg,
