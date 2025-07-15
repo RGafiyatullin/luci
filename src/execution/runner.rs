@@ -2,6 +2,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use elfo::_priv::MessageKind;
 use elfo::{test::Proxy, Blueprint, Envelope, Message};
+use slotmap::{new_key_type, SlotMap};
 use std::time::Duration;
 use tokio::time::Instant;
 use tracing::{debug, info, trace, warn};
@@ -77,9 +78,14 @@ pub struct Runner<'a> {
     ready_events: BTreeSet<EventKey>,
     key_requires_values: HashMap<EventKey, HashSet<EventKey>>,
     scope: bindings::Scope,
-    proxies: Vec<Proxy>,
+    main_proxy_key: ProxyKey,
+    proxies: SlotMap<ProxyKey, Proxy>,
     envelopes: HashMap<KeyRecv, Envelope>,
     delays: Delays,
+}
+
+new_key_type! {
+    struct ProxyKey;
 }
 
 #[derive(Default)]
@@ -334,7 +340,7 @@ impl<'a> Runner<'a> {
         } = self.executable;
 
         'recv_or_delay: loop {
-            for p in self.proxies.iter_mut() {
+            for (_, p) in self.proxies.iter_mut() {
                 p.sync().await;
             }
 
@@ -360,8 +366,8 @@ impl<'a> Runner<'a> {
 
             let mut unmatched_envelopes = 0;
 
-            for (proxy_idx, proxy) in self.proxies.iter_mut().enumerate() {
-                trace!(" try_recv at proxies[{}]", proxy_idx);
+            for (proxy_key, proxy) in self.proxies.iter_mut() {
+                trace!(" try_recv at proxies[{:?}]", proxy_key);
                 let Some(envelope) = proxy.try_recv().await else {
                     continue;
                 };
@@ -369,7 +375,7 @@ impl<'a> Runner<'a> {
                 let envelope_message_name = envelope.message().name();
 
                 let sent_from = envelope.sender();
-                let sent_to_opt = Some(proxy.addr()).filter(|_| proxy_idx != 0);
+                let sent_to_opt = Some(proxy.addr()).filter(|_| proxy_key != self.main_proxy_key);
 
                 trace!("  from: {:?}", sent_from);
                 trace!("  to:   {:?}", sent_to_opt);
@@ -511,15 +517,17 @@ impl<'a> Runner<'a> {
         );
 
         let send_via_proxy_idx = if let Some(addr) = self.scope.address_of(send_from) {
-            let Some(proxy_idx) = self.proxies.iter().position(|p| p.addr() == addr) else {
+            let Some(proxy_key) = self
+                .proxies
+                .iter()
+                .find_map(|(k, p)| Some(k).filter(|_| p.addr() == addr))
+            else {
                 return Err(RunError::ActorName(send_from.clone()));
             };
-            proxy_idx
+            proxy_key
         } else {
-            let proxy_idx = self.proxies.len();
-            let proxy = self.proxies[0].subproxy().await;
-            self.proxies.push(proxy);
-            proxy_idx
+            let proxy = self.proxies[self.main_proxy_key].subproxy().await;
+            self.proxies.insert(proxy)
         };
 
         let send_to_addr_opt = send_to
@@ -529,7 +537,7 @@ impl<'a> Runner<'a> {
                     .scope
                     .address_of(&actor_name)
                     .ok_or_else(|| RunError::UnboundName(actor_name.clone()))?;
-                if self.proxies.iter().any(|p| p.addr() == addr) {
+                if self.proxies.iter().any(|(_, p)| p.addr() == addr) {
                     return Err(RunError::DummyName(actor_name.clone()));
                 }
                 Ok(addr)
@@ -597,10 +605,10 @@ impl<'a> Runner<'a> {
             };
             self.proxies
                 .iter()
-                .position(|p| p.addr() == addr)
+                .find_map(|(k, p)| Some(k).filter(|_| p.addr() == addr))
                 .ok_or_else(|| RunError::ActorName(from_dummy_name.clone()))?
         } else {
-            0
+            self.main_proxy_key
         };
 
         let request_marshaller = self
@@ -645,7 +653,11 @@ impl<'a> Runner<'a> {
     where
         C: for<'de> serde::de::Deserializer<'de>,
     {
-        let proxies = vec![elfo::test::proxy(blueprint, config).await];
+        let main_proxy = elfo::test::proxy(blueprint, config).await;
+
+        let mut proxies: SlotMap<ProxyKey, Proxy> = Default::default();
+        let main_proxy_key = proxies.insert(main_proxy);
+
         let mut delays = Delays::default();
 
         let ready_events = graph.events.entry_points.clone();
@@ -676,11 +688,10 @@ impl<'a> Runner<'a> {
             );
         Self {
             executable: graph,
-
             ready_events,
             key_requires_values,
             delays,
-
+            main_proxy_key,
             proxies,
             scope: Default::default(),
             envelopes: Default::default(),
