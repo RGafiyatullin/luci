@@ -547,7 +547,7 @@ impl<'a> Runner<'a> {
             .expect("invalid FQN");
 
         let any_message = marshaller
-            .make_outbound_message(&messages, &self.scope, message_data.clone())
+            .marshal_outbound_message(&messages, &self.scope, message_data.clone())
             .map_err(RunError::Marshalling)?;
 
         if let Some(dst_addr) = send_to_addr_opt {

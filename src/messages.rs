@@ -48,7 +48,7 @@ pub(crate) trait Marshal {
         bind_to: &Msg,
         bindings: &mut bindings::Txn,
     ) -> bool;
-    fn make_outbound_message(
+    fn marshal_outbound_message(
         &self,
         messages: &Messages,
         bindings: &bindings::Scope,
@@ -137,13 +137,13 @@ where
 
         do_match_message(bind_to, serialized, bindings)
     }
-    fn make_outbound_message(
+    fn marshal_outbound_message(
         &self,
         messages: &Messages,
         bindings: &bindings::Scope,
         msg: Msg,
     ) -> Result<AnyMessage, AnError> {
-        do_make_message::<M>(messages, bindings, msg)
+        do_marshal_message::<M>(messages, bindings, msg)
     }
     fn response(&self) -> Option<&'static dyn DynRespond> {
         None
@@ -169,13 +169,13 @@ where
 
         do_match_message(bind_to, serialized, bindings)
     }
-    fn make_outbound_message(
+    fn marshal_outbound_message(
         &self,
         messages: &Messages,
         bindings: &bindings::Scope,
         msg: Msg,
     ) -> Result<AnyMessage, AnError> {
-        do_make_message::<Rq::Wrapper>(messages, bindings, msg)
+        do_marshal_message::<Rq::Wrapper>(messages, bindings, msg)
     }
     fn response(&self) -> Option<&'static dyn DynRespond> {
         Some(&Response::<Rq>)
@@ -252,7 +252,7 @@ fn do_match_message(bind_to: &Msg, serialized: Value, bindings: &mut bindings::T
     }
 }
 
-fn do_make_message<M: Message>(
+fn do_marshal_message<M: Message>(
     messages: &Messages,
     bindings: &bindings::Scope,
     msg: Msg,
