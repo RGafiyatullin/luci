@@ -8,12 +8,12 @@ use tracing::{debug, trace};
 
 use crate::{
     execution::{EventBind, EventKey, KeyBind, KeyDelay, KeyRecv, KeyRespond, KeySend},
-    messages,
+    marshalling,
     scenario::{DefEventBind, DefEventDelay, DefEventRecv, DefEventRespond, DefEventSend},
 };
 use crate::{
     execution::{EventDelay, EventRecv, EventRespond, EventSend, Events, Executable},
-    messages::Messages,
+    marshalling::MarshallingManager,
     names::{ActorName, EventName, MessageName},
     scenario::{DefEvent, DefEventKind, DefTypeAlias, Scenario},
 };
@@ -45,11 +45,11 @@ pub enum BuildError<'a> {
     DuplicateActorName(&'a ActorName),
 
     #[error("invalid data: {}", _0)]
-    InvalidData(messages::AnError),
+    InvalidData(marshalling::AnError),
 }
 
 impl Executable {
-    pub fn build(messages: Messages, scenario: &Scenario) -> Result<Self, BuildError> {
+    pub fn build(messages: MarshallingManager, scenario: &Scenario) -> Result<Self, BuildError> {
         debug!("building...");
 
         debug!("storing type-aliases...");
@@ -82,7 +82,7 @@ impl Executable {
 }
 
 fn type_aliases<'a>(
-    messages: &Messages,
+    messages: &MarshallingManager,
     imports: impl IntoIterator<Item = &'a DefTypeAlias>,
 ) -> Result<HashMap<MessageName, Arc<str>>, BuildError<'a>> {
     use std::collections::hash_map::Entry::Vacant;
@@ -119,7 +119,7 @@ fn build_graph<'a>(
     event_defs: impl IntoIterator<Item = &'a DefEvent>,
     type_aliases: &HashMap<MessageName, Arc<str>>,
     actors: &HashSet<ActorName>,
-    messages: &Messages,
+    messages: &MarshallingManager,
 ) -> Result<Events, BuildError<'a>> {
     let mut v_delay = SlotMap::<KeyDelay, _>::default();
     let mut v_bind = SlotMap::<KeyBind, _>::default();

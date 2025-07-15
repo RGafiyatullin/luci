@@ -147,12 +147,18 @@ pub struct DefEventDelay {
     pub no_extra: NoExtra,
 }
 
+/// A template for marshalling [elfo::AnyMessage].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Msg {
+    /// Stores [Value] to be marshalled as [elfo::AnyMessage] as-is.
     #[cfg_attr(feature = "backwards-compatibility", serde(alias = "exact"))]
     Literal(Value),
+    /// Stores [Value] to be bound with values for variables in it and then
+    /// marshalled as [elfo::AnyMessage].
     Bind(Value),
+    /// Stores a key to find a predefined [elfo::AnyMessage] to be injected
+    /// into the message flow.
     #[cfg_attr(feature = "backwards-compatibility", serde(alias = "injected"))]
     Inject(String),
 }

@@ -8,7 +8,7 @@ use serde_json::Value;
 use slotmap::{new_key_type, SlotMap};
 
 use crate::{
-    messages::Messages,
+    marshalling::MarshallingManager,
     names::{ActorName, EventName},
     scenario::{Msg, RequiredToBe},
 };
@@ -41,7 +41,7 @@ pub enum EventKey {
 
 #[derive(Debug)]
 pub struct Executable {
-    messages: Messages,
+    messages: MarshallingManager,
     events: Events,
 }
 

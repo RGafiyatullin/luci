@@ -13,7 +13,7 @@ use crate::{
         EventBind, EventDelay, EventKey, EventRecv, EventRespond, EventSend, Executable, KeyDelay,
         KeyRecv, KeyRespond, KeySend, Report,
     },
-    messages,
+    marshalling,
     names::{ActorName, EventName},
     scenario::Msg,
 };
@@ -39,7 +39,7 @@ pub enum RunError {
     BindError(bindings::BindError),
 
     #[error("marshalling error: {}", _0)]
-    Marshalling(messages::AnError),
+    Marshalling(marshalling::AnError),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
