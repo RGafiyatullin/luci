@@ -516,20 +516,6 @@ impl<'a> Runner<'a> {
             message_type, send_from, send_to
         );
 
-        let send_via_proxy_idx = if let Some(addr) = self.scope.address_of(send_from) {
-            let Some(proxy_key) = self
-                .proxies
-                .iter()
-                .find_map(|(k, p)| Some(k).filter(|_| p.addr() == addr))
-            else {
-                return Err(RunError::ActorName(send_from.clone()));
-            };
-            proxy_key
-        } else {
-            let proxy = self.proxies[self.main_proxy_key].subproxy().await;
-            self.proxies.insert(proxy)
-        };
-
         let send_to_addr_opt = send_to
             .as_ref()
             .map(|actor_name| {
@@ -544,6 +530,17 @@ impl<'a> Runner<'a> {
             })
             .transpose()?;
 
+        let send_via_proxy = if let Some(addr) = self.scope.address_of(send_from) {
+            self.proxies
+                .values_mut()
+                .find(|p| p.addr() == addr)
+                .ok_or_else(|| RunError::ActorName(send_from.clone()))?
+        } else {
+            let proxy = self.proxies[self.main_proxy_key].subproxy().await;
+            let proxy_key = self.proxies.insert(proxy);
+            &mut self.proxies[proxy_key]
+        };
+
         let marshaller = self
             .executable
             .messages
@@ -554,23 +551,21 @@ impl<'a> Runner<'a> {
             .make_outbound_message(&messages, &self.scope, message_data.clone())
             .map_err(RunError::Marshalling)?;
 
-        let sending_proxy = &mut self.proxies[send_via_proxy_idx];
-
         if let Some(dst_addr) = send_to_addr_opt {
             trace!(
                 "sending directly [from: {}; to: {}]: {:?}",
                 dst_addr,
-                sending_proxy.addr(),
+                send_via_proxy.addr(),
                 any_message
             );
-            let () = sending_proxy.send_to(dst_addr, any_message).await;
+            let () = send_via_proxy.send_to(dst_addr, any_message).await;
         } else {
             trace!(
                 "sending via routing [from: {}]: {:?}",
-                sending_proxy.addr(),
+                send_via_proxy.addr(),
                 any_message
             );
-            let () = sending_proxy.send(any_message).await;
+            let () = send_via_proxy.send(any_message).await;
         }
 
         actually_fired_events.push(EventKey::Send(event_key));
