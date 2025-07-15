@@ -1,16 +1,13 @@
-use std::{
-    collections::{BTreeSet, HashMap, HashSet},
-    num::NonZeroUsize,
-};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use elfo::_priv::MessageKind;
-use elfo::{test::Proxy, Addr, Blueprint, Envelope, Message};
-use serde_json::Value;
+use elfo::{test::Proxy, Blueprint, Envelope, Message};
 use std::time::Duration;
 use tokio::time::Instant;
 use tracing::{debug, info, trace, warn};
 
 use crate::{
+    bindings,
     execution::{
         EventBind, EventDelay, EventKey, EventRecv, EventRespond, EventSend, Executable, KeyDelay,
         KeyRecv, KeyRespond, KeySend, Report,
@@ -77,11 +74,13 @@ pub struct Runner<'a> {
     ready_events: BTreeSet<EventKey>,
     key_requires_values: HashMap<EventKey, HashSet<EventKey>>,
 
-    actors: Actors,
-    dummies: Dummies,
+    // actors: Actors,
+    // dummies: Dummies,
+    // bindings: HashMap<String, Value>,
+    scope: bindings::Scope,
 
     proxies: Vec<Proxy>,
-    bindings: HashMap<String, Value>,
+
     envelopes: HashMap<KeyRecv, Envelope>,
     delays: Delays,
 }
@@ -90,22 +89,6 @@ pub struct Runner<'a> {
 struct Delays {
     deadlines: BTreeSet<(Instant, KeyDelay, Duration)>,
     steps: BTreeSet<(Duration, KeyDelay, Instant)>,
-}
-
-#[derive(Default)]
-struct Actors {
-    by_name: HashMap<ActorName, Addr>,
-    by_addr: HashMap<Addr, ActorName>,
-
-    excluded: HashSet<ActorName>,
-}
-
-#[derive(Default)]
-struct Dummies {
-    by_name: HashMap<ActorName, (Addr, NonZeroUsize)>,
-    by_addr: HashMap<Addr, (ActorName, NonZeroUsize)>,
-
-    excluded: HashSet<ActorName>,
 }
 
 impl Executable {
@@ -316,10 +299,13 @@ impl<'a> Runner<'a> {
             trace!(" binding {:?}", bind_key);
             let EventBind { dst, src } = &events.bind[bind_key];
 
+            let mut scope_txn = self.scope.txn();
+
             let value = match src {
                 Msg::Literal(value) => value.clone(),
-                Msg::Bind(template) => messages::render(template.clone(), &self.bindings)
-                    .map_err(RunError::Marshalling)?,
+                Msg::Bind(template) => {
+                    messages::render(template.clone(), &scope_txn).map_err(RunError::Marshalling)?
+                }
                 Msg::Inject(key) => {
                     let m = messages.value(key).ok_or(RunError::Marshalling(
                         format!("no such key: {:?}", key).into(),
@@ -328,31 +314,12 @@ impl<'a> Runner<'a> {
                 }
             };
 
-            let mut kv = Default::default();
-            if !messages::bind_to_pattern(value, dst, &mut kv) {
+            if !messages::bind_to_pattern(value, dst, &mut scope_txn) {
                 trace!("  could not bind {:?}", bind_key);
                 continue;
             }
 
-            let Ok(kv) = kv
-                .into_iter()
-                .map(|(k, v1)| {
-                    if self.bindings.get(&k).is_some_and(|v0| !v1.eq(v0)) {
-                        Err(())
-                    } else {
-                        Ok((k, v1))
-                    }
-                })
-                .collect::<Result<Vec<_>, _>>()
-            else {
-                trace!("  binding mismatch");
-                continue;
-            };
-
-            for (k, v) in kv {
-                info!("  bind {} <- {:?}", k, v);
-                self.bindings.insert(k, v);
-            }
+            scope_txn.commit();
 
             actually_fired_events.push(EventKey::Bind(bind_key));
         }
@@ -425,12 +392,19 @@ impl<'a> Runner<'a> {
                         to: match_to,
                         payload: match_message,
                     } = &vertices.recv[recv_key];
+
+                    let mut scope_txn = self.scope.txn();
+
                     let marshaller = messages.resolve(&match_type).expect("bad FQN");
 
                     if let Some(from_name) = match_from {
-                        trace!("    expecting source: {:?}", from_name);
-                        if !self.actors.can_bind(from_name, sent_from) {
-                            trace!("    can't bind");
+                        trace!("expecting source: {:?}", from_name);
+                        if !scope_txn.name_actor(from_name, sent_from) {
+                            trace!(
+                                "could not bind source [name: {}; addr: {}]",
+                                from_name,
+                                sent_from
+                            );
                             continue;
                         }
                     }
@@ -438,12 +412,16 @@ impl<'a> Runner<'a> {
                     match (match_to, sent_to_opt) {
                         (Some(bind_to_name), Some(sent_to_address)) => {
                             trace!(
-                                "   expecting directed to {:?}, sent to address: {}",
+                                "expecting directed to {:?}, sent to address: {}",
                                 bind_to_name,
                                 sent_to_address
                             );
-                            if !self.dummies.can_bind(bind_to_name, sent_to_address) {
-                                trace!("    can't bind");
+                            if !scope_txn.name_actor(bind_to_name, sent_to_address) {
+                                trace!(
+                                    "could not bind destination [name: {}; addr: {}]",
+                                    bind_to_name,
+                                    sent_to_address
+                                );
                                 continue;
                             }
                         }
@@ -458,39 +436,12 @@ impl<'a> Runner<'a> {
                         (_, _) => (),
                     }
 
-                    let Some(kv) = marshaller.bind(&envelope, match_message) else {
+                    if !marshaller.match_inbound_message(&envelope, match_message, &mut scope_txn) {
                         trace!("   marshaller couldn't bind");
                         continue;
                     };
 
-                    trace!("   marshaller bound: {:#?}", kv);
-
-                    let Ok(kv) = kv
-                        .into_iter()
-                        .map(|(k, v1)| {
-                            if self.bindings.get(&k).is_some_and(|v0| !v1.eq(v0)) {
-                                Err(())
-                            } else {
-                                Ok((k, v1))
-                            }
-                        })
-                        .collect::<Result<Vec<_>, _>>()
-                    else {
-                        trace!("     binding mismatch");
-                        continue;
-                    };
-
-                    for (k, v) in kv {
-                        info!("    bind {} <- {:?}", k, v);
-                        self.bindings.insert(k, v);
-                    }
-                    if let Some(from_name) = match_from {
-                        let bound_ok =
-                            self.actors
-                                .bind(from_name.clone(), sent_from, &mut self.dummies)?;
-                        assert!(bound_ok);
-                    }
-
+                    scope_txn.commit();
                     self.envelopes.insert(recv_key, envelope);
                     self.ready_events.remove(&EventKey::Recv(recv_key));
                     actually_fired_events.push(EventKey::Recv(recv_key));
@@ -562,44 +513,57 @@ impl<'a> Runner<'a> {
             message_type, send_from, send_to
         );
 
-        let actor_addr_opt = if let Some(actor_name) = send_to {
-            let addr = self
-                .actors
-                .resolve(actor_name)?
-                .ok_or_else(|| RunError::UnboundName(actor_name.clone()))?;
+        let scope_txn = self.scope.txn();
 
-            Some(addr)
+        let send_via_proxy_idx = if let Some(addr) = scope_txn.address_of(send_from) {
+            let Some(proxy_idx) = self.proxies.iter().position(|p| p.addr() == addr) else {
+                return Err(RunError::ActorName(send_from.clone()));
+            };
+            proxy_idx
         } else {
-            None
+            let proxy_idx = self.proxies.len();
+            let proxy = self.proxies[0].subproxy().await;
+            self.proxies.push(proxy);
+            proxy_idx
         };
 
-        let (dummy_addr, proxy_idx) = self
-            .dummies
-            .bind(send_from.clone(), &mut self.proxies, &mut self.actors)
-            .await?;
+        let send_to_addr_opt = send_to
+            .as_ref()
+            .map(|actor_name| {
+                let addr = scope_txn
+                    .address_of(&actor_name)
+                    .ok_or_else(|| RunError::UnboundName(actor_name.clone()))?;
+                if self.proxies.iter().any(|p| p.addr() == addr) {
+                    return Err(RunError::DummyName(actor_name.clone()));
+                }
+                Ok(addr)
+            })
+            .transpose()?;
 
         let marshaller = self
             .executable
             .messages
             .resolve(&message_type)
             .expect("invalid FQN");
+
         let any_message = marshaller
-            .marshall(&messages, &self.bindings, message_data.clone())
+            .make_outbound_message(&messages, &scope_txn, message_data.clone())
             .map_err(RunError::Marshalling)?;
 
-        let sending_proxy = &mut self.proxies[proxy_idx.get()];
-        if let Some(dst_addr) = actor_addr_opt {
+        let sending_proxy = &mut self.proxies[send_via_proxy_idx];
+
+        if let Some(dst_addr) = send_to_addr_opt {
             trace!(
-                " sending directly [from: {}; to: {}]: {:?}",
+                "sending directly [from: {}; to: {}]: {:?}",
                 dst_addr,
-                dummy_addr,
+                sending_proxy.addr(),
                 any_message
             );
             let () = sending_proxy.send_to(dst_addr, any_message).await;
         } else {
             trace!(
-                " sending via routing [from: {}: {:?}",
-                dummy_addr,
+                "sending via routing [from: {}]: {:?}",
+                sending_proxy.addr(),
                 any_message
             );
             let () = sending_proxy.send(any_message).await;
@@ -631,15 +595,20 @@ impl<'a> Runner<'a> {
             request_fqn, respond_from
         );
 
-        let proxy_idx = if let Some(from) = respond_from {
-            self.dummies
-                .bind(from.clone(), &mut self.proxies, &mut self.actors)
-                .await?
-                .1
-                .get()
+        let scope_txn = self.scope.txn();
+
+        let proxy_idx = if let Some(from_dummy_name) = respond_from {
+            let Some(addr) = scope_txn.address_of(from_dummy_name) else {
+                return Err(RunError::UnboundName(from_dummy_name.clone()));
+            };
+            self.proxies
+                .iter()
+                .position(|p| p.addr() == addr)
+                .ok_or_else(|| RunError::ActorName(from_dummy_name.clone()))?
         } else {
             0
         };
+
         let request_marshaller = self
             .executable
             .messages
@@ -665,7 +634,7 @@ impl<'a> Runner<'a> {
                 responding_proxy,
                 token,
                 &messages,
-                &self.bindings,
+                &scope_txn,
                 message_data.clone(),
             )
             .await
@@ -719,136 +688,9 @@ impl<'a> Runner<'a> {
             delays,
 
             proxies,
-            actors: Default::default(),
-            dummies: Default::default(),
-            bindings: Default::default(),
+            scope: Default::default(),
             envelopes: Default::default(),
         }
-    }
-}
-
-impl Actors {
-    fn can_bind(&self, actor_name: &ActorName, addr: Addr) -> bool {
-        match (
-            self.excluded.contains(actor_name),
-            self.by_name.get(actor_name),
-            self.by_addr.get(&addr),
-        ) {
-            (true, _, _) | (false, Some(_), None) | (false, None, Some(_)) => false,
-            (false, None, None) => true,
-            (false, Some(same_addr), Some(same_name)) => {
-                same_name == actor_name && *same_addr == addr
-            }
-        }
-    }
-
-    fn bind(
-        &mut self,
-        actor_name: ActorName,
-        addr: Addr,
-        dummies: &mut Dummies,
-    ) -> Result<bool, RunError> {
-        use std::collections::hash_map::Entry::*;
-
-        if self.excluded.contains(&actor_name) {
-            return Err(RunError::DummyName(actor_name));
-        }
-
-        match (self.by_name.entry(actor_name), self.by_addr.entry(addr)) {
-            (Occupied(_), Vacant(_)) | (Vacant(_), Occupied(_)) => Ok(false),
-            (Vacant(by_name), Vacant(by_addr)) => {
-                dummies.exclude(by_name.key().clone())?;
-
-                by_addr.insert(by_name.key().clone());
-                by_name.insert(addr);
-
-                Ok(true)
-            }
-            (Occupied(by_name), Occupied(by_addr)) => {
-                assert_eq!(by_name.key(), by_addr.get());
-                assert_eq!(by_addr.key(), by_name.get());
-
-                Ok(*by_name.get() == addr)
-            }
-        }
-    }
-
-    fn resolve(&mut self, actor_name: &ActorName) -> Result<Option<Addr>, RunError> {
-        if self.excluded.contains(actor_name) {
-            return Err(RunError::DummyName(actor_name.clone()));
-        }
-
-        let addr_opt = self.by_name.get(actor_name).copied();
-        Ok(addr_opt)
-    }
-    fn exclude(&mut self, actor_name: ActorName) -> Result<(), RunError> {
-        if self.by_name.contains_key(&actor_name) {
-            return Err(RunError::ActorName(actor_name));
-        }
-        self.excluded.insert(actor_name);
-        Ok(())
-    }
-}
-
-impl Dummies {
-    fn can_bind(&self, actor_name: &ActorName, addr: Addr) -> bool {
-        match (
-            self.excluded.contains(actor_name),
-            self.by_name.get(actor_name),
-            self.by_addr.get(&addr),
-        ) {
-            (true, _, _) | (false, Some(_), None) | (false, None, Some(_)) => false,
-            (false, None, None) => true,
-            (false, Some((same_addr, _)), Some((same_name, _))) => {
-                same_name == actor_name && *same_addr == addr
-            }
-        }
-    }
-
-    async fn bind(
-        &mut self,
-        actor_name: ActorName,
-        proxies: &mut Vec<Proxy>,
-        actors: &mut Actors,
-    ) -> Result<(Addr, NonZeroUsize), RunError> {
-        use std::collections::hash_map::Entry::*;
-
-        if self.excluded.contains(&actor_name) {
-            return Err(RunError::ActorName(actor_name));
-        }
-
-        match self.by_name.entry(actor_name.clone()) {
-            Occupied(o) => Ok(*o.get()),
-
-            Vacant(by_name) => {
-                let proxy = proxies[0].subproxy().await;
-                let addr = proxy.addr();
-
-                let Vacant(by_addr) = self.by_addr.entry(addr) else {
-                    panic!("fresh proxy, seen address — wtf?")
-                };
-
-                actors.exclude(actor_name.clone())?;
-
-                let idx: NonZeroUsize = proxies
-                    .len()
-                    .try_into()
-                    .expect("`proxies[0]` was present: expecting `proxies.len > 0`");
-                proxies.push(proxy);
-                by_addr.insert((actor_name, idx));
-                by_name.insert((addr, idx));
-
-                Ok((addr, idx))
-            }
-        }
-    }
-
-    fn exclude(&mut self, actor_name: ActorName) -> Result<(), RunError> {
-        if self.by_name.contains_key(&actor_name) {
-            return Err(RunError::DummyName(actor_name));
-        }
-        self.excluded.insert(actor_name);
-        Ok(())
     }
 }
 

@@ -5,6 +5,7 @@ use futures::{future::LocalBoxFuture, FutureExt};
 use ghost::phantom;
 use serde_json::Value;
 
+use crate::bindings;
 use crate::scenario::Msg;
 
 pub type AnError = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -41,11 +42,16 @@ pub trait SupportedMessage {
 }
 
 pub trait Marshal {
-    fn bind(&self, envelope: &Envelope, bind_to: &Msg) -> Option<Vec<(String, Value)>>;
-    fn marshall(
+    fn match_inbound_message(
+        &self,
+        envelope: &Envelope,
+        bind_to: &Msg,
+        bindings: &mut bindings::Txn,
+    ) -> bool;
+    fn make_outbound_message(
         &self,
         messages: &Messages,
-        bindings: &HashMap<String, Value>,
+        bindings: &bindings::Txn,
         value: Msg,
     ) -> Result<AnyMessage, AnError>;
     fn response(&self) -> Option<&dyn DynRespond>;
@@ -57,7 +63,7 @@ pub trait Respond<'a> {
         proxy: &'a mut Proxy,
         token: ResponseToken,
         messages: &'a Messages,
-        bindings: &'a HashMap<String, Value>,
+        bindings: &'a bindings::Txn<'a>,
         value: Msg,
     ) -> LocalBoxFuture<'a, Result<(), AnError>>;
 }
@@ -116,20 +122,25 @@ impl<M> Marshal for Regular<M>
 where
     M: elfo::Message,
 {
-    fn bind(&self, envelope: &Envelope, bind_to: &Msg) -> Option<Vec<(String, Value)>> {
+    fn match_inbound_message(
+        &self,
+        envelope: &Envelope,
+        bind_to: &Msg,
+        bindings: &mut bindings::Txn,
+    ) -> bool {
         if !envelope.is::<M>() {
-            return None;
+            return false;
         }
 
         let serialized = extract_message_payload(envelope)
             .expect("AnyMessage has changed serialization format?");
 
-        do_bind(bind_to, serialized)
+        do_bind(bind_to, serialized, bindings)
     }
-    fn marshall(
+    fn make_outbound_message(
         &self,
         messages: &Messages,
-        bindings: &HashMap<String, Value>,
+        bindings: &bindings::Txn,
         msg: Msg,
     ) -> Result<AnyMessage, AnError> {
         do_marshal::<M>(messages, bindings, msg)
@@ -143,20 +154,25 @@ impl<Rq> Marshal for Request<Rq>
 where
     Rq: elfo::Request,
 {
-    fn bind(&self, envelope: &Envelope, bind_to: &Msg) -> Option<Vec<(String, Value)>> {
+    fn match_inbound_message(
+        &self,
+        envelope: &Envelope,
+        bind_to: &Msg,
+        bindings: &mut bindings::Txn,
+    ) -> bool {
         if !envelope.is::<Rq>() {
-            return None;
+            return false;
         }
 
         let serialized = extract_message_payload(envelope)
             .expect("AnyMessage has changed serialization format?");
 
-        do_bind(bind_to, serialized)
+        do_bind(bind_to, serialized, bindings)
     }
-    fn marshall(
+    fn make_outbound_message(
         &self,
         messages: &Messages,
-        bindings: &HashMap<String, Value>,
+        bindings: &bindings::Txn,
         msg: Msg,
     ) -> Result<AnyMessage, AnError> {
         do_marshal::<Rq::Wrapper>(messages, bindings, msg)
@@ -175,7 +191,7 @@ where
         proxy: &'a mut Proxy,
         token: ResponseToken,
         messages: &'a Messages,
-        bindings: &'a HashMap<String, Value>,
+        bindings: &'a bindings::Txn<'a>,
         value: Msg,
     ) -> LocalBoxFuture<'a, Result<(), AnError>> {
         async move {
@@ -228,31 +244,17 @@ fn extract_message_payload(envelope: &Envelope) -> Option<Value> {
     Some(payload)
 }
 
-fn do_bind(bind_to: &Msg, serialized: Value) -> Option<Vec<(String, Value)>> {
+fn do_bind(bind_to: &Msg, serialized: Value, bindings: &mut bindings::Txn) -> bool {
     match bind_to {
-        Msg::Literal(value) => {
-            if serialized == *value {
-                Some(Default::default())
-            } else {
-                None
-            }
-        }
-        Msg::Bind(pattern) => {
-            let mut bindings = Default::default();
-            if bind_to_pattern(serialized, pattern, &mut bindings) {
-                Some(bindings.into_iter().collect())
-            } else {
-                None
-            }
-        }
-
-        Msg::Inject(_name) => Some(Default::default()),
+        Msg::Literal(value) => serialized == *value,
+        Msg::Bind(pattern) => bind_to_pattern(serialized, pattern, bindings),
+        Msg::Inject(_name) => false,
     }
 }
 
 fn do_marshal<M: Message>(
     messages: &Messages,
-    bindings: &HashMap<String, Value>,
+    bindings: &bindings::Txn,
     msg: Msg,
 ) -> Result<AnyMessage, AnError> {
     match msg {
@@ -276,23 +278,12 @@ fn do_marshal<M: Message>(
 
 // ------
 
-pub fn bind_to_pattern(
-    value: Value,
-    pattern: &Value,
-    bindings: &mut HashMap<String, Value>,
-) -> bool {
-    use std::collections::hash_map::Entry::*;
+pub fn bind_to_pattern(value: Value, pattern: &Value, bindings: &mut bindings::Txn) -> bool {
     match (value, pattern) {
         (_, Value::String(wildcard)) if wildcard == "$_" => true,
 
         (value, Value::String(var_name)) if var_name.starts_with('$') => {
-            match bindings.entry(var_name.to_owned()) {
-                Vacant(v) => {
-                    v.insert(value);
-                    true
-                }
-                Occupied(o) => *o.get() == value,
-            }
+            bindings.set_value(&var_name, &value)
         }
 
         (Value::Null, Value::Null) => true,
@@ -316,11 +307,11 @@ pub fn bind_to_pattern(
     }
 }
 
-pub fn render(template: Value, bindings: &HashMap<String, Value>) -> Result<Value, AnError> {
+pub fn render(template: Value, bindings: &bindings::Txn) -> Result<Value, AnError> {
     match template {
         Value::String(wildcard) if wildcard == "$_" => Err("can't render $_".into()),
         Value::String(var_name) if var_name.starts_with('$') => bindings
-            .get(&var_name)
+            .value_of(&var_name)
             .cloned()
             .ok_or_else(|| format!("unknown var: {:?}", var_name).into()),
         Value::Array(items) => Ok(Value::Array(

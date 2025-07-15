@@ -8,6 +8,7 @@ default = []
 backwards-compatibility = []
 
 [dependencies]
+bimap = "^0.6"
 derive_more = {version = "^2.0.1", features = ["debug", "from"]}
 futures = "^0.3"
 ghost = "^0.1"
