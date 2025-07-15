@@ -8,11 +8,14 @@ use clap::Parser;
 use luci::{execution::Executable, messages::Messages, scenario::Scenario};
 
 #[derive(Parser, Debug)]
-#[command(name = "luci")]
+#[command(
+    name = "luci",
+    about = "Generate a Graphviz DOT graph from a scenario description."
+)]
 struct Args {
     #[clap(long = "input", short = 'i', help = "Scenario file (default: stdin)")]
-    #[clap(long = "output", short = 'o', help = ".dot file (default: stdout)")]
     scenario_file: Option<PathBuf>,
+    #[clap(long = "output", short = 'o', help = "Graphviz file (default: stdout")]
     output_file: Option<PathBuf>,
 }
 
