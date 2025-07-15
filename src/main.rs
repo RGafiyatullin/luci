@@ -5,7 +5,7 @@ use std::{
 };
 
 use clap::Parser;
-use luci::{execution_graph::ExecutionGraph, messages::Messages, scenario::Scenario};
+use luci::{execution::Executable, messages::Messages, scenario::Scenario};
 
 #[derive(Parser, Debug)]
 #[command(name = "luci")]
@@ -38,11 +38,10 @@ fn main() {
     let scenario: Scenario =
         serde_yaml::from_str(&scenario).expect("Failed to parse YAML scenario file");
 
-    let graph = ExecutionGraph::builder(Messages::new())
-        .build(&scenario, false)
+    let executable = Executable::build(Messages::new(), &scenario, false)
         .expect("Failed to build execution graph");
 
-    let result = graph.draw_graphviz();
+    let result = executable.render_graph();
 
     match args.output_file {
         Some(path) => {

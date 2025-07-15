@@ -1,21 +1,21 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     sync::Arc,
 };
 
+use slotmap::SlotMap;
 use tracing::{debug, trace};
 
 use crate::{
-    execution_graph::{EventKey, VertexBind},
+    execution::{EventBind, EventKey, KeyBind, KeyDelay, KeyRecv, KeyRespond, KeySend},
     messages,
-    scenario::{EventBind, EventDelay, EventRecv, EventRespond, EventSend},
+    scenario::{DefEventBind, DefEventDelay, DefEventRecv, DefEventRespond, DefEventSend},
 };
 use crate::{
-    execution_graph::{
-        ExecutionGraph, VertexDelay, VertexRecv, VertexRespond, VertexSend, Vertices,
-    },
+    execution::{EventDelay, EventRecv, EventRespond, EventSend, Events, Executable},
     messages::Messages,
-    scenario::{ActorName, EventDef, EventKind, EventName, MessageName, Scenario, TypeAlias},
+    names::{ActorName, EventName, MessageName},
+    scenario::{DefEvent, DefEventKind, DefTypeAlias, Scenario},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -48,31 +48,13 @@ pub enum BuildError<'a> {
     InvalidData(messages::AnError),
 }
 
-#[derive(Debug)]
-pub struct Builder {
-    messages: Messages,
-}
-
-impl ExecutionGraph {
-    pub fn builder(messages: Messages) -> Builder {
-        debug!("created a builder");
-        Builder { messages }
-    }
-
-    pub fn draw_graphviz(&self) -> String {
-        self.vertices.draw_graphviz()
-    }
-}
-
-impl Builder {
+impl Executable {
     pub fn build(
-        self,
+        messages: Messages,
         scenario: &Scenario,
         validate_types: bool,
-    ) -> Result<ExecutionGraph, BuildError<'_>> {
+    ) -> Result<Self, BuildError> {
         debug!("building...");
-        let Self { messages } = self;
-        let messages = Arc::new(messages);
 
         debug!("storing type-aliases...");
         let type_aliases = type_aliases(&messages, &scenario.types, validate_types)?;
@@ -81,9 +63,9 @@ impl Builder {
         }
 
         debug!("checking actor-names...");
-        let actors = sanitize_cast(&scenario.cast)?;
-        for a in &actors {
-            trace!("- {:?}", a);
+        let actors = validate_actor_names(&scenario.cast)?;
+        for actor_name in &actors {
+            trace!("- {:?}", actor_name);
         }
 
         debug!("building the graph...");
@@ -96,13 +78,16 @@ impl Builder {
         debug!("- delay-vertices:\t{}", vertices.delay.len());
 
         debug!("done!");
-        Ok(ExecutionGraph { messages, vertices })
+        Ok(Executable {
+            messages,
+            events: vertices,
+        })
     }
 }
 
 fn type_aliases<'a>(
     messages: &Messages,
-    imports: impl IntoIterator<Item = &'a TypeAlias>,
+    imports: impl IntoIterator<Item = &'a DefTypeAlias>,
     validate_types: bool,
 ) -> Result<HashMap<MessageName, Arc<str>>, BuildError<'a>> {
     use std::collections::hash_map::Entry::Vacant;
@@ -123,14 +108,14 @@ fn type_aliases<'a>(
     Ok(aliases)
 }
 
-fn sanitize_cast<'a>(
-    cast: impl IntoIterator<Item = &'a ActorName>,
+fn validate_actor_names<'a>(
+    actor_names: impl IntoIterator<Item = &'a ActorName>,
 ) -> Result<HashSet<ActorName>, BuildError<'a>> {
     let mut out = HashSet::new();
 
-    for a in cast {
-        if !out.insert(a.clone()) {
-            return Err(BuildError::DuplicateActorName(a));
+    for name in actor_names {
+        if !out.insert(name.clone()) {
+            return Err(BuildError::DuplicateActorName(name));
         }
     }
 
@@ -138,13 +123,20 @@ fn sanitize_cast<'a>(
 }
 
 fn build_graph<'a>(
-    event_defs: impl IntoIterator<Item = &'a EventDef>,
+    event_defs: impl IntoIterator<Item = &'a DefEvent>,
     type_aliases: &HashMap<MessageName, Arc<str>>,
     actors: &HashSet<ActorName>,
-    _messages: &Messages,
-) -> Result<Vertices, BuildError<'a>> {
-    let mut vertices: Vertices = Default::default();
+    messages: &Messages,
+) -> Result<Events, BuildError<'a>> {
+    let mut v_delay = SlotMap::<KeyDelay, _>::default();
+    let mut v_bind = SlotMap::<KeyBind, _>::default();
+    let mut v_recv = SlotMap::<KeyRecv, _>::default();
+    let mut v_send = SlotMap::<KeySend, _>::default();
+    let mut v_respond = SlotMap::<KeyRespond, _>::default();
 
+    let mut entry_points = BTreeSet::new();
+    let mut key_unblocks_values = HashMap::<_, BTreeSet<_>>::new();
+    let mut required = HashMap::new();
     let mut idx_keys = HashMap::new();
 
     let mut priority = vec![];
@@ -153,11 +145,12 @@ fn build_graph<'a>(
         debug!(" processing event[{:?}]...", event.id);
 
         let this_name = &event.id;
-        let after = resolve_event_ids(&idx_keys, &event.after).collect::<Result<Vec<_>, _>>()?;
+        let prerequisites =
+            resolve_event_ids(&idx_keys, &event.prerequisites).collect::<Result<Vec<_>, _>>()?;
 
         let this_key = match &event.kind {
-            EventKind::Delay(def_delay) => {
-                let EventDelay {
+            DefEventKind::Delay(def_delay) => {
+                let DefEventDelay {
                     delay_for,
                     delay_step,
                     no_extra: _,
@@ -165,27 +158,27 @@ fn build_graph<'a>(
                 let delay_for = *delay_for;
                 let delay_step = *delay_step;
 
-                let key = vertices.delay.insert(VertexDelay {
+                let key = v_delay.insert(EventDelay {
                     delay_for,
                     delay_step,
                 });
                 EventKey::Delay(key)
             }
 
-            EventKind::Bind(def_bind) => {
-                let EventBind {
+            DefEventKind::Bind(def_bind) => {
+                let DefEventBind {
                     dst,
                     src,
                     no_extra: _,
                 } = def_bind;
                 let dst = dst.clone();
                 let src = src.clone();
-                let key = vertices.bind.insert(VertexBind { dst, src });
+                let key = v_bind.insert(EventBind { dst, src });
 
                 EventKey::Bind(key)
             }
-            EventKind::Recv(def_recv) => {
-                let EventRecv {
+            DefEventKind::Recv(def_recv) => {
+                let DefEventRecv {
                     message_type,
                     message_data,
                     from,
@@ -198,22 +191,22 @@ fn build_graph<'a>(
                     .cloned()
                     .ok_or(BuildError::UnknownAlias(&message_type))?;
 
-                for a in to.as_ref().into_iter().chain(from) {
-                    if !actors.contains(a) {
-                        return Err(BuildError::UnknownActor(a));
+                for actor_name in to.as_ref().into_iter().chain(from) {
+                    if !actors.contains(actor_name) {
+                        return Err(BuildError::UnknownActor(actor_name));
                     }
                 }
 
-                let key = vertices.recv.insert(VertexRecv {
-                    match_from: from.clone(),
-                    match_to: to.clone(),
-                    match_type: type_fqn,
-                    match_message: message_data.clone(),
+                let key = v_recv.insert(EventRecv {
+                    from: from.clone(),
+                    to: to.clone(),
+                    fqn: type_fqn,
+                    payload: message_data.clone(),
                 });
                 EventKey::Recv(key)
             }
-            EventKind::Send(def_send) => {
-                let EventSend {
+            DefEventKind::Send(def_send) => {
+                let DefEventSend {
                     from,
                     to,
                     message_type,
@@ -226,29 +219,24 @@ fn build_graph<'a>(
                     .cloned()
                     .ok_or(BuildError::UnknownAlias(message_type))?;
 
-                for a in to.as_ref().into_iter().chain([from]) {
-                    if !actors.contains(&a) {
-                        return Err(BuildError::UnknownActor(&a));
+                for actor_name in to.as_ref().into_iter().chain([from]) {
+                    if !actors.contains(&actor_name) {
+                        return Err(BuildError::UnknownActor(&actor_name));
                     }
                 }
-                // let marshaller = messages.resolve(&type_fqn).expect("an invalid fqn");
-                // let _ = marshaller
-                //     .marshall(&Default::default(), def_send.message_data.clone())
-                //     .map_err(BuildError::InvalidData)?;
 
-                let key = vertices.send.insert(VertexSend {
-                    send_from: from.clone(),
-                    send_to: to.clone(),
-                    message_type: type_fqn,
-                    // TODO: try actually marshalling this value using this `type_fqn`.
-                    message_data: message_data.clone(),
+                let key = v_send.insert(EventSend {
+                    from: from.clone(),
+                    to: to.clone(),
+                    fqn: type_fqn,
+                    payload: message_data.clone(),
                 });
                 EventKey::Send(key)
             }
-            EventKind::Respond(def_respond) => {
-                let EventRespond {
+            DefEventKind::Respond(def_respond) => {
+                let DefEventRespond {
                     from,
-                    to,
+                    to_request: to,
                     data,
                     no_extra: _,
                 } = def_respond;
@@ -257,50 +245,52 @@ fn build_graph<'a>(
                 let EventKey::Recv(recv_key) = causing_event_key else {
                     return Err(BuildError::NotARequest(&to));
                 };
-                let request_fqn = vertices
-                    .recv.get(*recv_key)
+                let request_fqn = v_recv.get(*recv_key)
                     .expect("we do not delete items from `recv`; neither we store keys that are unrelated to our collections")
-                    .match_type.clone();
-
-                // TODO: 1. Check whether the `request_fqn` is a request.
-                // TODO: 2. Try actually marshalling this value using `request_fqn`.
+                    .fqn.clone();
 
                 if let Some(bad_actor) = from.as_ref().filter(|a| !actors.contains(a)) {
                     return Err(BuildError::UnknownActor(bad_actor));
                 }
 
-                let key = vertices.respond.insert(VertexRespond {
+                if messages
+                    .resolve(&request_fqn)
+                    .is_none_or(|m| m.response().is_none())
+                {
+                    return Err(BuildError::NotARequest(&to));
+                }
+
+                let key = v_respond.insert(EventRespond {
                     respond_to: *recv_key,
-                    request_fqn,
+                    request_type: request_fqn,
                     respond_from: from.clone(),
-                    message_data: data.clone(),
+                    payload: data.clone(),
                 });
                 EventKey::Respond(key)
             }
         };
 
         if let Some(required_to_be) = event.require {
-            vertices.required.insert(this_key, required_to_be);
+            required.insert(this_key, required_to_be);
         }
 
-        if after.is_empty() {
-            let should_be_a_new_element = vertices.entry_points.insert(this_key);
+        if prerequisites.is_empty() {
+            let should_be_a_new_element = entry_points.insert(this_key);
             assert!(
                 should_be_a_new_element,
                 "non unique entry point? {:?}",
                 this_key
             );
         }
-        for prerequisite in &after {
-            let should_be_a_new_element = vertices
-                .key_unblocks_values
+        for prerequisite in &prerequisites {
+            let should_be_a_new_element = key_unblocks_values
                 .entry(*prerequisite)
                 .or_default()
                 .insert(this_key);
 
             assert!(
                 should_be_a_new_element,
-                "duplicate unblocks relation? {:?} -> {:?}",
+                "duplicate  relation: {:?} unblocks {:?}",
                 *prerequisite, this_key
             );
         }
@@ -308,21 +298,34 @@ fn build_graph<'a>(
         trace!("  done: {:?} -> {:?}", this_name, this_key);
 
         priority.push(this_key);
-        if let Some(_conflicting_key) = idx_keys.insert(this_name, this_key) {
+        if idx_keys.insert(this_name, this_key).is_some() {
             return Err(BuildError::DuplicateEventName(&event.id));
         }
     }
 
-    vertices.priority = priority
+    let priority = priority
         .into_iter()
         .enumerate()
         .map(|(p, k)| (k, p))
         .collect();
 
-    vertices.names = idx_keys
+    let names = idx_keys
         .into_iter()
         .map(|(n, id)| (id, n.to_owned()))
         .collect();
+
+    let vertices = Events {
+        priority,
+        required,
+        names,
+        bind: v_bind,
+        send: v_send,
+        recv: v_recv,
+        respond: v_respond,
+        delay: v_delay,
+        entry_points,
+        key_unblocks_values,
+    };
 
     Ok(vertices)
 }

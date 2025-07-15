@@ -3,6 +3,10 @@ name = "luci"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+backwards-compatibility = []
+
 [lib]
 name = "luci"
 path = "src/lib.rs"

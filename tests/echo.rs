@@ -1,5 +1,5 @@
 use luci::{
-    execution_graph::ExecutionGraph,
+    execution::Executable,
     messages::{Messages, Regular, Request},
     scenario::Scenario,
 };
@@ -60,11 +60,9 @@ async fn run_scenario(scenario_text: &str) {
         .with(Regular::<crate::proto::V>)
         .with(Request::<crate::proto::R>);
     let scenario: Scenario = serde_yaml::from_str(scenario_text).unwrap();
-    let exec_graph = ExecutionGraph::builder(messages)
-        .build(&scenario)
-        .expect("building graph");
+    let exec_graph = Executable::build(messages, &scenario).expect("building graph");
     let report = exec_graph
-        .make_runner(echo::blueprint(), json!(null))
+        .start(echo::blueprint(), json!(null))
         .await
         .run()
         .await

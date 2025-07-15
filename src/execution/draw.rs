@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 
-use super::{EventKey, VertexBind, VertexDelay, VertexRecv, VertexRespond, VertexSend, Vertices};
+use super::{EventBind, EventDelay, EventKey, EventRecv, EventRespond, EventSend, Events};
 
 pub trait DrawDot {
     fn draw(&self, key: EventKey) -> String;
 }
 
-impl DrawDot for VertexDelay {
+impl DrawDot for EventDelay {
     fn draw(&self, key: EventKey) -> String {
         format!(
             r#""{:?}" [label="delay {:?} by {:?}"]"#,
@@ -15,7 +15,7 @@ impl DrawDot for VertexDelay {
     }
 }
 
-impl DrawDot for VertexBind {
+impl DrawDot for EventBind {
     fn draw(&self, key: EventKey) -> String {
         let src = serde_yaml::to_string(&self.src).unwrap();
         let dst = serde_yaml::to_string(&self.dst).unwrap();
@@ -26,18 +26,18 @@ impl DrawDot for VertexBind {
     }
 }
 
-impl DrawDot for VertexRecv {
+impl DrawDot for EventRecv {
     fn draw(&self, key: EventKey) -> String {
-        let data = serde_yaml::to_string(&self.match_message).unwrap();
+        let data = serde_yaml::to_string(&self.payload).unwrap();
         format!(
             r#""{:?}" [label="recv '{}'\nfrom: {}\nto: {}\ndata: {}"]"#,
             key,
-            self.match_type,
-            self.match_from
+            self.fqn,
+            self.from
                 .clone()
                 .map(|actor| actor.to_string())
                 .unwrap_or_default(),
-            self.match_to
+            self.to
                 .clone()
                 .map(|actor| actor.to_string())
                 .unwrap_or_default(),
@@ -46,15 +46,15 @@ impl DrawDot for VertexRecv {
     }
 }
 
-impl DrawDot for VertexSend {
+impl DrawDot for EventSend {
     fn draw(&self, key: EventKey) -> String {
-        let data = serde_yaml::to_string(&self.message_data).unwrap();
+        let data = serde_yaml::to_string(&self.payload).unwrap();
         format!(
             r#""{:?}" [label="send '{}'\nfrom: {}\nto: {}\ndata: {}"]"#,
             key,
-            self.message_type,
-            self.send_from,
-            self.send_to
+            self.fqn,
+            self.from,
+            self.to
                 .clone()
                 .map(|actor| actor.to_string())
                 .unwrap_or_default(),
@@ -63,12 +63,12 @@ impl DrawDot for VertexSend {
     }
 }
 
-impl DrawDot for VertexRespond {
+impl DrawDot for EventRespond {
     fn draw(&self, key: EventKey) -> String {
         format!(
             r#""{:?}" [label="respond '{}'\nfrom: {}"]"#,
             key,
-            self.request_fqn,
+            self.request_type,
             self.respond_from
                 .clone()
                 .map(|actor| actor.to_string())
@@ -77,8 +77,8 @@ impl DrawDot for VertexRespond {
     }
 }
 
-impl Vertices {
-    pub fn draw_graphviz(&self) -> String {
+impl Events {
+    pub fn render(&self) -> String {
         let mut acc = String::new();
         acc.push_str("digraph test { rankdir=LR layout=dot\n");
 

@@ -9,12 +9,19 @@ use slotmap::{new_key_type, SlotMap};
 
 use crate::{
     messages::Messages,
-    scenario::{ActorName, EventName, Msg, RequiredToBe},
+    names::{ActorName, EventName},
+    scenario::{Msg, RequiredToBe},
 };
 
 mod build;
 mod draw;
+mod report;
 mod runner;
+
+pub use build::BuildError;
+pub use report::Report;
+pub use runner::RunError;
+pub use runner::Runner;
 
 new_key_type! {
     pub struct KeyBind;
@@ -34,22 +41,28 @@ pub enum EventKey {
 }
 
 #[derive(Debug)]
-pub struct ExecutionGraph {
-    messages: Arc<Messages>,
-    vertices: Vertices,
+pub struct Executable {
+    messages: Messages,
+    events: Events,
+}
+
+impl Executable {
+    pub fn render_graph(&self) -> String {
+        self.events.render()
+    }
 }
 
 #[derive(Debug, Default)]
-struct Vertices {
+struct Events {
     priority: HashMap<EventKey, usize>,
     required: HashMap<EventKey, RequiredToBe>,
     names: HashMap<EventKey, EventName>,
 
-    bind: SlotMap<KeyBind, VertexBind>,
-    send: SlotMap<KeySend, VertexSend>,
-    recv: SlotMap<KeyRecv, VertexRecv>,
-    respond: SlotMap<KeyRespond, VertexRespond>,
-    delay: SlotMap<KeyDelay, VertexDelay>,
+    bind: SlotMap<KeyBind, EventBind>,
+    send: SlotMap<KeySend, EventSend>,
+    recv: SlotMap<KeyRecv, EventRecv>,
+    respond: SlotMap<KeyRespond, EventRespond>,
+    delay: SlotMap<KeyDelay, EventDelay>,
 
     entry_points: BTreeSet<EventKey>,
 
@@ -57,37 +70,37 @@ struct Vertices {
 }
 
 #[derive(Debug)]
-struct VertexSend {
-    send_from: ActorName,
-    send_to: Option<ActorName>,
-    message_type: Arc<str>,
-    message_data: Msg,
+struct EventSend {
+    from: ActorName,
+    to: Option<ActorName>,
+    fqn: Arc<str>,
+    payload: Msg,
 }
 
 #[derive(Debug)]
-struct VertexRecv {
-    match_type: Arc<str>,
-    match_from: Option<ActorName>,
-    match_to: Option<ActorName>,
-    match_message: Msg,
+struct EventRecv {
+    from: Option<ActorName>,
+    to: Option<ActorName>,
+    fqn: Arc<str>,
+    payload: Msg,
 }
 
 #[derive(Debug)]
-struct VertexRespond {
+struct EventRespond {
     respond_to: KeyRecv,
-    request_fqn: Arc<str>,
+    request_type: Arc<str>,
     respond_from: Option<ActorName>,
-    message_data: Msg,
+    payload: Msg,
 }
 
 #[derive(Debug)]
-struct VertexBind {
+struct EventBind {
     dst: Value,
     src: Msg,
 }
 
 #[derive(Debug)]
-struct VertexDelay {
+struct EventDelay {
     delay_for: Duration,
     delay_step: Duration,
 }
