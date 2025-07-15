@@ -529,14 +529,14 @@ impl<'a> Runner<'a> {
             })
             .transpose()?;
 
-        let send_via_proxy = if let Some(addr) = self.scope.address_of(send_from) {
+        let proxy = if let Some(addr) = self.scope.address_of(send_from) {
             self.proxies
                 .values_mut()
                 .find(|p| p.addr() == addr)
                 .ok_or_else(|| RunError::ActorName(send_from.clone()))?
         } else {
-            let proxy = self.proxies[self.main_proxy_key].subproxy().await;
-            let proxy_key = self.proxies.insert(proxy);
+            let new_proxy = self.proxies[self.main_proxy_key].subproxy().await;
+            let proxy_key = self.proxies.insert(new_proxy);
             &mut self.proxies[proxy_key]
         };
 
@@ -554,17 +554,17 @@ impl<'a> Runner<'a> {
             trace!(
                 "sending directly [from: {}; to: {}]: {:?}",
                 dst_addr,
-                send_via_proxy.addr(),
+                proxy.addr(),
                 any_message
             );
-            let () = send_via_proxy.send_to(dst_addr, any_message).await;
+            let () = proxy.send_to(dst_addr, any_message).await;
         } else {
             trace!(
                 "sending via routing [from: {}]: {:?}",
-                send_via_proxy.addr(),
+                proxy.addr(),
                 any_message
             );
-            let () = send_via_proxy.send(any_message).await;
+            let () = proxy.send(any_message).await;
         }
 
         actually_fired_events.push(EventKey::Send(event_key));
