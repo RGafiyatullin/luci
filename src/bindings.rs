@@ -6,6 +6,7 @@ use elfo::Addr;
 use serde_json::Value;
 use tracing::info;
 
+use crate::bindings;
 use crate::names::ActorName;
 
 #[derive(Debug, thiserror::Error)]
@@ -29,49 +30,6 @@ pub(crate) struct Txn<'a> {
     actors_added: BiHashMap<ActorName, Addr>,
 }
 
-pub(crate) trait ReadState {
-    fn value_of(&self, key: &str) -> Option<&Value>;
-    fn address_of(&self, name: &ActorName) -> Option<Addr>;
-    fn name_of(&self, addr: Addr) -> Option<&ActorName>;
-}
-
-impl ReadState for Scope {
-    fn value_of(&self, key: &str) -> Option<&Value> {
-        self.values.get(key)
-    }
-
-    fn address_of(&self, name: &ActorName) -> Option<Addr> {
-        self.actors.get_by_left(name).copied()
-    }
-
-    fn name_of(&self, addr: Addr) -> Option<&ActorName> {
-        self.actors.get_by_right(&addr)
-    }
-}
-
-impl<'a> ReadState for Txn<'a> {
-    fn value_of(&self, key: &str) -> Option<&Value> {
-        let old_opt = self.values_added.get(key);
-        let new_opt = self.values_committed.get(key);
-
-        old_opt.or(new_opt)
-    }
-
-    fn address_of(&self, name: &ActorName) -> Option<Addr> {
-        let old_opt = self.actors_committed.get_by_left(name).copied();
-        let new_opt = self.actors_added.get_by_left(name).copied();
-
-        old_opt.or(new_opt)
-    }
-
-    fn name_of(&self, addr: Addr) -> Option<&ActorName> {
-        let old_opt = self.actors_committed.get_by_right(&addr);
-        let new_opt = self.actors_added.get_by_right(&addr);
-
-        old_opt.or(new_opt)
-    }
-}
-
 impl Scope {
     pub(crate) fn txn(&mut self) -> Txn {
         Txn {
@@ -81,6 +39,14 @@ impl Scope {
             actors_committed: &mut self.actors,
             actors_added: Default::default(),
         }
+    }
+
+    pub(crate) fn address_of(&self, name: &ActorName) -> Option<Addr> {
+        self.actors.get_by_left(name).copied()
+    }
+
+    fn value_of(&self, key: &str) -> Option<&Value> {
+        self.values.get(key)
     }
 }
 
@@ -100,10 +66,20 @@ impl<'a> Txn<'a> {
     }
 
     pub(crate) fn bind_actor(&mut self, name: &ActorName, addr: Addr) -> bool {
-        if let Some(existing_name) = self.name_of(addr) {
+        if let Some(existing_name) = {
+            let old_opt = self.actors_committed.get_by_right(&addr);
+            let new_opt = self.actors_added.get_by_right(&addr);
+
+            old_opt.or(new_opt)
+        } {
             return existing_name == name;
         }
-        if let Some(existing_addr) = self.address_of(name) {
+        if let Some(existing_addr) = {
+            let old_opt = self.actors_committed.get_by_left(name).copied();
+            let new_opt = self.actors_added.get_by_left(name).copied();
+
+            old_opt.or(new_opt)
+        } {
             assert!(existing_addr != addr);
             return false;
         }
@@ -157,7 +133,7 @@ pub(crate) fn bind_to_pattern(value: Value, pattern: &Value, bindings: &mut Txn)
     }
 }
 
-pub(crate) fn render(template: Value, bindings: &dyn ReadState) -> Result<Value, BindError> {
+pub(crate) fn render(template: Value, bindings: &bindings::Scope) -> Result<Value, BindError> {
     match template {
         Value::String(wildcard) if wildcard == "$_" => Err(BindError::UnboundValue(wildcard)),
         Value::String(var_name) if var_name.starts_with('$') => bindings
@@ -193,36 +169,32 @@ mod tests {
 
     #[test]
     fn test_01() {
-        let mut values = Scope::new();
-        assert!(values.value_of("a").is_none());
-        assert!(values.value_of("b").is_none());
+        let mut scope = Scope::new();
+        assert!(scope.value_of("a").is_none());
+        assert!(scope.value_of("b").is_none());
 
         {
-            let mut binder = values.txn();
-            assert!(binder.value_of("a").is_none());
-            assert!(binder.value_of("b").is_none());
+            let mut txn = scope.txn();
 
-            assert!(binder.bind_value("a", &json!("a")));
-            assert!(binder.bind_value("a", &json!("a")));
-            assert!(!binder.bind_value("a", &json!("b")));
+            assert!(txn.bind_value("a", &json!("a")));
+            assert!(txn.bind_value("a", &json!("a")));
+            assert!(!txn.bind_value("a", &json!("b")));
         }
 
-        assert!(values.value_of("a").is_none());
-        assert!(values.value_of("b").is_none());
+        assert!(scope.value_of("a").is_none());
+        assert!(scope.value_of("b").is_none());
 
         {
-            let mut binder = values.txn();
-            assert!(binder.value_of("a").is_none());
-            assert!(binder.value_of("b").is_none());
+            let mut txn = scope.txn();
 
-            assert!(binder.bind_value("a", &json!("a")));
-            assert!(binder.bind_value("a", &json!("a")));
-            assert!(!binder.bind_value("a", &json!("b")));
+            assert!(txn.bind_value("a", &json!("a")));
+            assert!(txn.bind_value("a", &json!("a")));
+            assert!(!txn.bind_value("a", &json!("b")));
 
-            binder.commit();
+            txn.commit();
         }
 
-        assert_eq!(values.value_of("a").cloned(), Some(json!("a")));
-        assert!(values.value_of("b").is_none());
+        assert_eq!(scope.value_of("a").cloned(), Some(json!("a")));
+        assert!(scope.value_of("b").is_none());
     }
 }

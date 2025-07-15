@@ -7,7 +7,6 @@ use std::time::Duration;
 use tokio::time::Instant;
 use tracing::{debug, info, trace, warn};
 
-use crate::bindings::ReadState;
 use crate::{
     bindings,
     execution::{
@@ -302,12 +301,10 @@ impl<'a> Runner<'a> {
             trace!(" binding {:?}", bind_key);
             let EventBind { dst, src } = &events.bind[bind_key];
 
-            let mut scope_txn = self.scope.txn();
-
             let value = match src {
                 Msg::Literal(value) => value.clone(),
                 Msg::Bind(template) => {
-                    bindings::render(template.clone(), &scope_txn).map_err(RunError::BindError)?
+                    bindings::render(template.clone(), &self.scope).map_err(RunError::BindError)?
                 }
                 Msg::Inject(key) => {
                     let m = messages.value(key).ok_or(RunError::Marshalling(
@@ -316,6 +313,8 @@ impl<'a> Runner<'a> {
                     serde_json::to_value(m).expect("can't serialize a message?")
                 }
             };
+
+            let mut scope_txn = self.scope.txn();
 
             if !bindings::bind_to_pattern(value, dst, &mut scope_txn) {
                 trace!("  could not bind {:?}", bind_key);

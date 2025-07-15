@@ -5,7 +5,7 @@ use futures::{future::LocalBoxFuture, FutureExt};
 use ghost::phantom;
 use serde_json::Value;
 
-use crate::bindings::{self, ReadState};
+use crate::bindings;
 use crate::scenario::Msg;
 
 pub type AnError = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -51,7 +51,7 @@ pub(crate) trait Marshal {
     fn make_outbound_message(
         &self,
         messages: &Messages,
-        bindings: &dyn ReadState,
+        bindings: &bindings::Scope,
         value: Msg,
     ) -> Result<AnyMessage, AnError>;
     fn response(&self) -> Option<&dyn DynRespond>;
@@ -63,7 +63,7 @@ pub(crate) trait Respond<'a> {
         proxy: &'a mut Proxy,
         token: ResponseToken,
         messages: &'a Messages,
-        bindings: &'a dyn ReadState,
+        bindings: &'a bindings::Scope,
         value: Msg,
     ) -> LocalBoxFuture<'a, Result<(), AnError>>;
 }
@@ -140,7 +140,7 @@ where
     fn make_outbound_message(
         &self,
         messages: &Messages,
-        bindings: &dyn ReadState,
+        bindings: &bindings::Scope,
         msg: Msg,
     ) -> Result<AnyMessage, AnError> {
         do_make_message::<M>(messages, bindings, msg)
@@ -172,7 +172,7 @@ where
     fn make_outbound_message(
         &self,
         messages: &Messages,
-        bindings: &dyn ReadState,
+        bindings: &bindings::Scope,
         msg: Msg,
     ) -> Result<AnyMessage, AnError> {
         do_make_message::<Rq::Wrapper>(messages, bindings, msg)
@@ -191,7 +191,7 @@ where
         proxy: &'a mut Proxy,
         token: ResponseToken,
         messages: &'a Messages,
-        bindings: &'a dyn ReadState,
+        bindings: &'a bindings::Scope,
         value: Msg,
     ) -> LocalBoxFuture<'a, Result<(), AnError>> {
         async move {
@@ -254,7 +254,7 @@ fn do_match_message(bind_to: &Msg, serialized: Value, bindings: &mut bindings::T
 
 fn do_make_message<M: Message>(
     messages: &Messages,
-    bindings: &dyn ReadState,
+    bindings: &bindings::Scope,
     msg: Msg,
 ) -> Result<AnyMessage, AnError> {
     match msg {
