@@ -22,11 +22,11 @@ pub(crate) struct Scope {
 
 #[derive(Debug)]
 pub(crate) struct Txn<'a> {
-    values_old: &'a mut HashMap<String, Value>,
-    values_new: HashMap<String, Value>,
+    values_committed: &'a mut HashMap<String, Value>,
+    values_added: HashMap<String, Value>,
 
-    actors_old: &'a mut BiHashMap<ActorName, Addr>,
-    actors_new: BiHashMap<ActorName, Addr>,
+    actors_committed: &'a mut BiHashMap<ActorName, Addr>,
+    actors_added: BiHashMap<ActorName, Addr>,
 }
 
 pub(crate) trait ReadState {
@@ -51,22 +51,22 @@ impl ReadState for Scope {
 
 impl<'a> ReadState for Txn<'a> {
     fn value_of(&self, key: &str) -> Option<&Value> {
-        let old_opt = self.values_new.get(key);
-        let new_opt = self.values_old.get(key);
+        let old_opt = self.values_added.get(key);
+        let new_opt = self.values_committed.get(key);
 
         old_opt.or(new_opt)
     }
 
     fn address_of(&self, name: &ActorName) -> Option<Addr> {
-        let old_opt = self.actors_old.get_by_left(name).copied();
-        let new_opt = self.actors_new.get_by_left(name).copied();
+        let old_opt = self.actors_committed.get_by_left(name).copied();
+        let new_opt = self.actors_added.get_by_left(name).copied();
 
         old_opt.or(new_opt)
     }
 
     fn name_of(&self, addr: Addr) -> Option<&ActorName> {
-        let old_opt = self.actors_old.get_by_right(&addr);
-        let new_opt = self.actors_new.get_by_right(&addr);
+        let old_opt = self.actors_committed.get_by_right(&addr);
+        let new_opt = self.actors_added.get_by_right(&addr);
 
         old_opt.or(new_opt)
     }
@@ -75,21 +75,21 @@ impl<'a> ReadState for Txn<'a> {
 impl Scope {
     pub(crate) fn txn(&mut self) -> Txn {
         Txn {
-            values_old: &mut self.values,
-            values_new: Default::default(),
+            values_committed: &mut self.values,
+            values_added: Default::default(),
 
-            actors_old: &mut self.actors,
-            actors_new: Default::default(),
+            actors_committed: &mut self.actors,
+            actors_added: Default::default(),
         }
     }
 }
 
 impl<'a> Txn<'a> {
     pub(crate) fn bind_value(&mut self, key: &str, value: &Value) -> bool {
-        if let Some(defined_in_state) = self.values_old.get(key) {
+        if let Some(defined_in_state) = self.values_committed.get(key) {
             defined_in_state == value
         } else {
-            match self.values_new.entry(key.to_owned()) {
+            match self.values_added.entry(key.to_owned()) {
                 Occupied(o) => o.get() == value,
                 Vacant(v) => {
                     v.insert(value.to_owned());
@@ -108,20 +108,20 @@ impl<'a> Txn<'a> {
             return false;
         }
 
-        self.actors_new
+        self.actors_added
             .insert_no_overwrite(name.clone(), addr)
             .expect("none of the sides resolved before!");
         true
     }
 
     pub(crate) fn commit(self) {
-        self.values_old.extend(
-            self.values_new
+        self.values_committed.extend(
+            self.values_added
                 .into_iter()
                 .inspect(|(k, v)| info!("SET VALUE {:?} <- {:?}", k, v)),
         );
-        self.actors_old.extend(
-            self.actors_new
+        self.actors_committed.extend(
+            self.actors_added
                 .into_iter()
                 .inspect(|(k, v)| info!("SET ACTOR {:?} <- {:?}", k, v)),
         );
