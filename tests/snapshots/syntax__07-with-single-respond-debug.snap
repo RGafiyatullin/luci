@@ -9,8 +9,10 @@ Scenario {
             type_alias: MessageName(
                 "A",
             ),
+            no_extra: NoExtra,
         },
     ],
+    subs: [],
     cast: [
         ActorName(
             "Pablo",

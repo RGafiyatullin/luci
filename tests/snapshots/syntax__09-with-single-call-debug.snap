@@ -9,14 +9,18 @@ Scenario {
     events: [
         DefEvent {
             id: EventName(
-                "the-delay",
+                "the-call",
             ),
             require: None,
             prerequisites: [],
-            kind: Delay(
-                DefEventDelay {
-                    delay_for: 3600s,
-                    delay_step: 1µs,
+            kind: Call(
+                DefCallSub {
+                    subroutine_name: SubroutineName(
+                        "the-sub",
+                    ),
+                    input: None,
+                    output: None,
+                    cast: None,
                     no_extra: NoExtra,
                 },
             ),

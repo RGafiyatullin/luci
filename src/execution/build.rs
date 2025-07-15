@@ -145,6 +145,7 @@ fn build_graph<'a>(
             resolve_event_ids(&idx_keys, &event.prerequisites).collect::<Result<Vec<_>, _>>()?;
 
         let this_key = match &event.kind {
+            DefEventKind::Call(_) => unimplemented!(),
             DefEventKind::Delay(def_delay) => {
                 let DefEventDelay {
                     delay_for,

@@ -3,10 +3,32 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::names::*;
+use crate::{
+    names::*,
+    scenario::subs::{DefCallSub, DefDeclareSub},
+};
 
 mod no_extra;
 use no_extra::NoExtra;
+
+mod subs;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Scenario {
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub types: Vec<DefTypeAlias>,
+
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub subs: Vec<DefDeclareSub>,
+
+    pub cast: Vec<ActorName>,
+    pub events: Vec<DefEvent>,
+
+    #[serde(flatten)]
+    pub no_extra: NoExtra,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DefTypeAlias {
@@ -14,6 +36,9 @@ pub struct DefTypeAlias {
     pub type_name: String,
     #[serde(rename = "as")]
     pub type_alias: MessageName,
+
+    #[serde(flatten)]
+    pub no_extra: NoExtra,
 }
 
 #[derive(
@@ -33,17 +58,6 @@ pub struct DefTypeAlias {
 pub enum RequiredToBe {
     Reached,
     Unreached,
-}
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Scenario {
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub types: Vec<DefTypeAlias>,
-    pub cast: Vec<ActorName>,
-    pub events: Vec<DefEvent>,
-
-    #[serde(flatten)]
-    pub no_extra: NoExtra,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,6 +89,7 @@ pub enum DefEventKind {
     Send(DefEventSend),
     Respond(DefEventRespond),
     Delay(DefEventDelay),
+    Call(DefCallSub),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
