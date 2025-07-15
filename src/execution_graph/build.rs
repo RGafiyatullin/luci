@@ -58,6 +58,10 @@ impl ExecutionGraph {
         debug!("created a builder");
         Builder { messages }
     }
+
+    pub fn draw_graphviz(&self) -> String {
+        self.vertices.draw_graphviz()
+    }
 }
 
 impl Builder {
@@ -93,7 +97,7 @@ impl Builder {
 }
 
 fn type_aliases<'a>(
-    messages: &Messages,
+    _messages: &Messages,
     imports: impl IntoIterator<Item = &'a TypeAlias>,
 ) -> Result<HashMap<MessageName, Arc<str>>, BuildError<'a>> {
     use std::collections::hash_map::Entry::Vacant;
@@ -102,7 +106,7 @@ fn type_aliases<'a>(
         let Vacant(entry) = aliases.entry(import.type_alias.to_owned()) else {
             return Err(BuildError::DuplicateAlias(&import.type_alias));
         };
-        // TODO: uncomment in PLT-14379
+        // TODO: PLT-14379: remove after automatic types detection
         // let _marshaller = messages
         //     .resolve(&import.type_name)
         //     .ok_or(BuildError::UnknownFqn(&import.type_name))?;

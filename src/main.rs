@@ -1,26 +1,57 @@
-use std::{fs::read_to_string, path::PathBuf};
+use std::{
+    fs::{read_to_string, File},
+    io::{Read, Write},
+    path::PathBuf,
+};
 
 use clap::Parser;
 use luci::{execution_graph::ExecutionGraph, messages::Messages, scenario::Scenario};
 
 #[derive(Parser, Debug)]
+#[command(name = "luci")]
 struct Args {
-    #[clap(help = "Path to the scenario file", short = 'i', long = "input")]
-    input: PathBuf,
-    #[clap(help = "Path to the output file", short = 'o', long = "output")]
-    output: PathBuf,
+    #[clap(long = "input", short = 'i', help = "Scenario file (default: stdin)")]
+    #[clap(long = "output", short = 'o', help = ".dot file (default: stdout)")]
+    scenario_file: Option<PathBuf>,
+    output_file: Option<PathBuf>,
 }
 
 fn main() {
+    tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .with_max_level(tracing::Level::DEBUG)
+        .init();
+
     let args = Args::parse();
 
-    let scenario_text = &read_to_string(args.input).expect("Failed to read scenario file");
+    let scenario = match args.scenario_file {
+        Some(path) => read_to_string(path).expect("Failed to read scenario file"),
+        None => {
+            let mut input = String::new();
+            std::io::stdin()
+                .read_to_string(&mut input)
+                .expect("Failed to read from stdin");
+            input.trim().to_string()
+        }
+    };
+
     let scenario: Scenario =
-        serde_yaml::from_str(scenario_text).expect("Failed to parse YAML scenario file");
+        serde_yaml::from_str(&scenario).expect("Failed to parse YAML scenario file");
 
-    let messages = Messages::new();
-
-    let execution_graph = ExecutionGraph::builder(messages)
+    let graph = ExecutionGraph::builder(Messages::new())
         .build(&scenario)
         .expect("Failed to build execution graph");
+
+    let result = graph.draw_graphviz();
+
+    match args.output_file {
+        Some(path) => {
+            let mut file = File::create(path).expect("Failed to create output file");
+            file.write(result.as_bytes())
+                .expect("Failed to write to output file");
+        }
+        None => {
+            println!("{}", result);
+        }
+    }
 }
