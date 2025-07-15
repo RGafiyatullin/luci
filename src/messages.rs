@@ -5,7 +5,7 @@ use futures::{future::LocalBoxFuture, FutureExt};
 use ghost::phantom;
 use serde_json::Value;
 
-use crate::bindings;
+use crate::bindings::{self, ReadState};
 use crate::scenario::Msg;
 
 pub type AnError = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -51,7 +51,7 @@ pub(crate) trait Marshal {
     fn make_outbound_message(
         &self,
         messages: &Messages,
-        bindings: &bindings::Txn,
+        bindings: &dyn ReadState,
         value: Msg,
     ) -> Result<AnyMessage, AnError>;
     fn response(&self) -> Option<&dyn DynRespond>;
@@ -63,7 +63,7 @@ pub(crate) trait Respond<'a> {
         proxy: &'a mut Proxy,
         token: ResponseToken,
         messages: &'a Messages,
-        bindings: &'a bindings::Txn<'a>,
+        bindings: &'a dyn ReadState,
         value: Msg,
     ) -> LocalBoxFuture<'a, Result<(), AnError>>;
 }
@@ -140,7 +140,7 @@ where
     fn make_outbound_message(
         &self,
         messages: &Messages,
-        bindings: &bindings::Txn,
+        bindings: &dyn ReadState,
         msg: Msg,
     ) -> Result<AnyMessage, AnError> {
         do_marshal::<M>(messages, bindings, msg)
@@ -172,7 +172,7 @@ where
     fn make_outbound_message(
         &self,
         messages: &Messages,
-        bindings: &bindings::Txn,
+        bindings: &dyn ReadState,
         msg: Msg,
     ) -> Result<AnyMessage, AnError> {
         do_marshal::<Rq::Wrapper>(messages, bindings, msg)
@@ -191,14 +191,14 @@ where
         proxy: &'a mut Proxy,
         token: ResponseToken,
         messages: &'a Messages,
-        bindings: &'a bindings::Txn<'a>,
+        bindings: &'a dyn ReadState,
         value: Msg,
     ) -> LocalBoxFuture<'a, Result<(), AnError>> {
         async move {
             let token = token.into_received::<Rq>();
             match value {
                 Msg::Bind(template) => {
-                    let value = bindings::render(template, &bindings)?;
+                    let value = bindings::render(template, bindings)?;
                     let de: Result<Rq::Wrapper, _> = serde_json::from_value(value);
                     match de {
                         Ok(w) => {
@@ -254,7 +254,7 @@ fn do_bind(bind_to: &Msg, serialized: Value, bindings: &mut bindings::Txn) -> bo
 
 fn do_marshal<M: Message>(
     messages: &Messages,
-    bindings: &bindings::Txn,
+    bindings: &dyn ReadState,
     msg: Msg,
 ) -> Result<AnyMessage, AnError> {
     match msg {

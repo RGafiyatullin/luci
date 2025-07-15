@@ -6,6 +6,7 @@ use std::time::Duration;
 use tokio::time::Instant;
 use tracing::{debug, info, trace, warn};
 
+use crate::bindings::ReadState;
 use crate::{
     bindings,
     execution::{
@@ -595,10 +596,8 @@ impl<'a> Runner<'a> {
             request_fqn, respond_from
         );
 
-        let scope_txn = self.scope.txn();
-
         let proxy_idx = if let Some(from_dummy_name) = respond_from {
-            let Some(addr) = scope_txn.address_of(from_dummy_name) else {
+            let Some(addr) = self.scope.address_of(from_dummy_name) else {
                 return Err(RunError::UnboundName(from_dummy_name.clone()));
             };
             self.proxies
@@ -634,7 +633,7 @@ impl<'a> Runner<'a> {
                 responding_proxy,
                 token,
                 &messages,
-                &scope_txn,
+                &self.scope,
                 message_data.clone(),
             )
             .await

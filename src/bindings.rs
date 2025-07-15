@@ -25,6 +25,49 @@ pub(crate) struct Txn<'a> {
     actors_new: BiHashMap<ActorName, Addr>,
 }
 
+pub(crate) trait ReadState {
+    fn value_of(&self, key: &str) -> Option<&Value>;
+    fn address_of(&self, name: &ActorName) -> Option<Addr>;
+    fn name_of(&self, addr: Addr) -> Option<&ActorName>;
+}
+
+impl ReadState for Scope {
+    fn value_of(&self, key: &str) -> Option<&Value> {
+        self.values.get(key)
+    }
+
+    fn address_of(&self, name: &ActorName) -> Option<Addr> {
+        self.actors.get_by_left(name).copied()
+    }
+
+    fn name_of(&self, addr: Addr) -> Option<&ActorName> {
+        self.actors.get_by_right(&addr)
+    }
+}
+
+impl<'a> ReadState for Txn<'a> {
+    fn value_of(&self, key: &str) -> Option<&Value> {
+        let old_opt = self.values_new.get(key);
+        let new_opt = self.values_old.get(key);
+
+        old_opt.or(new_opt)
+    }
+
+    fn address_of(&self, name: &ActorName) -> Option<Addr> {
+        let old_opt = self.actors_old.get_by_left(name).copied();
+        let new_opt = self.actors_new.get_by_left(name).copied();
+
+        old_opt.or(new_opt)
+    }
+
+    fn name_of(&self, addr: Addr) -> Option<&ActorName> {
+        let old_opt = self.actors_old.get_by_right(&addr);
+        let new_opt = self.actors_new.get_by_right(&addr);
+
+        old_opt.or(new_opt)
+    }
+}
+
 impl Scope {
     pub(crate) fn txn(&mut self) -> Txn {
         Txn {
@@ -38,27 +81,6 @@ impl Scope {
 }
 
 impl<'a> Txn<'a> {
-    pub(crate) fn value_of(&self, key: &str) -> Option<&Value> {
-        let old_opt = self.values_new.get(key);
-        let new_opt = self.values_old.get(key);
-
-        old_opt.or(new_opt)
-    }
-
-    pub(crate) fn address_of(&self, name: &ActorName) -> Option<Addr> {
-        let old_opt = self.actors_old.get_by_left(name).copied();
-        let new_opt = self.actors_new.get_by_left(name).copied();
-
-        old_opt.or(new_opt)
-    }
-
-    pub(crate) fn name_of(&self, addr: Addr) -> Option<&ActorName> {
-        let old_opt = self.actors_old.get_by_right(&addr);
-        let new_opt = self.actors_new.get_by_right(&addr);
-
-        old_opt.or(new_opt)
-    }
-
     pub(crate) fn bind_value(&mut self, key: &str, value: &Value) -> bool {
         if let Some(defined_in_state) = self.values_old.get(key) {
             defined_in_state == value
@@ -131,7 +153,7 @@ pub(crate) fn bind_to_pattern(value: Value, pattern: &Value, bindings: &mut Txn)
     }
 }
 
-pub(crate) fn render(template: Value, bindings: &Txn) -> Result<Value, AnError> {
+pub(crate) fn render(template: Value, bindings: &dyn ReadState) -> Result<Value, AnError> {
     match template {
         Value::String(wildcard) if wildcard == "$_" => Err("can't render $_".into()),
         Value::String(var_name) if var_name.starts_with('$') => bindings
@@ -163,18 +185,6 @@ mod tests {
         pub(crate) fn new() -> Self {
             Default::default()
         }
-
-        pub(crate) fn value_of(&self, key: &str) -> Option<&Value> {
-            self.values.get(key)
-        }
-
-        // pub(crate) fn address_of(&self, name: &ActorName) -> Option<Addr> {
-        //     self.actors.get_by_left(name).copied()
-        // }
-
-        // pub(crate) fn name_of(&self, addr: Addr) -> Option<&ActorName> {
-        //     self.actors.get_by_right(&addr)
-        // }
     }
 
     #[test]
