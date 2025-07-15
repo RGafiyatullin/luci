@@ -517,9 +517,7 @@ impl<'a> Runner<'a> {
             message_type, send_from, send_to
         );
 
-        let scope_txn = self.scope.txn();
-
-        let send_via_proxy_idx = if let Some(addr) = scope_txn.address_of(send_from) {
+        let send_via_proxy_idx = if let Some(addr) = self.scope.address_of(send_from) {
             let Some(proxy_idx) = self.proxies.iter().position(|p| p.addr() == addr) else {
                 return Err(RunError::ActorName(send_from.clone()));
             };
@@ -534,7 +532,8 @@ impl<'a> Runner<'a> {
         let send_to_addr_opt = send_to
             .as_ref()
             .map(|actor_name| {
-                let addr = scope_txn
+                let addr = self
+                    .scope
                     .address_of(&actor_name)
                     .ok_or_else(|| RunError::UnboundName(actor_name.clone()))?;
                 if self.proxies.iter().any(|p| p.addr() == addr) {
@@ -551,7 +550,7 @@ impl<'a> Runner<'a> {
             .expect("invalid FQN");
 
         let any_message = marshaller
-            .make_outbound_message(&messages, &scope_txn, message_data.clone())
+            .make_outbound_message(&messages, &self.scope, message_data.clone())
             .map_err(RunError::Marshalling)?;
 
         let sending_proxy = &mut self.proxies[send_via_proxy_idx];
