@@ -65,13 +65,17 @@ impl ExecutionGraph {
 }
 
 impl Builder {
-    pub fn build(self, scenario: &Scenario) -> Result<ExecutionGraph, BuildError<'_>> {
+    pub fn build(
+        self,
+        scenario: &Scenario,
+        validate_types: bool,
+    ) -> Result<ExecutionGraph, BuildError<'_>> {
         debug!("building...");
         let Self { messages } = self;
         let messages = Arc::new(messages);
 
         debug!("storing type-aliases...");
-        let type_aliases = type_aliases(&messages, &scenario.types)?;
+        let type_aliases = type_aliases(&messages, &scenario.types, validate_types)?;
         for (a, fqn) in &type_aliases {
             trace!("- {:?} -> {:?}", a, fqn);
         }
@@ -97,8 +101,9 @@ impl Builder {
 }
 
 fn type_aliases<'a>(
-    _messages: &Messages,
+    messages: &Messages,
     imports: impl IntoIterator<Item = &'a TypeAlias>,
+    validate_types: bool,
 ) -> Result<HashMap<MessageName, Arc<str>>, BuildError<'a>> {
     use std::collections::hash_map::Entry::Vacant;
     let mut aliases = HashMap::new();
@@ -106,10 +111,11 @@ fn type_aliases<'a>(
         let Vacant(entry) = aliases.entry(import.type_alias.to_owned()) else {
             return Err(BuildError::DuplicateAlias(&import.type_alias));
         };
-        // TODO: PLT-14379: remove after automatic types detection
-        // let _marshaller = messages
-        //     .resolve(&import.type_name)
-        //     .ok_or(BuildError::UnknownFqn(&import.type_name))?;
+        if validate_types {
+            let _marshaller = messages
+                .resolve(&import.type_name)
+                .ok_or(BuildError::UnknownFqn(&import.type_name))?;
+        }
 
         entry.insert(import.type_name.as_str().into());
     }

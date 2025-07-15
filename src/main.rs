@@ -39,7 +39,7 @@ fn main() {
         serde_yaml::from_str(&scenario).expect("Failed to parse YAML scenario file");
 
     let graph = ExecutionGraph::builder(Messages::new())
-        .build(&scenario)
+        .build(&scenario, false)
         .expect("Failed to build execution graph");
 
     let result = graph.draw_graphviz();
