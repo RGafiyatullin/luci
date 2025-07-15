@@ -15,7 +15,7 @@ pub(crate) struct Scope {
 }
 
 #[derive(Debug)]
-pub struct Txn<'a> {
+pub(crate) struct Txn<'a> {
     values_old: &'a mut HashMap<String, Value>,
     values_new: HashMap<String, Value>,
 

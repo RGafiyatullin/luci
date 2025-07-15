@@ -41,7 +41,7 @@ pub trait SupportedMessage {
     fn register(self, messages: &mut Messages);
 }
 
-pub trait Marshal {
+pub(crate) trait Marshal {
     fn match_inbound_message(
         &self,
         envelope: &Envelope,
@@ -57,7 +57,7 @@ pub trait Marshal {
     fn response(&self) -> Option<&dyn DynRespond>;
 }
 
-pub trait Respond<'a> {
+pub(crate) trait Respond<'a> {
     fn respond(
         &self,
         proxy: &'a mut Proxy,
@@ -67,7 +67,7 @@ pub trait Respond<'a> {
         value: Msg,
     ) -> LocalBoxFuture<'a, Result<(), AnError>>;
 }
-pub trait DynRespond: for<'a> Respond<'a> {}
+pub(crate) trait DynRespond: for<'a> Respond<'a> {}
 impl<R> DynRespond for R where R: for<'a> Respond<'a> {}
 
 impl Messages {
@@ -75,7 +75,7 @@ impl Messages {
         Default::default()
     }
 
-    pub fn value(&self, key: &str) -> Option<AnyMessageRef> {
+    pub(crate) fn value(&self, key: &str) -> Option<AnyMessageRef> {
         self.values.get(key).map(|am| am.as_ref())
     }
 
@@ -87,7 +87,7 @@ impl Messages {
         self
     }
 
-    pub fn resolve(&self, fqn: &str) -> Option<&dyn Marshal> {
+    pub(crate) fn resolve(&self, fqn: &str) -> Option<&dyn Marshal> {
         self.marshallers.get(fqn).map(AsRef::as_ref)
     }
 }
@@ -278,7 +278,7 @@ fn do_marshal<M: Message>(
 
 // ------
 
-pub fn bind_to_pattern(value: Value, pattern: &Value, bindings: &mut bindings::Txn) -> bool {
+pub(crate) fn bind_to_pattern(value: Value, pattern: &Value, bindings: &mut bindings::Txn) -> bool {
     match (value, pattern) {
         (_, Value::String(wildcard)) if wildcard == "$_" => true,
 
@@ -307,7 +307,7 @@ pub fn bind_to_pattern(value: Value, pattern: &Value, bindings: &mut bindings::T
     }
 }
 
-pub fn render(template: Value, bindings: &bindings::Txn) -> Result<Value, AnError> {
+pub(crate) fn render(template: Value, bindings: &bindings::Txn) -> Result<Value, AnError> {
     match template {
         Value::String(wildcard) if wildcard == "$_" => Err("can't render $_".into()),
         Value::String(var_name) if var_name.starts_with('$') => bindings
