@@ -5,7 +5,7 @@ use std::{
 };
 
 use serde_json::Value;
-use slotmap::{new_key_type, SlotMap};
+use slotmap::SlotMap;
 
 use crate::{
     marshalling::MarshallingRegistry,
@@ -13,26 +13,20 @@ use crate::{
     scenario::{Msg, RequiredToBe},
 };
 
+mod keys;
+pub use keys::*;
+
+mod sources;
 mod build;
 mod report;
 mod runner;
 
+pub use sources::Loader;
+pub use sources::Sources;
 pub use build::BuildError;
 pub use report::Report;
 pub use runner::RunError;
 pub use runner::Runner;
-
-new_key_type! {
-    pub struct KeyBind;
-    pub struct KeySend;
-    pub struct KeyRecv;
-    pub struct KeyRespond;
-    pub struct KeyDelay;
-}
-
-new_key_type! {
-    pub struct KeyScope;
-}
 
 /// A key corresponding to some event during test execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -75,6 +69,8 @@ struct Events {
 
 #[derive(Debug)]
 struct EventSend {
+    scope_key: KeyScope,
+
     from: ActorName,
     to: Option<ActorName>,
     fqn: Arc<str>,
@@ -83,6 +79,8 @@ struct EventSend {
 
 #[derive(Debug)]
 struct EventRecv {
+    scope_key: KeyScope,
+
     from: Option<ActorName>,
     to: Option<ActorName>,
     fqn: Arc<str>,
@@ -91,6 +89,8 @@ struct EventRecv {
 
 #[derive(Debug)]
 struct EventRespond {
+    scope_key: KeyScope,
+
     respond_to: KeyRecv,
     request_type: Arc<str>,
     respond_from: Option<ActorName>,
@@ -99,6 +99,9 @@ struct EventRespond {
 
 #[derive(Debug)]
 struct EventBind {
+    src_scope_key: KeyScope,
+    dst_scope_key: KeyScope,
+
     dst: Value,
     src: Msg,
 }

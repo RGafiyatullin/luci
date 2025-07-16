@@ -320,7 +320,7 @@ impl<'a> Runner<'a> {
             self.ready_events.remove(&EventKey::Bind(bind_key));
 
             trace!(" binding {:?}", bind_key);
-            let EventBind { dst, src } = &events.bind[bind_key];
+            let EventBind { dst, src, .. } = &events.bind[bind_key];
 
             let value = match src {
                 Msg::Literal(value) => value.clone(),
@@ -413,6 +413,7 @@ impl<'a> Runner<'a> {
                         from: match_from,
                         to: match_to,
                         payload: match_message,
+                        ..
                     } = &events.recv[recv_key];
 
                     let mut scope_txn = self.scope.txn();
@@ -530,6 +531,7 @@ impl<'a> Runner<'a> {
             to: send_to,
             fqn: message_type,
             payload: message_data,
+            ..
         } = &vertices.send[event_key];
         debug!(
             " sending {:?} [from: {:?}; to: {:?}]",
@@ -609,6 +611,7 @@ impl<'a> Runner<'a> {
             request_type: request_fqn,
             respond_from,
             payload: message_data,
+            ..
         } = &vertices.respond[k];
         debug!(
             " responding to a {:?} [from: {:?}]",

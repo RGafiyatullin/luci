@@ -11,7 +11,7 @@ use crate::{
         EventBind, EventKey, KeyBind, KeyDelay, KeyRecv, KeyRespond, KeyScope, KeySend, ScopeInfo,
     },
     marshalling,
-    scenario::{DefEventBind, DefEventDelay, DefEventRecv, DefEventRespond, DefEventSend},
+    scenario::{DefEventBind, DefEventDelay, DefEventRecv, DefEventRespond, DefEventSend, RequiredToBe},
 };
 use crate::{
     execution::{EventDelay, EventRecv, EventRespond, EventSend, Events, Executable},
@@ -70,22 +70,23 @@ impl Executable {
         }
 
         debug!("building the graph...");
-        let vertices = build_graph(&scenario.events, &type_aliases, &actors, &marshalling)?;
-
-        debug!("- bind-vertices:\t{}", vertices.bind.len());
-        debug!("- send-vertices:\t{}", vertices.send.len());
-        debug!("- recv-vertices:\t{}", vertices.recv.len());
-        debug!("- respond-vertices:\t{}", vertices.respond.len());
-        debug!("- delay-vertices:\t{}", vertices.delay.len());
-
-        debug!("done!");
 
         let mut scopes: SlotMap<KeyScope, ScopeInfo> = Default::default();
         let root_scope_key = scopes.insert(ScopeInfo {});
 
+        let events = build_graph(&scenario.events, &type_aliases, &actors, &marshalling)?;
+
+        debug!("- bind-vertices:\t{}", events.bind.len());
+        debug!("- send-vertices:\t{}", events.send.len());
+        debug!("- recv-vertices:\t{}", events.recv.len());
+        debug!("- respond-vertices:\t{}", events.respond.len());
+        debug!("- delay-vertices:\t{}", events.delay.len());
+
+        debug!("done!");
+
         Ok(Executable {
             marshalling,
-            events: vertices,
+            events,
             root_scope_key,
             scopes,
         })
@@ -154,6 +155,7 @@ fn build_graph<'a>(
 
         let this_key = match &event.kind {
             DefEventKind::Call(_) => unimplemented!(),
+
             DefEventKind::Delay(def_delay) => {
                 let DefEventDelay {
                     delay_for,
@@ -178,7 +180,12 @@ fn build_graph<'a>(
                 } = def_bind;
                 let dst = dst.clone();
                 let src = src.clone();
-                let key = v_bind.insert(EventBind { dst, src });
+                let key = v_bind.insert(EventBind {
+                    dst,
+                    src,
+                    dst_scope_key: unimplemented!(),
+                    src_scope_key: unimplemented!(),
+                });
 
                 EventKey::Bind(key)
             }
@@ -207,6 +214,8 @@ fn build_graph<'a>(
                     to: to.clone(),
                     fqn: type_fqn,
                     payload: message_data.clone(),
+
+                    scope_key: unimplemented!(),
                 });
                 EventKey::Recv(key)
             }
@@ -235,6 +244,8 @@ fn build_graph<'a>(
                     to: to.clone(),
                     fqn: type_fqn,
                     payload: message_data.clone(),
+
+                    scope_key: unimplemented!(),
                 });
                 EventKey::Send(key)
             }
@@ -270,6 +281,8 @@ fn build_graph<'a>(
                     request_type: request_fqn,
                     respond_from: from.clone(),
                     payload: data.clone(),
+
+                    scope_key: unimplemented!(),
                 });
                 EventKey::Respond(key)
             }
@@ -348,4 +361,78 @@ where
             .copied()
             .ok_or(BuildError::UnknownEvent(name))
     })
+}
+
+#[derive(Debug, Default)]
+struct Builder {
+    scopes: SlotMap<KeyScope, ScopeInfo>,
+
+    definition_order: Vec<EventKey>,
+
+    events_delay: SlotMap<KeyDelay, EventDelay>,
+    events_bind: SlotMap<KeyBind, EventBind>,
+    events_recv: SlotMap<KeyRecv, EventRecv>,
+    events_send: SlotMap<KeySend, EventRecv>,
+    events_respond: SlotMap<KeyRespond, EventRespond>,
+
+    key_unblocks_values: HashMap<EventKey, BTreeSet<EventKey>>,
+}
+
+#[derive(Debug)]
+struct SubgraphAdded {
+    scope_key: KeyScope,
+    entry_points: Vec<EventKey>,
+    required: HashMap<EventKey, RequiredToBe>,
+}
+
+impl Builder {
+    fn add_subgraph<'a>(
+        &mut self,
+        scope_info: ScopeInfo,
+        event_defs: impl IntoIterator<Item = &'a DefEvent>,
+    ) -> Result<(), BuildError<'a>> {
+        let mut idx_keys = HashMap::new();
+
+        let scope_key = self.scopes.insert(scope_info);
+
+        for DefEvent {
+            id: this_name,
+            require: this_required_to_be,
+            prerequisites,
+            kind,
+            ..
+        } in event_defs
+        {
+            let prerequisites =
+                resolve_event_ids(&mut idx_keys, &prerequisites).collect::<Result<Vec<_>, _>>()?;
+
+            let this_key = match kind {
+                DefEventKind::Call(_) => {
+                    unimplemented!()
+                }
+                DefEventKind::Delay(_) => {
+                    unimplemented!()
+                }
+                DefEventKind::Bind(_) => {
+                    unimplemented!()
+                }
+                DefEventKind::Recv(_) => {
+                    unimplemented!()
+                }
+                DefEventKind::Respond(_) => {
+                    unimplemented!()
+                }
+                DefEventKind::Send(_) => {
+                    unimplemented!()
+                }
+            };
+
+            if idx_keys.insert(this_name, this_key).is_some() {
+                return Err(BuildError::DuplicateEventName(this_name));
+            }
+            self.definition_order.push(this_key);
+        }
+
+        unimplemented!()
+    }
 }
