@@ -3,6 +3,7 @@ use std::{
     sync::Arc,
 };
 
+use serde_json::json;
 use slotmap::SlotMap;
 use tracing::{debug, trace};
 
@@ -14,7 +15,7 @@ use crate::{
     marshalling,
     names::SubroutineName,
     scenario::{
-        DefEventBind, DefEventDelay, DefEventRecv, DefEventRespond, DefEventSend, RequiredToBe,
+        DefEventBind, DefEventDelay, DefEventRecv, DefEventRespond, DefEventSend, Msg, RequiredToBe,
     },
 };
 use crate::{
@@ -71,7 +72,7 @@ impl Executable {
             scope_key,
             entry_points,
             require: required,
-        } = builder.add_subgraph(&marshalling, sources, main)?;
+        } = builder.add_subgraph(&marshalling, sources, main, None)?;
         let Builder {
             scopes,
             event_names,
@@ -453,6 +454,7 @@ impl Builder {
         marshalling: &MarshallingRegistry,
         sources: &Sources,
         source_key: KeySource,
+        invoked_as: Option<(KeyScope, EventName, SubroutineName)>,
     ) -> Result<SubgraphAdded, BuildError> {
         let this_source = &sources[source_key];
 
@@ -468,7 +470,10 @@ impl Builder {
             trace!("- {:?}", actor_name);
         }
 
-        let this_scope_key = self.scopes.insert(ScopeInfo { source_key });
+        let this_scope_key = self.scopes.insert(ScopeInfo {
+            source_key,
+            invoked_as,
+        });
 
         let mut this_scope_name_to_key = HashMap::new();
         let mut this_scope_entry_points = BTreeSet::new();
@@ -498,16 +503,80 @@ impl Builder {
                         scope_key: sub_scope_key,
                         entry_points: sub_entry_points,
                         require: sub_required_to_be,
-                    } = self.add_subgraph(marshalling, sources, sub_source_key)?;
+                    } = self.add_subgraph(
+                        marshalling,
+                        sources,
+                        sub_source_key,
+                        Some((
+                            this_scope_key,
+                            this_name.clone(),
+                            def_call.subroutine_name.clone(),
+                        )),
+                    )?;
 
-                    // TODO: create two bind nodes:
+                    // create two bind nodes:
                     // - one for input (bind from `scope_key` to `sub_scope_key`, choose the nodes using `entrypoints`)
                     // - one for output (bind from `sub_scope_key` to `scope_key`, choose the nodes using `required`)
                     //
                     // the latter bind will be referred to by `this_key`, so that it can be depended on
                     // (the events that want to happen after this call — should take place after the output-bind).
 
-                    unimplemented!()
+                    let event_bind_in = {
+                        let (dst, src) = if let Some(def_bind_in) = def_call.input.as_ref() {
+                            (def_bind_in.dst.clone(), def_bind_in.src.clone())
+                        } else {
+                            (json!(null), Msg::Literal(json!(null)))
+                        };
+                        EventBind {
+                            src_scope_key: this_scope_key,
+                            dst_scope_key: sub_scope_key,
+                            dst,
+                            src,
+                        }
+                    };
+                    let bind_in = self.events_bind.insert(event_bind_in);
+                    let ek_bind_in = EventKey::Bind(bind_in);
+
+                    for sub_entry_point in sub_entry_points {
+                        let hasnt_been_added_before = self
+                            .key_unblocks_values
+                            .entry(ek_bind_in)
+                            .or_default()
+                            .insert(sub_entry_point);
+                        assert!(hasnt_been_added_before);
+                    }
+
+                    let event_bind_out = {
+                        let (dst, src) = if let Some(def_bind_out) = def_call.output.as_ref() {
+                            (
+                                def_bind_out.dst.clone(),
+                                Msg::Bind(def_bind_out.src.clone()),
+                            )
+                        } else {
+                            (json!(null), Msg::Literal(json!(null)))
+                        };
+                        EventBind {
+                            src_scope_key: sub_scope_key,
+                            dst_scope_key: this_scope_key,
+                            dst,
+                            src,
+                        }
+                    };
+                    let bind_out = self.events_bind.insert(event_bind_out);
+                    let ek_bind_out = EventKey::Bind(bind_out);
+
+                    for (sub_key, requirement) in sub_required_to_be {
+                        if matches!(requirement, RequiredToBe::Reached) {
+                            let hasnt_been_added_before = self
+                                .key_unblocks_values
+                                .entry(sub_key)
+                                .or_default()
+                                .insert(ek_bind_out);
+                            assert!(hasnt_been_added_before);
+                        }
+                    }
+
+                    ek_bind_out
                 }
                 DefEventKind::Delay(def_delay) => {
                     let DefEventDelay {

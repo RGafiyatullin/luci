@@ -9,7 +9,7 @@ use slotmap::SlotMap;
 
 use crate::{
     marshalling::MarshallingRegistry,
-    names::{ActorName, EventName},
+    names::{ActorName, EventName, SubroutineName},
     scenario::{Msg, RequiredToBe},
 };
 
@@ -48,8 +48,11 @@ pub struct Executable {
 }
 
 #[derive(Debug)]
+// the fields of this structure can be used to build a sort of stack-trace, which might be useful
+#[allow(dead_code)]
 struct ScopeInfo {
     source_key: KeySource,
+    invoked_as: Option<(KeyScope, EventName, SubroutineName)>,
 }
 
 #[derive(Debug, Default)]

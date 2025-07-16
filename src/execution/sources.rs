@@ -249,6 +249,7 @@ impl<'a, T> Drop for PopOnDrop<'a, T> {
     }
 }
 
+// this implementation is needed for the tests (tests/soruce_loading.rs)
 impl fmt::Debug for Sources {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut f = f.debug_map();
@@ -260,6 +261,8 @@ impl fmt::Debug for Sources {
         f.finish()
     }
 }
+
+// this implementation is needed for the tests (tests/soruce_loading.rs)
 impl fmt::Debug for Source {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let sub_names = self.subs.keys().collect::<BTreeSet<_>>();
