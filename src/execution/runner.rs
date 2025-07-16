@@ -106,6 +106,9 @@ impl Executable {
 }
 
 impl<'a> Runner<'a> {
+    /// Scenario execution.
+    ///
+    /// * `messages`: Types registry.
     pub async fn run(mut self, messages: Messages) -> Result<Report, RunError> {
         let mut unreached = self.executable.events.required.clone();
         let mut reached = HashMap::new();

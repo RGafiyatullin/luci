@@ -49,6 +49,11 @@ pub enum BuildError<'a> {
 }
 
 impl Executable {
+    /// Builds an executable graph from a scenario.
+    ///
+    /// * `scenario`: Parsed scenario definition.
+    /// * `messages`: [Optional] Types registry.
+    ///    May be `None` if types validation is not needed (at graph drawing).
     pub fn build<'s>(
         scenario: &'s Scenario,
         messages: Option<&Messages>,

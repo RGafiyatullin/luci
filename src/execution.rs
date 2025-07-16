@@ -8,7 +8,6 @@ use serde_json::Value;
 use slotmap::{new_key_type, SlotMap};
 
 use crate::{
-    messages::Messages,
     names::{ActorName, EventName},
     scenario::{Msg, RequiredToBe},
 };
