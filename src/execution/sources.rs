@@ -1,5 +1,9 @@
 use std::{
-    collections::{BTreeMap, BTreeSet}, fmt, io, ops::{Deref, DerefMut}, path::{Path, PathBuf}, sync::Arc
+    collections::{BTreeMap, BTreeSet},
+    fmt, io,
+    ops::{Deref, DerefMut, Index},
+    path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use slotmap::SlotMap;
@@ -15,7 +19,10 @@ pub enum LoadError {
     #[error("syntax: {}", _0)]
     Syntax(#[source] serde_yaml::Error),
 
-    #[error("path should be relative, and should not contain any special components: {:?}", _0)]
+    #[error(
+        "path should be relative, and should not contain any special components: {:?}",
+        _0
+    )]
     InvalidPath(PathBuf),
 
     #[error("file not found: {:?}", _0)]
@@ -40,9 +47,17 @@ pub struct Sources {
 }
 
 pub struct Source {
-    source_file: Arc<Path>,
-    scenario: Scenario,
-    subs: BTreeMap<SubroutineName, KeySource>,
+    pub source_file: Arc<Path>,
+    pub scenario: Scenario,
+    pub subs: BTreeMap<SubroutineName, KeySource>,
+}
+
+impl Index<KeySource> for Sources {
+    type Output = Source;
+
+    fn index(&self, index: KeySource) -> &Self::Output {
+        &self.sources[index]
+    }
 }
 
 impl SourceLoader {
@@ -52,7 +67,7 @@ impl SourceLoader {
 
     pub fn load(&self, main: impl Into<PathBuf>) -> Result<(KeySource, Sources), LoadError> {
         let main = path_sanitize(&main.into())?;
-        
+
         let mut sources: Sources = Default::default();
         let mut context = LoaderContext {
             loader: self,
@@ -106,8 +121,12 @@ impl<'a> LoaderContext<'a> {
                 sources: self.sources,
             };
             let sub_source_key = context.load_inner(parent_keys)?;
-            if self.sources.sources[source_key].subs.insert(import.subroutine_name.clone(), sub_source_key).is_some() {
-                return Err(LoadError::DuplicateSubroutine(import.subroutine_name))
+            if self.sources.sources[source_key]
+                .subs
+                .insert(import.subroutine_name.clone(), sub_source_key)
+                .is_some()
+            {
+                return Err(LoadError::DuplicateSubroutine(import.subroutine_name));
             }
         }
 
@@ -118,7 +137,11 @@ impl<'a> LoaderContext<'a> {
         if self.this_file.is_absolute() {
             return Err(LoadError::InvalidPath(self.this_file.to_owned()));
         }
-        if self.this_file.components().any(|pc| !matches!(pc, std::path::Component::Normal(_))) {
+        if self
+            .this_file
+            .components()
+            .any(|pc| !matches!(pc, std::path::Component::Normal(_)))
+        {
             return Err(LoadError::InvalidPath(self.this_file.to_owned()));
         }
 
@@ -164,11 +187,13 @@ impl<'a> LoaderContext<'a> {
 
 fn path_sanitize(p: &Path) -> Result<PathBuf, LoadError> {
     use std::path::Component::*;
-    p.components().filter_map(|pc| match pc {
-        CurDir => None,
-        normal @ Normal(_) => Some(Ok(normal)),
-        _ => Some(Err(LoadError::InvalidPath(p.to_owned())))
-    }).collect::<Result<PathBuf, LoadError>>()
+    p.components()
+        .filter_map(|pc| match pc {
+            CurDir => None,
+            normal @ Normal(_) => Some(Ok(normal)),
+            _ => Some(Err(LoadError::InvalidPath(p.to_owned()))),
+        })
+        .collect::<Result<PathBuf, LoadError>>()
 }
 
 impl Source {
@@ -220,6 +245,6 @@ impl fmt::Debug for Source {
             .field("source_file", &self.source_file)
             .field("subs", &sub_names)
             .field("scenario", &self.scenario)
-        .finish()
+            .finish()
     }
 }
