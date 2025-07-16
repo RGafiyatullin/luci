@@ -81,10 +81,6 @@ pub struct Runner<'a> {
     executable: &'a Executable,
     ready_events: BTreeSet<EventKey>,
     key_requires_values: HashMap<EventKey, HashSet<EventKey>>,
-
-    #[deprecated(note = "use scopes[executable.root_scope_key]")]
-    scope: bindings::Scope,
-
     scopes: SecondaryMap<KeyScope, bindings::Scope>,
 
     main_proxy_key: ProxyKey,
@@ -327,12 +323,18 @@ impl<'a> Runner<'a> {
             self.ready_events.remove(&EventKey::Bind(bind_key));
 
             trace!(" binding {:?}", bind_key);
-            let EventBind { dst, src, .. } = &events.bind[bind_key];
+            let EventBind {
+                dst,
+                src,
+                src_scope_key,
+                dst_scope_key,
+            } = &events.bind[bind_key];
 
             let value = match src {
                 Msg::Literal(value) => value.clone(),
                 Msg::Bind(template) => {
-                    bindings::render(template.clone(), &self.scope).map_err(RunError::BindError)?
+                    bindings::render(template.clone(), &self.scopes[*src_scope_key])
+                        .map_err(RunError::BindError)?
                 }
                 Msg::Inject(key) => {
                     let m = marshalling.value(key).ok_or(RunError::Marshalling(
@@ -342,7 +344,7 @@ impl<'a> Runner<'a> {
                 }
             };
 
-            let mut scope_txn = self.scope.txn();
+            let mut scope_txn = self.scopes[*dst_scope_key].txn();
 
             if !bindings::bind_to_pattern(value, dst, &mut scope_txn) {
                 trace!("  could not bind {:?}", bind_key);
@@ -420,10 +422,10 @@ impl<'a> Runner<'a> {
                         from: match_from,
                         to: match_to,
                         payload: match_message,
-                        ..
+                        scope_key,
                     } = &events.recv[recv_key];
 
-                    let mut scope_txn = self.scope.txn();
+                    let mut scope_txn = self.scopes[*scope_key].txn();
 
                     let marshaller = marshalling.resolve(&match_type).expect("bad FQN");
 
@@ -538,7 +540,7 @@ impl<'a> Runner<'a> {
             to: send_to,
             fqn: message_type,
             payload: message_data,
-            ..
+            scope_key,
         } = &vertices.send[event_key];
         debug!(
             " sending {:?} [from: {:?}; to: {:?}]",
@@ -548,8 +550,7 @@ impl<'a> Runner<'a> {
         let send_to_addr_opt = send_to
             .as_ref()
             .map(|actor_name| {
-                let addr = self
-                    .scope
+                let addr = self.scopes[*scope_key]
                     .address_of(&actor_name)
                     .ok_or_else(|| RunError::UnboundName(actor_name.clone()))?;
                 if self.proxies.iter().any(|(_, p)| p.addr() == addr) {
@@ -559,7 +560,7 @@ impl<'a> Runner<'a> {
             })
             .transpose()?;
 
-        let proxy = if let Some(addr) = self.scope.address_of(send_from) {
+        let proxy = if let Some(addr) = self.scopes[*scope_key].address_of(send_from) {
             self.proxies
                 .values_mut()
                 .find(|p| p.addr() == addr)
@@ -577,7 +578,7 @@ impl<'a> Runner<'a> {
             .expect("invalid FQN");
 
         let any_message = marshaller
-            .marshal_outbound_message(&messages, &self.scope, message_data.clone())
+            .marshal_outbound_message(&messages, &self.scopes[*scope_key], message_data.clone())
             .map_err(RunError::Marshalling)?;
 
         if let Some(dst_addr) = send_to_addr_opt {
@@ -618,7 +619,7 @@ impl<'a> Runner<'a> {
             request_type: request_fqn,
             respond_from,
             payload: message_data,
-            ..
+            scope_key,
         } = &vertices.respond[k];
         debug!(
             " responding to a {:?} [from: {:?}]",
@@ -626,7 +627,7 @@ impl<'a> Runner<'a> {
         );
 
         let proxy_idx = if let Some(from_dummy_name) = respond_from {
-            let Some(addr) = self.scope.address_of(from_dummy_name) else {
+            let Some(addr) = self.scopes[*scope_key].address_of(from_dummy_name) else {
                 return Err(RunError::UnboundName(from_dummy_name.clone()));
             };
             self.proxies
@@ -662,7 +663,7 @@ impl<'a> Runner<'a> {
                 responding_proxy,
                 token,
                 &messages,
-                &self.scope,
+                &self.scopes[*scope_key],
                 message_data.clone(),
             )
             .await
@@ -713,7 +714,11 @@ impl<'a> Runner<'a> {
                 },
             );
 
-        let mut scopes: SecondaryMap<KeyScope, bindings::Scope> = Default::default();
+        let mut scopes: SecondaryMap<KeyScope, bindings::Scope> = executable
+            .scopes
+            .iter()
+            .map(|(key, _info)| (key, Default::default()))
+            .collect();
         scopes.insert(executable.root_scope_key, Default::default());
 
         Self {
@@ -723,10 +728,7 @@ impl<'a> Runner<'a> {
             delays,
             main_proxy_key,
             proxies,
-
-            scope: Default::default(),
             scopes,
-
             envelopes: Default::default(),
         }
     }
