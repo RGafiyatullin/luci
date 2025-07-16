@@ -5,6 +5,7 @@ use futures::{future::LocalBoxFuture, FutureExt};
 use ghost::phantom;
 use serde_json::Value;
 
+use crate::bindings;
 use crate::scenario::Msg;
 
 pub type AnError = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -40,28 +41,33 @@ pub trait SupportedMessage {
     fn register(self, messages: &mut Messages);
 }
 
-pub trait Marshal {
-    fn bind(&self, envelope: &Envelope, bind_to: &Msg) -> Option<Vec<(String, Value)>>;
-    fn marshall(
+pub(crate) trait Marshal {
+    fn match_inbound_message(
+        &self,
+        envelope: &Envelope,
+        bind_to: &Msg,
+        bindings: &mut bindings::Txn,
+    ) -> bool;
+    fn marshal_outbound_message(
         &self,
         messages: &Messages,
-        bindings: &HashMap<String, Value>,
+        bindings: &bindings::Scope,
         value: Msg,
     ) -> Result<AnyMessage, AnError>;
     fn response(&self) -> Option<&dyn DynRespond>;
 }
 
-pub trait Respond<'a> {
+pub(crate) trait Respond<'a> {
     fn respond(
         &self,
         proxy: &'a mut Proxy,
         token: ResponseToken,
         messages: &'a Messages,
-        bindings: &'a HashMap<String, Value>,
+        bindings: &'a bindings::Scope,
         value: Msg,
     ) -> LocalBoxFuture<'a, Result<(), AnError>>;
 }
-pub trait DynRespond: for<'a> Respond<'a> {}
+pub(crate) trait DynRespond: for<'a> Respond<'a> {}
 impl<R> DynRespond for R where R: for<'a> Respond<'a> {}
 
 impl Messages {
@@ -69,7 +75,7 @@ impl Messages {
         Default::default()
     }
 
-    pub fn value(&self, key: &str) -> Option<AnyMessageRef> {
+    pub(crate) fn value(&self, key: &str) -> Option<AnyMessageRef> {
         self.values.get(key).map(|am| am.as_ref())
     }
 
@@ -81,7 +87,7 @@ impl Messages {
         self
     }
 
-    pub fn resolve(&self, fqn: &str) -> Option<&dyn Marshal> {
+    pub(crate) fn resolve(&self, fqn: &str) -> Option<&dyn Marshal> {
         self.marshallers.get(fqn).map(AsRef::as_ref)
     }
 }
@@ -116,23 +122,28 @@ impl<M> Marshal for Regular<M>
 where
     M: elfo::Message,
 {
-    fn bind(&self, envelope: &Envelope, bind_to: &Msg) -> Option<Vec<(String, Value)>> {
+    fn match_inbound_message(
+        &self,
+        envelope: &Envelope,
+        bind_to: &Msg,
+        bindings: &mut bindings::Txn,
+    ) -> bool {
         if !envelope.is::<M>() {
-            return None;
+            return false;
         }
 
         let serialized = extract_message_payload(envelope)
             .expect("AnyMessage has changed serialization format?");
 
-        do_bind(bind_to, serialized)
+        do_match_message(bind_to, serialized, bindings)
     }
-    fn marshall(
+    fn marshal_outbound_message(
         &self,
         messages: &Messages,
-        bindings: &HashMap<String, Value>,
+        bindings: &bindings::Scope,
         msg: Msg,
     ) -> Result<AnyMessage, AnError> {
-        do_marshal::<M>(messages, bindings, msg)
+        do_marshal_message::<M>(messages, bindings, msg)
     }
     fn response(&self) -> Option<&'static dyn DynRespond> {
         None
@@ -143,23 +154,28 @@ impl<Rq> Marshal for Request<Rq>
 where
     Rq: elfo::Request,
 {
-    fn bind(&self, envelope: &Envelope, bind_to: &Msg) -> Option<Vec<(String, Value)>> {
+    fn match_inbound_message(
+        &self,
+        envelope: &Envelope,
+        bind_to: &Msg,
+        bindings: &mut bindings::Txn,
+    ) -> bool {
         if !envelope.is::<Rq>() {
-            return None;
+            return false;
         }
 
         let serialized = extract_message_payload(envelope)
             .expect("AnyMessage has changed serialization format?");
 
-        do_bind(bind_to, serialized)
+        do_match_message(bind_to, serialized, bindings)
     }
-    fn marshall(
+    fn marshal_outbound_message(
         &self,
         messages: &Messages,
-        bindings: &HashMap<String, Value>,
+        bindings: &bindings::Scope,
         msg: Msg,
     ) -> Result<AnyMessage, AnError> {
-        do_marshal::<Rq::Wrapper>(messages, bindings, msg)
+        do_marshal_message::<Rq::Wrapper>(messages, bindings, msg)
     }
     fn response(&self) -> Option<&'static dyn DynRespond> {
         Some(&Response::<Rq>)
@@ -175,14 +191,14 @@ where
         proxy: &'a mut Proxy,
         token: ResponseToken,
         messages: &'a Messages,
-        bindings: &'a HashMap<String, Value>,
+        bindings: &'a bindings::Scope,
         value: Msg,
     ) -> LocalBoxFuture<'a, Result<(), AnError>> {
         async move {
             let token = token.into_received::<Rq>();
             match value {
                 Msg::Bind(template) => {
-                    let value = render(template, &bindings)?;
+                    let value = bindings::render(template, bindings)?;
                     let de: Result<Rq::Wrapper, _> = serde_json::from_value(value);
                     match de {
                         Ok(w) => {
@@ -228,36 +244,22 @@ fn extract_message_payload(envelope: &Envelope) -> Option<Value> {
     Some(payload)
 }
 
-fn do_bind(bind_to: &Msg, serialized: Value) -> Option<Vec<(String, Value)>> {
+fn do_match_message(bind_to: &Msg, serialized: Value, bindings: &mut bindings::Txn) -> bool {
     match bind_to {
-        Msg::Literal(value) => {
-            if serialized == *value {
-                Some(Default::default())
-            } else {
-                None
-            }
-        }
-        Msg::Bind(pattern) => {
-            let mut bindings = Default::default();
-            if bind_to_pattern(serialized, pattern, &mut bindings) {
-                Some(bindings.into_iter().collect())
-            } else {
-                None
-            }
-        }
-
-        Msg::Inject(_name) => Some(Default::default()),
+        Msg::Literal(value) => serialized == *value,
+        Msg::Bind(pattern) => bindings::bind_to_pattern(serialized, pattern, bindings),
+        Msg::Inject(_name) => false,
     }
 }
 
-fn do_marshal<M: Message>(
+fn do_marshal_message<M: Message>(
     messages: &Messages,
-    bindings: &HashMap<String, Value>,
+    bindings: &bindings::Scope,
     msg: Msg,
 ) -> Result<AnyMessage, AnError> {
     match msg {
         Msg::Bind(template) => {
-            let value = render(template, bindings)?;
+            let value = bindings::render(template, bindings)?;
             let m: M = serde_json::from_value(value)?;
             let a = AnyMessage::new(m);
             Ok(a)
@@ -271,69 +273,5 @@ fn do_marshal<M: Message>(
             let a = AnyMessage::new(m);
             Ok(a)
         }
-    }
-}
-
-// ------
-
-pub fn bind_to_pattern(
-    value: Value,
-    pattern: &Value,
-    bindings: &mut HashMap<String, Value>,
-) -> bool {
-    use std::collections::hash_map::Entry::*;
-    match (value, pattern) {
-        (_, Value::String(wildcard)) if wildcard == "$_" => true,
-
-        (value, Value::String(var_name)) if var_name.starts_with('$') => {
-            match bindings.entry(var_name.to_owned()) {
-                Vacant(v) => {
-                    v.insert(value);
-                    true
-                }
-                Occupied(o) => *o.get() == value,
-            }
-        }
-
-        (Value::Null, Value::Null) => true,
-        (Value::Bool(v), Value::Bool(p)) => v == *p,
-        (Value::String(v), Value::String(p)) => v == *p,
-        (Value::Number(v), Value::Number(p)) => v == *p,
-        (Value::Array(values), Value::Array(patterns)) => {
-            values.len() == patterns.len()
-                && values
-                    .into_iter()
-                    .zip(patterns)
-                    .all(|(v, p)| bind_to_pattern(v, p, bindings))
-        }
-
-        (Value::Object(mut v), Value::Object(p)) => p.iter().all(|(pk, pv)| {
-            v.remove(pk)
-                .is_some_and(|vv| bind_to_pattern(vv, pv, bindings))
-        }),
-
-        (_, _) => false,
-    }
-}
-
-pub fn render(template: Value, bindings: &HashMap<String, Value>) -> Result<Value, AnError> {
-    match template {
-        Value::String(wildcard) if wildcard == "$_" => Err("can't render $_".into()),
-        Value::String(var_name) if var_name.starts_with('$') => bindings
-            .get(&var_name)
-            .cloned()
-            .ok_or_else(|| format!("unknown var: {:?}", var_name).into()),
-        Value::Array(items) => Ok(Value::Array(
-            items
-                .into_iter()
-                .map(|item| render(item, bindings))
-                .collect::<Result<_, _>>()?,
-        )),
-        Value::Object(kv) => Ok(Value::Object(
-            kv.into_iter()
-                .map(|(k, v)| render(v, bindings).map(move |v| (k, v)))
-                .collect::<Result<_, _>>()?,
-        )),
-        as_is => Ok(as_is),
     }
 }
