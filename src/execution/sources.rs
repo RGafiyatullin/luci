@@ -1,15 +1,11 @@
 use std::{
-    collections::HashMap,
-    io,
-    ops::{Deref, DerefMut},
-    path::{Path, PathBuf},
-    sync::Arc,
+    collections::{BTreeMap, BTreeSet}, fmt, io, ops::{Deref, DerefMut}, path::{Path, PathBuf}, sync::Arc
 };
 
 use slotmap::SlotMap;
 use tracing::trace;
 
-use crate::{execution::KeySource, scenario::Scenario};
+use crate::{execution::KeySource, names::SubroutineName, scenario::Scenario};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
@@ -19,41 +15,44 @@ pub enum LoadError {
     #[error("syntax: {}", _0)]
     Syntax(#[source] serde_yaml::Error),
 
-    #[error("path should be relative")]
-    PathIsAbsolute,
+    #[error("path should be relative, and should not contain any special components: {:?}", _0)]
+    InvalidPath(PathBuf),
 
     #[error("file not found: {:?}", _0)]
     FileNotFound(PathBuf),
 
     #[error("cyclic reference in source files: {:?}", _0)]
     SourceFileCyclicDependency(PathBuf),
+
+    #[error("duplicate subroutine definition: {}", _0)]
+    DuplicateSubroutine(SubroutineName),
 }
 
 #[derive(Debug)]
-pub struct Loader {
+pub struct SourceLoader {
     pub search_path: Vec<PathBuf>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Sources {
-    by_effective_path: HashMap<Arc<Path>, KeySource>,
+    by_effective_path: BTreeMap<Arc<Path>, KeySource>,
     sources: SlotMap<KeySource, Source>,
 }
 
-#[derive(Debug)]
 pub struct Source {
     source_file: Arc<Path>,
     scenario: Scenario,
+    subs: BTreeMap<SubroutineName, KeySource>,
 }
 
-impl Loader {
+impl SourceLoader {
     pub fn new() -> Self {
         Default::default()
     }
 
-    pub fn load(&self, main: impl Into<PathBuf>) -> Result<Sources, LoadError> {
-        let main = main.into();
-
+    pub fn load(&self, main: impl Into<PathBuf>) -> Result<(KeySource, Sources), LoadError> {
+        let main = path_sanitize(&main.into())?;
+        
         let mut sources: Sources = Default::default();
         let mut context = LoaderContext {
             loader: self,
@@ -61,33 +60,33 @@ impl Loader {
             this_file: &main,
             sources: &mut sources,
         };
-        let () = context.load()?;
+        let root_source_key = context.load()?;
 
-        Ok(sources)
+        Ok((root_source_key, sources))
     }
 }
 
 struct LoaderContext<'a> {
-    loader: &'a Loader,
+    loader: &'a SourceLoader,
     this_dir: &'a Path,
     this_file: &'a Path,
     sources: &'a mut Sources,
 }
 
-impl Default for Loader {
+impl Default for SourceLoader {
     fn default() -> Self {
-        Loader {
+        SourceLoader {
             search_path: vec![".".into()],
         }
     }
 }
 
 impl<'a> LoaderContext<'a> {
-    fn load(&mut self) -> Result<(), LoadError> {
+    fn load(&mut self) -> Result<KeySource, LoadError> {
         let mut parent_keys: Vec<KeySource> = vec![];
         self.load_inner(&mut parent_keys)
     }
-    fn load_inner(&mut self, parent_keys: &mut Vec<KeySource>) -> Result<(), LoadError> {
+    fn load_inner(&mut self, parent_keys: &mut Vec<KeySource>) -> Result<KeySource, LoadError> {
         let effective_path = self.choose_effective_path()?;
         let source_key = self.read_scenario(effective_path.as_ref())?;
 
@@ -95,12 +94,32 @@ impl<'a> LoaderContext<'a> {
             return Err(LoadError::SourceFileCyclicDependency(effective_path));
         }
 
-        unimplemented!()
+        let source = &self.sources.sources[source_key];
+        let base_dir = source.base_dir().to_owned();
+        let subs = source.scenario.subs.clone();
+        for import in subs {
+            let parent_keys = &mut *PopOnDrop::new(parent_keys, source_key);
+            let mut context = LoaderContext {
+                loader: &self.loader,
+                this_dir: &base_dir,
+                this_file: &path_sanitize(&import.file_name)?,
+                sources: self.sources,
+            };
+            let sub_source_key = context.load_inner(parent_keys)?;
+            if self.sources.sources[source_key].subs.insert(import.subroutine_name.clone(), sub_source_key).is_some() {
+                return Err(LoadError::DuplicateSubroutine(import.subroutine_name))
+            }
+        }
+
+        Ok(source_key)
     }
 
     fn choose_effective_path(&self) -> Result<PathBuf, LoadError> {
         if self.this_file.is_absolute() {
-            return Err(LoadError::PathIsAbsolute);
+            return Err(LoadError::InvalidPath(self.this_file.to_owned()));
+        }
+        if self.this_file.components().any(|pc| !matches!(pc, std::path::Component::Normal(_))) {
+            return Err(LoadError::InvalidPath(self.this_file.to_owned()));
         }
 
         let candidates = std::iter::once(self.this_dir.join(self.this_file)).chain(
@@ -133,12 +152,28 @@ impl<'a> LoaderContext<'a> {
             let source = Source {
                 scenario,
                 source_file: source_file.clone(),
+                subs: Default::default(),
             };
             let key = self.sources.sources.insert(source);
             self.sources.by_effective_path.insert(source_file, key);
 
             Ok(key)
         }
+    }
+}
+
+fn path_sanitize(p: &Path) -> Result<PathBuf, LoadError> {
+    use std::path::Component::*;
+    p.components().filter_map(|pc| match pc {
+        CurDir => None,
+        normal @ Normal(_) => Some(Ok(normal)),
+        _ => Some(Err(LoadError::InvalidPath(p.to_owned())))
+    }).collect::<Result<PathBuf, LoadError>>()
+}
+
+impl Source {
+    fn base_dir(&self) -> &Path {
+        self.source_file.parent().unwrap_or(Path::new("."))
     }
 }
 
@@ -164,5 +199,27 @@ impl<'a, T> DerefMut for PopOnDrop<'a, T> {
 impl<'a, T> Drop for PopOnDrop<'a, T> {
     fn drop(&mut self) {
         self.0.pop();
+    }
+}
+
+impl fmt::Debug for Sources {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut f = f.debug_map();
+
+        for (effective_path, source_key) in self.by_effective_path.iter() {
+            f.entry(&effective_path, &self.sources[*source_key]);
+        }
+
+        f.finish()
+    }
+}
+impl fmt::Debug for Source {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let sub_names = self.subs.keys().collect::<BTreeSet<_>>();
+        f.debug_struct("Source")
+            .field("source_file", &self.source_file)
+            .field("subs", &sub_names)
+            .field("scenario", &self.scenario)
+        .finish()
     }
 }

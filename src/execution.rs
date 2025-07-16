@@ -25,7 +25,7 @@ pub use build::BuildError;
 pub use report::Report;
 pub use runner::RunError;
 pub use runner::Runner;
-pub use sources::Loader;
+pub use sources::SourceLoader;
 pub use sources::Sources;
 
 /// A key corresponding to some event during test execution.

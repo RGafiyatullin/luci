@@ -1,0 +1,5 @@
+subs:
+  - load: a.yaml
+    as: a
+cast: []
+events: []
