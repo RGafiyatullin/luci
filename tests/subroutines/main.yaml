@@ -65,7 +65,6 @@ events:
       - guest-accepts-the-offer
     require: reached
     recv:
-      to: host
       from: guest
       type: SeeYou
       data:

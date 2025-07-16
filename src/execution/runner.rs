@@ -569,8 +569,15 @@ impl<'a> Runner<'a> {
                 .find(|p| p.addr() == addr)
                 .ok_or_else(|| RunError::ActorName(send_from.clone()))?
         } else {
-            // FIXME: we do need a Txn here after all, don't we?
             let new_proxy = self.proxies[self.main_proxy_key].subproxy().await;
+            let new_addr = new_proxy.addr();
+            let mut txn = self.scopes[*scope_key].txn();
+            assert!(
+                txn.bind_actor(send_from, new_addr),
+                "this name has just been unbound!"
+            );
+            txn.commit();
+
             let proxy_key = self.proxies.insert(new_proxy);
             &mut self.proxies[proxy_key]
         };
@@ -637,8 +644,15 @@ impl<'a> Runner<'a> {
                     .find_map(|(k, p)| Some(k).filter(|_| p.addr() == addr))
                     .ok_or_else(|| RunError::ActorName(respond_from.clone()))?
             } else {
-                // FIXME: we do need a Txn here after all, don't we?
                 let new_proxy = self.proxies[self.main_proxy_key].subproxy().await;
+                let new_addr = new_proxy.addr();
+                let mut txn = self.scopes[*scope_key].txn();
+                assert!(
+                    txn.bind_actor(respond_from, new_addr),
+                    "this name has just been unbound!"
+                );
+                txn.commit();
+
                 let proxy_key = self.proxies.insert(new_proxy);
                 proxy_key
             }
