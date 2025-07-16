@@ -12,6 +12,7 @@ use crate::{
         ScopeInfo, Sources,
     },
     marshalling,
+    names::SubroutineName,
     scenario::{
         DefEventBind, DefEventDelay, DefEventRecv, DefEventRespond, DefEventSend, RequiredToBe,
     },
@@ -37,6 +38,9 @@ pub enum BuildError {
     #[error("unknown actor: {}", _0)]
     UnknownActor(ActorName),
 
+    #[error("unknown subroutine: {}", _0)]
+    UnknownSubroutine(SubroutineName),
+
     #[error("unknown FQN: {}", _0)]
     UnknownFqn(String),
 
@@ -60,6 +64,14 @@ impl Executable {
         main: KeySource,
     ) -> Result<Self, BuildError> {
         debug!("building...");
+
+        let mut builder: Builder = Default::default();
+
+        let SubgraphAdded {
+            scope_key,
+            entry_points,
+            required,
+        } = builder.add_subgraph(marshalling, sources, main)?;
 
         unimplemented!()
     }
@@ -85,7 +97,7 @@ impl Executable {
         debug!("building the graph...");
 
         let mut scopes: SlotMap<KeyScope, ScopeInfo> = Default::default();
-        let root_scope_key = scopes.insert(ScopeInfo {});
+        let root_scope_key = scopes.insert(ScopeInfo { ..unimplemented!() });
 
         let events = build_graph(&scenario.events, &type_aliases, &actors, &marshalling)?;
 
@@ -398,14 +410,18 @@ struct SubgraphAdded {
 }
 
 impl Builder {
-    fn add_subgraph<'a>(
+    fn add_subgraph(
         &mut self,
-        scope_info: ScopeInfo,
-        event_defs: impl IntoIterator<Item = &'a DefEvent>,
-    ) -> Result<(), BuildError> {
-        let mut idx_keys = HashMap::new();
+        marshalling: &MarshallingRegistry,
+        sources: &Sources,
+        source_key: KeySource,
+    ) -> Result<SubgraphAdded, BuildError> {
+        let source = &sources[source_key];
+        let scope_key = self.scopes.insert(ScopeInfo { source_key });
 
-        let scope_key = self.scopes.insert(scope_info);
+        let mut idx_event_keys = HashMap::new();
+        let mut entry_points = vec![];
+        let mut required = HashMap::new();
 
         for DefEvent {
             id: this_name,
@@ -413,13 +429,30 @@ impl Builder {
             prerequisites,
             kind,
             ..
-        } in event_defs
+        } in source.scenario.events.iter()
         {
-            let prerequisites =
-                resolve_event_ids(&mut idx_keys, &prerequisites).collect::<Result<Vec<_>, _>>()?;
+            let prerequisites = resolve_event_ids(&mut idx_event_keys, &prerequisites)
+                .collect::<Result<Vec<_>, _>>()?;
 
             let this_key = match kind {
-                DefEventKind::Call(_) => {
+                DefEventKind::Call(def_call) => {
+                    let sub_source_key = source
+                        .subs
+                        .get(&def_call.subroutine_name)
+                        .copied()
+                        .ok_or_else(|| {
+                            BuildError::UnknownSubroutine(def_call.subroutine_name.clone())
+                        })?;
+                    let SubgraphAdded {
+                        scope_key: sub_scope_key,
+                        entry_points,
+                        required,
+                    } = self.add_subgraph(marshalling, sources, sub_source_key)?;
+
+                    // TODO: create two bind nodes:
+                    // - one for input (bind from `scope_key` to `sub_scope_key`, choose the nodes using `entrypoints`)
+                    // - one for output (bind from `sub_scope_key` to `scope_key`, choose the nodes using `required`)
+
                     unimplemented!()
                 }
                 DefEventKind::Delay(_) => {
@@ -439,12 +472,16 @@ impl Builder {
                 }
             };
 
-            if idx_keys.insert(this_name, this_key).is_some() {
+            if idx_event_keys.insert(this_name, this_key).is_some() {
                 return Err(BuildError::DuplicateEventName(this_name.clone()));
             }
             self.definition_order.push(this_key);
         }
 
-        unimplemented!()
+        Ok(SubgraphAdded {
+            scope_key,
+            entry_points,
+            required,
+        })
     }
 }

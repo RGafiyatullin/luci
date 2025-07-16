@@ -48,7 +48,9 @@ pub struct Executable {
 }
 
 #[derive(Debug)]
-struct ScopeInfo {}
+struct ScopeInfo {
+    source_key: KeySource,
+}
 
 #[derive(Debug, Default)]
 struct Events {
