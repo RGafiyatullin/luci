@@ -56,7 +56,7 @@ struct ScopeInfo {
 struct Events {
     priority: HashMap<EventKey, usize>,
     required: HashMap<EventKey, RequiredToBe>,
-    names: HashMap<EventKey, EventName>,
+    names: HashMap<EventKey, (KeyScope, EventName)>,
 
     bind: SlotMap<KeyBind, EventBind>,
     send: SlotMap<KeySend, EventSend>,

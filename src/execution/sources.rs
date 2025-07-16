@@ -65,6 +65,28 @@ impl SourceLoader {
         Default::default()
     }
 
+    pub fn with_search_path<I, P>(self, search_path: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        let search_path = search_path.into_iter().map(Into::into).collect();
+        Self {
+            search_path,
+            ..self
+        }
+    }
+
+    pub fn with_extra_search_path<I, P>(mut self, extra_search_path: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        self.search_path
+            .extend(extra_search_path.into_iter().map(Into::into));
+        self
+    }
+
     pub fn load(&self, main: impl Into<PathBuf>) -> Result<(KeySource, Sources), LoadError> {
         let main = path_sanitize(&main.into())?;
 

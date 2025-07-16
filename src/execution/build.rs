@@ -21,7 +21,7 @@ use crate::{
     execution::{EventDelay, EventRecv, EventRespond, EventSend, Events, Executable},
     marshalling::MarshallingRegistry,
     names::{ActorName, EventName, MessageName},
-    scenario::{DefEvent, DefEventKind, DefTypeAlias, Scenario},
+    scenario::{DefEvent, DefEventKind, DefTypeAlias},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -58,8 +58,8 @@ pub enum BuildError {
 }
 
 impl Executable {
-    pub fn build_2<'a>(
-        marshalling: &MarshallingRegistry,
+    pub fn build<'a>(
+        marshalling: MarshallingRegistry,
         sources: &'a Sources,
         main: KeySource,
     ) -> Result<Self, BuildError> {
@@ -70,52 +70,87 @@ impl Executable {
         let SubgraphAdded {
             scope_key,
             entry_points,
+            require: required,
+        } = builder.add_subgraph(&marshalling, sources, main)?;
+        let Builder {
+            scopes,
+            event_names,
+            definition_order,
+            events_delay,
+            events_bind,
+            events_recv,
+            events_send,
+            events_respond,
+            key_unblocks_values,
+        } = builder;
+
+        let priority = definition_order
+            .into_iter()
+            .enumerate()
+            .map(|(p, k)| (k, p))
+            .collect();
+
+        let events = Events {
+            priority,
             required,
-        } = builder.add_subgraph(marshalling, sources, main)?;
-
-        unimplemented!()
-    }
-
-    pub fn build(
-        marshalling: MarshallingRegistry,
-        scenario: &Scenario,
-    ) -> Result<Self, BuildError> {
-        debug!("building...");
-
-        debug!("storing type-aliases...");
-        let type_aliases = type_aliases(&marshalling, &scenario.types)?;
-        for (a, fqn) in &type_aliases {
-            trace!("- {:?} -> {:?}", a, fqn);
-        }
-
-        debug!("checking actor-names...");
-        let actors = validate_actor_names(&scenario.cast)?;
-        for actor_name in &actors {
-            trace!("- {:?}", actor_name);
-        }
-
-        debug!("building the graph...");
-
-        let mut scopes: SlotMap<KeyScope, ScopeInfo> = Default::default();
-        let root_scope_key = scopes.insert(ScopeInfo { ..unimplemented!() });
-
-        let events = build_graph(&scenario.events, &type_aliases, &actors, &marshalling)?;
-
-        debug!("- bind-vertices:\t{}", events.bind.len());
-        debug!("- send-vertices:\t{}", events.send.len());
-        debug!("- recv-vertices:\t{}", events.recv.len());
-        debug!("- respond-vertices:\t{}", events.respond.len());
-        debug!("- delay-vertices:\t{}", events.delay.len());
-
-        debug!("done!");
+            names: event_names,
+            bind: events_bind,
+            send: events_send,
+            recv: events_recv,
+            respond: events_respond,
+            delay: events_delay,
+            entry_points,
+            key_unblocks_values,
+        };
 
         Ok(Executable {
             marshalling,
             events,
-            root_scope_key,
+            root_scope_key: scope_key,
             scopes,
         })
     }
+
+    // pub fn build(
+    //     marshalling: MarshallingRegistry,
+    //     scenario: &Scenario,
+    // ) -> Result<Self, BuildError> {
+    //     debug!("building...");
+
+    //     debug!("storing type-aliases...");
+    //     let type_aliases = type_aliases(&marshalling, &scenario.types)?;
+    //     for (a, fqn) in &type_aliases {
+    //         trace!("- {:?} -> {:?}", a, fqn);
+    //     }
+
+    //     debug!("checking actor-names...");
+    //     let actors = validate_actor_names(&scenario.cast)?;
+    //     for actor_name in &actors {
+    //         trace!("- {:?}", actor_name);
+    //     }
+
+    //     debug!("building the graph...");
+
+    //     let mut scopes: SlotMap<KeyScope, ScopeInfo> = Default::default();
+    //     let root_scope_key = scopes.insert(ScopeInfo { ..unimplemented!() });
+
+    //     let events = build_graph(&scenario.events, &type_aliases, &actors, &marshalling)?;
+
+    //     debug!("- bind-vertices:\t{}", events.bind.len());
+    //     debug!("- send-vertices:\t{}", events.send.len());
+    //     debug!("- recv-vertices:\t{}", events.recv.len());
+    //     debug!("- respond-vertices:\t{}", events.respond.len());
+    //     debug!("- delay-vertices:\t{}", events.delay.len());
+
+    //     debug!("done!");
+
+    //     Ok(Executable {
+    //         marshalling,
+    //         events,
+    //         root_scope_key,
+    //         scopes,
+    //     })
+    // }
 }
 
 fn type_aliases<'a>(
@@ -152,228 +187,229 @@ fn validate_actor_names<'a>(
     Ok(out)
 }
 
-fn build_graph<'a>(
-    event_defs: impl IntoIterator<Item = &'a DefEvent>,
-    type_aliases: &HashMap<MessageName, Arc<str>>,
-    actors: &HashSet<ActorName>,
-    marshalling: &MarshallingRegistry,
-) -> Result<Events, BuildError> {
-    let mut v_delay = SlotMap::<KeyDelay, _>::default();
-    let mut v_bind = SlotMap::<KeyBind, _>::default();
-    let mut v_recv = SlotMap::<KeyRecv, _>::default();
-    let mut v_send = SlotMap::<KeySend, _>::default();
-    let mut v_respond = SlotMap::<KeyRespond, _>::default();
+// fn build_graph<'a>(
+//     event_defs: impl IntoIterator<Item = &'a DefEvent>,
+//     type_aliases: &HashMap<MessageName, Arc<str>>,
+//     actors: &HashSet<ActorName>,
+//     marshalling: &MarshallingRegistry,
+// ) -> Result<Events, BuildError> {
+//     let mut v_delay = SlotMap::<KeyDelay, _>::default();
+//     let mut v_bind = SlotMap::<KeyBind, _>::default();
+//     let mut v_recv = SlotMap::<KeyRecv, _>::default();
+//     let mut v_send = SlotMap::<KeySend, _>::default();
+//     let mut v_respond = SlotMap::<KeyRespond, _>::default();
 
-    let mut entry_points = BTreeSet::new();
-    let mut key_unblocks_values = HashMap::<_, BTreeSet<_>>::new();
-    let mut required = HashMap::new();
-    let mut idx_keys = HashMap::new();
+//     let mut entry_points = BTreeSet::new();
+//     let mut key_unblocks_values = HashMap::<_, BTreeSet<_>>::new();
+//     let mut required = HashMap::new();
+//     let mut idx_keys = HashMap::new();
 
-    let mut priority = vec![];
+//     let mut priority = vec![];
 
-    for event in event_defs {
-        debug!(" processing event[{:?}]...", event.id);
+//     for event in event_defs {
+//         debug!(" processing event[{:?}]...", event.id);
 
-        let this_name = &event.id;
-        let prerequisites =
-            resolve_event_ids(&idx_keys, &event.prerequisites).collect::<Result<Vec<_>, _>>()?;
+//         let this_name = &event.id;
+//         let prerequisites =
+//             resolve_event_ids(&idx_keys, &event.prerequisites).collect::<Result<Vec<_>, _>>()?;
 
-        let this_key = match &event.kind {
-            DefEventKind::Call(_) => unimplemented!(),
+//         let this_key = match &event.kind {
+//             DefEventKind::Call(_) => unimplemented!(),
 
-            DefEventKind::Delay(def_delay) => {
-                let DefEventDelay {
-                    delay_for,
-                    delay_step,
-                    no_extra: _,
-                } = def_delay;
-                let delay_for = *delay_for;
-                let delay_step = *delay_step;
+//             DefEventKind::Delay(def_delay) => {
+//                 let DefEventDelay {
+//                     delay_for,
+//                     delay_step,
+//                     no_extra: _,
+//                 } = def_delay;
+//                 let delay_for = *delay_for;
+//                 let delay_step = *delay_step;
 
-                let key = v_delay.insert(EventDelay {
-                    delay_for,
-                    delay_step,
-                });
-                EventKey::Delay(key)
-            }
+//                 let key = v_delay.insert(EventDelay {
+//                     delay_for,
+//                     delay_step,
+//                 });
+//                 EventKey::Delay(key)
+//             }
 
-            DefEventKind::Bind(def_bind) => {
-                let DefEventBind {
-                    dst,
-                    src,
-                    no_extra: _,
-                } = def_bind;
-                let dst = dst.clone();
-                let src = src.clone();
-                let key = v_bind.insert(EventBind {
-                    dst,
-                    src,
-                    dst_scope_key: unimplemented!(),
-                    src_scope_key: unimplemented!(),
-                });
+//             DefEventKind::Bind(def_bind) => {
+//                 let DefEventBind {
+//                     dst,
+//                     src,
+//                     no_extra: _,
+//                 } = def_bind;
+//                 let dst = dst.clone();
+//                 let src = src.clone();
+//                 let key = v_bind.insert(EventBind {
+//                     dst,
+//                     src,
+//                     dst_scope_key: unimplemented!(),
+//                     src_scope_key: unimplemented!(),
+//                 });
 
-                EventKey::Bind(key)
-            }
-            DefEventKind::Recv(def_recv) => {
-                let DefEventRecv {
-                    message_type,
-                    message_data,
-                    from,
-                    to,
-                    no_extra: _,
-                } = def_recv;
+//                 EventKey::Bind(key)
+//             }
+//             DefEventKind::Recv(def_recv) => {
+//                 let DefEventRecv {
+//                     message_type,
+//                     message_data,
+//                     from,
+//                     to,
+//                     no_extra: _,
+//                 } = def_recv;
 
-                let type_fqn = type_aliases
-                    .get(message_type)
-                    .cloned()
-                    .ok_or(BuildError::UnknownAlias(message_type.clone()))?;
+//                 let type_fqn = type_aliases
+//                     .get(message_type)
+//                     .cloned()
+//                     .ok_or(BuildError::UnknownAlias(message_type.clone()))?;
 
-                for actor_name in to.as_ref().into_iter().chain(from) {
-                    if !actors.contains(actor_name) {
-                        return Err(BuildError::UnknownActor(actor_name.clone()));
-                    }
-                }
+//                 for actor_name in to.as_ref().into_iter().chain(from) {
+//                     if !actors.contains(actor_name) {
+//                         return Err(BuildError::UnknownActor(actor_name.clone()));
+//                     }
+//                 }
 
-                let key = v_recv.insert(EventRecv {
-                    from: from.clone(),
-                    to: to.clone(),
-                    fqn: type_fqn,
-                    payload: message_data.clone(),
+//                 let key = v_recv.insert(EventRecv {
+//                     from: from.clone(),
+//                     to: to.clone(),
+//                     fqn: type_fqn,
+//                     payload: message_data.clone(),
 
-                    scope_key: unimplemented!(),
-                });
-                EventKey::Recv(key)
-            }
-            DefEventKind::Send(def_send) => {
-                let DefEventSend {
-                    from,
-                    to,
-                    message_type,
-                    message_data,
-                    no_extra: _,
-                } = def_send;
+//                     scope_key: unimplemented!(),
+//                 });
+//                 EventKey::Recv(key)
+//             }
+//             DefEventKind::Send(def_send) => {
+//                 let DefEventSend {
+//                     from,
+//                     to,
+//                     message_type,
+//                     message_data,
+//                     no_extra: _,
+//                 } = def_send;
 
-                let type_fqn = type_aliases
-                    .get(message_type)
-                    .cloned()
-                    .ok_or(BuildError::UnknownAlias(message_type.clone()))?;
+//                 let type_fqn = type_aliases
+//                     .get(message_type)
+//                     .cloned()
+//                     .ok_or(BuildError::UnknownAlias(message_type.clone()))?;
 
-                for actor_name in to.as_ref().into_iter().chain([from]) {
-                    if !actors.contains(&actor_name) {
-                        return Err(BuildError::UnknownActor(actor_name.clone()));
-                    }
-                }
+//                 for actor_name in to.as_ref().into_iter().chain([from]) {
+//                     if !actors.contains(&actor_name) {
+//                         return Err(BuildError::UnknownActor(actor_name.clone()));
+//                     }
+//                 }
 
-                let key = v_send.insert(EventSend {
-                    from: from.clone(),
-                    to: to.clone(),
-                    fqn: type_fqn,
-                    payload: message_data.clone(),
+//                 let key = v_send.insert(EventSend {
+//                     from: from.clone(),
+//                     to: to.clone(),
+//                     fqn: type_fqn,
+//                     payload: message_data.clone(),
 
-                    scope_key: unimplemented!(),
-                });
-                EventKey::Send(key)
-            }
-            DefEventKind::Respond(def_respond) => {
-                let DefEventRespond {
-                    from,
-                    to_request: to,
-                    data,
-                    no_extra: _,
-                } = def_respond;
+//                     scope_key: unimplemented!(),
+//                 });
+//                 EventKey::Send(key)
+//             }
+//             DefEventKind::Respond(def_respond) => {
+//                 let DefEventRespond {
+//                     from,
+//                     to_request: to,
+//                     data,
+//                     no_extra: _,
+//                 } = def_respond;
 
-                let causing_event_key = idx_keys
-                    .get(&to)
-                    .ok_or(BuildError::UnknownEvent(to.clone()))?;
-                let EventKey::Recv(recv_key) = causing_event_key else {
-                    return Err(BuildError::NotARequest(to.clone()));
-                };
-                let request_fqn = v_recv.get(*recv_key)
-                    .expect("we do not delete items from `recv`; neither we store keys that are unrelated to our collections")
-                    .fqn.clone();
+//                 let causing_event_key = idx_keys
+//                     .get(&to)
+//                     .ok_or(BuildError::UnknownEvent(to.clone()))?;
+//                 let EventKey::Recv(recv_key) = causing_event_key else {
+//                     return Err(BuildError::NotARequest(to.clone()));
+//                 };
+//                 let request_fqn = v_recv.get(*recv_key)
+//                     .expect("we do not delete items from `recv`; neither we store keys that are unrelated to our collections")
+//                     .fqn.clone();
 
-                if let Some(bad_actor) = from.as_ref().filter(|a| !actors.contains(a)) {
-                    return Err(BuildError::UnknownActor(bad_actor.clone()));
-                }
+//                 if let Some(bad_actor) = from.as_ref().filter(|a| !actors.contains(a)) {
+//                     return Err(BuildError::UnknownActor(bad_actor.clone()));
+//                 }
 
-                if marshalling
-                    .resolve(&request_fqn)
-                    .is_none_or(|m| m.response().is_none())
-                {
-                    return Err(BuildError::NotARequest(to.clone()));
-                }
+//                 if marshalling
+//                     .resolve(&request_fqn)
+//                     .is_none_or(|m| m.response().is_none())
+//                 {
+//                     return Err(BuildError::NotARequest(to.clone()));
+//                 }
 
-                let key = v_respond.insert(EventRespond {
-                    respond_to: *recv_key,
-                    request_type: request_fqn,
-                    respond_from: from.clone(),
-                    payload: data.clone(),
+//                 let key = v_respond.insert(EventRespond {
+//                     respond_to: *recv_key,
+//                     request_type: request_fqn,
+//                     respond_from: from.clone(),
+//                     payload: data.clone(),
 
-                    scope_key: unimplemented!(),
-                });
-                EventKey::Respond(key)
-            }
-        };
+//                     scope_key: unimplemented!(),
+//                 });
+//                 EventKey::Respond(key)
+//             }
+//         };
 
-        if let Some(required_to_be) = event.require {
-            required.insert(this_key, required_to_be);
-        }
+//         if let Some(required_to_be) = event.require {
+//             required.insert(this_key, required_to_be);
+//         }
 
-        if prerequisites.is_empty() {
-            let should_be_a_new_element = entry_points.insert(this_key);
-            assert!(
-                should_be_a_new_element,
-                "non unique entry point? {:?}",
-                this_key
-            );
-        }
-        for prerequisite in &prerequisites {
-            let should_be_a_new_element = key_unblocks_values
-                .entry(*prerequisite)
-                .or_default()
-                .insert(this_key);
+//         if prerequisites.is_empty() {
+//             let should_be_a_new_element = entry_points.insert(this_key);
+//             assert!(
+//                 should_be_a_new_element,
+//                 "non unique entry point? {:?}",
+//                 this_key
+//             );
+//         }
+//         for prerequisite in &prerequisites {
+//             let should_be_a_new_element = key_unblocks_values
+//                 .entry(*prerequisite)
+//                 .or_default()
+//                 .insert(this_key);
 
-            assert!(
-                should_be_a_new_element,
-                "duplicate  relation: {:?} unblocks {:?}",
-                *prerequisite, this_key
-            );
-        }
+//             assert!(
+//                 should_be_a_new_element,
+//                 "duplicate  relation: {:?} unblocks {:?}",
+//                 *prerequisite, this_key
+//             );
+//         }
 
-        trace!("  done: {:?} -> {:?}", this_name, this_key);
+//         trace!("  done: {:?} -> {:?}", this_name, this_key);
 
-        priority.push(this_key);
-        if idx_keys.insert(this_name, this_key).is_some() {
-            return Err(BuildError::DuplicateEventName(event.id.clone()));
-        }
-    }
+//         priority.push(this_key);
+//         if idx_keys.insert(this_name, this_key).is_some() {
+//             return Err(BuildError::DuplicateEventName(event.id.clone()));
+//         }
+//     }
 
-    let priority = priority
-        .into_iter()
-        .enumerate()
-        .map(|(p, k)| (k, p))
-        .collect();
+//     let priority = priority
+//         .into_iter()
+//         .enumerate()
+//         .map(|(p, k)| (k, p))
+//         .collect();
 
-    let names = idx_keys
-        .into_iter()
-        .map(|(n, id)| (id, n.to_owned()))
-        .collect();
+//     let root_scope_id: KeyScope = unimplemented!();
+//     let names = idx_keys
+//         .into_iter()
+//         .map(|(n, id)| (id, (root_scope_id, n.clone())))
+//         .collect();
 
-    let vertices = Events {
-        priority,
-        required,
-        names,
-        bind: v_bind,
-        send: v_send,
-        recv: v_recv,
-        respond: v_respond,
-        delay: v_delay,
-        entry_points,
-        key_unblocks_values,
-    };
+//     let vertices = Events {
+//         priority,
+//         required,
+//         names,
+//         bind: v_bind,
+//         send: v_send,
+//         recv: v_recv,
+//         respond: v_respond,
+//         delay: v_delay,
+//         entry_points,
+//         key_unblocks_values,
+//     };
 
-    Ok(vertices)
-}
+//     Ok(vertices)
+// }
 
 fn resolve_event_ids<'a>(
     idx_keys: &'a HashMap<&'a EventName, EventKey>,
@@ -391,12 +427,14 @@ fn resolve_event_ids<'a>(
 struct Builder {
     scopes: SlotMap<KeyScope, ScopeInfo>,
 
+    event_names: HashMap<EventKey, (KeyScope, EventName)>,
+
     definition_order: Vec<EventKey>,
 
     events_delay: SlotMap<KeyDelay, EventDelay>,
     events_bind: SlotMap<KeyBind, EventBind>,
     events_recv: SlotMap<KeyRecv, EventRecv>,
-    events_send: SlotMap<KeySend, EventRecv>,
+    events_send: SlotMap<KeySend, EventSend>,
     events_respond: SlotMap<KeyRespond, EventRespond>,
 
     key_unblocks_values: HashMap<EventKey, BTreeSet<EventKey>>,
@@ -405,8 +443,8 @@ struct Builder {
 #[derive(Debug)]
 struct SubgraphAdded {
     scope_key: KeyScope,
-    entry_points: Vec<EventKey>,
-    required: HashMap<EventKey, RequiredToBe>,
+    entry_points: BTreeSet<EventKey>,
+    require: HashMap<EventKey, RequiredToBe>,
 }
 
 impl Builder {
@@ -416,72 +454,234 @@ impl Builder {
         sources: &Sources,
         source_key: KeySource,
     ) -> Result<SubgraphAdded, BuildError> {
-        let source = &sources[source_key];
-        let scope_key = self.scopes.insert(ScopeInfo { source_key });
+        let this_source = &sources[source_key];
 
-        let mut idx_event_keys = HashMap::new();
-        let mut entry_points = vec![];
-        let mut required = HashMap::new();
+        debug!("storing type-aliases...");
+        let type_aliases = type_aliases(&marshalling, &this_source.scenario.types)?;
+        for (a, fqn) in &type_aliases {
+            trace!("- {:?} -> {:?}", a, fqn);
+        }
+
+        debug!("checking actor-names...");
+        let actors = validate_actor_names(&this_source.scenario.cast)?;
+        for actor_name in &actors {
+            trace!("- {:?}", actor_name);
+        }
+
+        let this_scope_key = self.scopes.insert(ScopeInfo { source_key });
+
+        let mut this_scope_name_to_key = HashMap::new();
+        let mut this_scope_entry_points = BTreeSet::new();
+        let mut this_scope_requires = HashMap::new();
 
         for DefEvent {
             id: this_name,
-            require: this_required_to_be,
+            require: this_event_required_to_be,
             prerequisites,
             kind,
             ..
-        } in source.scenario.events.iter()
+        } in this_source.scenario.events.iter()
         {
-            let prerequisites = resolve_event_ids(&mut idx_event_keys, &prerequisites)
+            let prerequisites = resolve_event_ids(&mut this_scope_name_to_key, &prerequisites)
                 .collect::<Result<Vec<_>, _>>()?;
 
             let this_key = match kind {
                 DefEventKind::Call(def_call) => {
-                    let sub_source_key = source
+                    let sub_source_key = this_source
                         .subs
                         .get(&def_call.subroutine_name)
                         .copied()
                         .ok_or_else(|| {
-                            BuildError::UnknownSubroutine(def_call.subroutine_name.clone())
-                        })?;
+                        BuildError::UnknownSubroutine(def_call.subroutine_name.clone())
+                    })?;
                     let SubgraphAdded {
                         scope_key: sub_scope_key,
-                        entry_points,
-                        required,
+                        entry_points: sub_entry_points,
+                        require: sub_required_to_be,
                     } = self.add_subgraph(marshalling, sources, sub_source_key)?;
 
                     // TODO: create two bind nodes:
                     // - one for input (bind from `scope_key` to `sub_scope_key`, choose the nodes using `entrypoints`)
                     // - one for output (bind from `sub_scope_key` to `scope_key`, choose the nodes using `required`)
+                    //
+                    // the latter bind will be referred to by `this_key`, so that it can be depended on
+                    // (the events that want to happen after this call — should take place after the output-bind).
 
                     unimplemented!()
                 }
-                DefEventKind::Delay(_) => {
-                    unimplemented!()
+                DefEventKind::Delay(def_delay) => {
+                    let DefEventDelay {
+                        delay_for,
+                        delay_step,
+                        no_extra: _,
+                    } = def_delay;
+                    let delay_for = *delay_for;
+                    let delay_step = *delay_step;
+
+                    let key = self.events_delay.insert(EventDelay {
+                        delay_for,
+                        delay_step,
+                    });
+                    EventKey::Delay(key)
                 }
-                DefEventKind::Bind(_) => {
-                    unimplemented!()
+                DefEventKind::Bind(def_bind) => {
+                    let DefEventBind {
+                        dst,
+                        src,
+                        no_extra: _,
+                    } = def_bind;
+                    let dst = dst.clone();
+                    let src = src.clone();
+                    let key = self.events_bind.insert(EventBind {
+                        dst,
+                        src,
+                        dst_scope_key: this_scope_key,
+                        src_scope_key: this_scope_key,
+                    });
+
+                    EventKey::Bind(key)
                 }
-                DefEventKind::Recv(_) => {
-                    unimplemented!()
+                DefEventKind::Recv(def_recv) => {
+                    let DefEventRecv {
+                        message_type,
+                        message_data,
+                        from,
+                        to,
+                        no_extra: _,
+                    } = def_recv;
+
+                    let type_fqn = type_aliases
+                        .get(message_type)
+                        .cloned()
+                        .ok_or(BuildError::UnknownAlias(message_type.clone()))?;
+
+                    for actor_name in to.as_ref().into_iter().chain(from) {
+                        if !actors.contains(actor_name) {
+                            return Err(BuildError::UnknownActor(actor_name.clone()));
+                        }
+                    }
+
+                    let key = self.events_recv.insert(EventRecv {
+                        from: from.clone(),
+                        to: to.clone(),
+                        fqn: type_fqn,
+                        payload: message_data.clone(),
+                        scope_key: this_scope_key,
+                    });
+                    EventKey::Recv(key)
                 }
-                DefEventKind::Respond(_) => {
-                    unimplemented!()
+                DefEventKind::Respond(def_respond) => {
+                    let DefEventRespond {
+                        from,
+                        to_request: to,
+                        data,
+                        no_extra: _,
+                    } = def_respond;
+
+                    let causing_event_key = this_scope_name_to_key
+                        .get(&to)
+                        .ok_or(BuildError::UnknownEvent(to.clone()))?;
+                    let EventKey::Recv(recv_key) = causing_event_key else {
+                        return Err(BuildError::NotARequest(to.clone()));
+                    };
+                    let request_fqn = self.events_recv.get(*recv_key)
+                        .expect("we do not delete items from `recv`; neither we store keys that are unrelated to our collections")
+                        .fqn.clone();
+
+                    if let Some(bad_actor) = from.as_ref().filter(|a| !actors.contains(a)) {
+                        return Err(BuildError::UnknownActor(bad_actor.clone()));
+                    }
+
+                    if marshalling
+                        .resolve(&request_fqn)
+                        .is_none_or(|m| m.response().is_none())
+                    {
+                        return Err(BuildError::NotARequest(to.clone()));
+                    }
+
+                    let key = self.events_respond.insert(EventRespond {
+                        respond_to: *recv_key,
+                        request_type: request_fqn,
+                        respond_from: from.clone(),
+                        payload: data.clone(),
+                        scope_key: this_scope_key,
+                    });
+                    EventKey::Respond(key)
                 }
-                DefEventKind::Send(_) => {
-                    unimplemented!()
+                DefEventKind::Send(def_send) => {
+                    let DefEventSend {
+                        from,
+                        to,
+                        message_type,
+                        message_data,
+                        no_extra: _,
+                    } = def_send;
+
+                    let type_fqn = type_aliases
+                        .get(message_type)
+                        .cloned()
+                        .ok_or(BuildError::UnknownAlias(message_type.clone()))?;
+
+                    for actor_name in to.as_ref().into_iter().chain([from]) {
+                        if !actors.contains(&actor_name) {
+                            return Err(BuildError::UnknownActor(actor_name.clone()));
+                        }
+                    }
+
+                    let key = self.events_send.insert(EventSend {
+                        from: from.clone(),
+                        to: to.clone(),
+                        fqn: type_fqn,
+                        payload: message_data.clone(),
+                        scope_key: this_scope_key,
+                    });
+                    EventKey::Send(key)
                 }
             };
 
-            if idx_event_keys.insert(this_name, this_key).is_some() {
+            if let Some(r) = this_event_required_to_be {
+                this_scope_requires.insert(this_key, *r);
+            }
+
+            if prerequisites.is_empty() {
+                let should_be_a_new_element = this_scope_entry_points.insert(this_key);
+                assert!(
+                    should_be_a_new_element,
+                    "non unique entry point? {:?}",
+                    this_key
+                );
+            }
+            for prerequisite in &prerequisites {
+                let should_be_a_new_element = self
+                    .key_unblocks_values
+                    .entry(*prerequisite)
+                    .or_default()
+                    .insert(this_key);
+
+                assert!(
+                    should_be_a_new_element,
+                    "duplicate  relation: {:?} unblocks {:?}",
+                    *prerequisite, this_key
+                );
+            }
+
+            trace!("  done: {:?} -> {:?}", this_name, this_key);
+
+            if this_scope_name_to_key.insert(this_name, this_key).is_some() {
                 return Err(BuildError::DuplicateEventName(this_name.clone()));
             }
             self.definition_order.push(this_key);
         }
 
+        for (name, key) in this_scope_name_to_key {
+            let should_be_none = self.event_names.insert(key, (this_scope_key, name.clone()));
+            assert!(should_be_none.is_none());
+        }
+
         Ok(SubgraphAdded {
-            scope_key,
-            entry_points,
-            required,
+            scope_key: this_scope_key,
+            entry_points: this_scope_entry_points,
+            require: this_scope_requires,
         })
     }
 }

@@ -1,6 +1,6 @@
 use insta::{assert_debug_snapshot, assert_yaml_snapshot};
 use luci::{
-    execution::Executable,
+    execution::{Executable, SourceLoader},
     marshalling::{MarshallingRegistry, Mock},
     scenario::Scenario,
 };
@@ -19,7 +19,7 @@ use test_case::test_case;
 #[test_case("09-with-single-call", None)]
 fn run(name: &str, build_executable_with_messages: Option<Vec<(&str, bool)>>) {
     let file = format!("tests/syntax/{name}.yaml");
-    let yaml = std::fs::read_to_string(file).expect("fs::read_to_string");
+    let yaml = std::fs::read_to_string(&file).expect("fs::read_to_string");
     let scenario: Scenario = serde_yaml::from_str(&yaml).expect("yaml::from_str<Scenario>");
 
     assert_debug_snapshot!(format!("{name}-debug"), scenario);
@@ -31,6 +31,9 @@ fn run(name: &str, build_executable_with_messages: Option<Vec<(&str, bool)>>) {
             messages = messages.with(Mock::new(fqn, is_request));
         }
 
-        let _executable = Executable::build(messages, &scenario).expect("Executable::build");
+        let (key_main, sources) = SourceLoader::new().load(file).expect("SourceLoader::load");
+
+        let _executable =
+            Executable::build(messages, &sources, key_main).expect("Executable::build");
     }
 }

@@ -135,7 +135,8 @@ impl<'a> Runner<'a> {
             let fired_events = self.fire_event(event_key).await?;
 
             for ek in fired_events.iter() {
-                let en = self.event_name(*ek).expect("unknown event-key");
+                // FIXME: show scope info too
+                let (_scope_id, en) = self.event_name(*ek).expect("unknown event-key");
                 info!("fired event: {}", en);
             }
 
@@ -154,11 +155,13 @@ impl<'a> Runner<'a> {
 
         let reached = reached
             .into_iter()
-            .map(|(k, v)| (self.event_name(k).cloned().expect("bad event-key"), v))
+            // XXX: are we expecting only the root-scope's names here?
+            .map(|(k, v)| (self.event_name(k).expect("bad event-key").1.clone(), v))
             .collect();
         let unreached = unreached
             .into_iter()
-            .map(|(k, v)| (self.event_name(k).cloned().expect("bad event-key"), v))
+            // XXX: are we expecting only the root-scope's names here?
+            .map(|(k, v)| (self.event_name(k).expect("bad event-key").1.clone(), v))
             .collect();
 
         Ok(Report { reached, unreached })
@@ -193,8 +196,12 @@ impl<'a> Runner<'a> {
         binds.chain(send_and_respond).chain(recv_or_delay)
     }
 
-    pub fn event_name(&self, event_key: EventKey) -> Option<&EventName> {
-        self.executable.events.names.get(&event_key)
+    pub fn event_name(&self, event_key: EventKey) -> Option<(KeyScope, &EventName)> {
+        self.executable
+            .events
+            .names
+            .get(&event_key)
+            .map(|(s, e)| (*s, e))
     }
 
     // #[doc(hidden)]
