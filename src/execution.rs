@@ -14,6 +14,7 @@ use crate::{
 };
 
 mod build;
+mod draw;
 mod report;
 mod runner;
 
@@ -41,8 +42,13 @@ pub enum EventKey {
 
 #[derive(Debug)]
 pub struct Executable {
-    messages: Messages,
     events: Events,
+}
+
+impl Executable {
+    pub fn render_graph(&self) -> String {
+        self.events.render()
+    }
 }
 
 #[derive(Debug, Default)]

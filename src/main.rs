@@ -1,11 +1,21 @@
+use serde::Deserialize;
 use std::{
     fs::{read_to_string, File},
     io::{Read, Write},
     path::PathBuf,
 };
 
-use clap::Parser;
-use luci::scenario::Scenario;
+use clap::{Parser, ValueEnum};
+use luci::{execution::Executable, scenario::Scenario};
+
+#[derive(Clone, Debug, Deserialize, ValueEnum)]
+#[serde(rename_all = "snake_case")]
+enum GraphDrawSource {
+    #[clap(name = "raw")]
+    Scenario,
+    #[clap(name = "graph")]
+    Executable,
+}
 
 #[derive(Parser, Debug)]
 #[command(
@@ -17,6 +27,12 @@ struct Args {
     scenario_file: Option<PathBuf>,
     #[clap(long = "output", short = 'o', help = "Graphviz file (default: stdout")]
     output_file: Option<PathBuf>,
+    #[clap(
+        long = "source",
+        short = 's',
+        help = "Source of data. Raw scenario, or parsed graph"
+    )]
+    source: GraphDrawSource,
 }
 
 fn main() {
@@ -40,7 +56,15 @@ fn main() {
 
     let scenario: Scenario =
         serde_yaml::from_str(&scenario).expect("Failed to parse YAML scenario file");
-    let result = scenario.render();
+
+    let result = match args.source {
+        GraphDrawSource::Scenario => scenario.render(),
+        GraphDrawSource::Executable => {
+            let executable =
+                Executable::build(&scenario, None).expect("Failed to build execution graph");
+            executable.render_graph()
+        }
+    };
 
     match args.output_file {
         Some(path) => {

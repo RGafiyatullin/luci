@@ -60,11 +60,11 @@ async fn run_scenario(scenario_text: &str) {
         .with(Regular::<crate::proto::V>)
         .with(Request::<crate::proto::R>);
     let scenario: Scenario = serde_yaml::from_str(scenario_text).unwrap();
-    let exec_graph = Executable::build(messages, &scenario).expect("building graph");
+    let exec_graph = Executable::build(&scenario, Some(&messages)).expect("building graph");
     let report = exec_graph
         .start(echo::blueprint(), json!(null))
         .await
-        .run()
+        .run(messages)
         .await
         .expect("runner.run");
 
