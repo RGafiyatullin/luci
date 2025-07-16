@@ -16,17 +16,17 @@ use crate::{
 mod keys;
 pub use keys::*;
 
-mod sources;
 mod build;
 mod report;
 mod runner;
+mod sources;
 
-pub use sources::Loader;
-pub use sources::Sources;
 pub use build::BuildError;
 pub use report::Report;
 pub use runner::RunError;
 pub use runner::Runner;
+pub use sources::Loader;
+pub use sources::Sources;
 
 /// A key corresponding to some event during test execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

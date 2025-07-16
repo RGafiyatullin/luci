@@ -11,7 +11,9 @@ use crate::{
         EventBind, EventKey, KeyBind, KeyDelay, KeyRecv, KeyRespond, KeyScope, KeySend, ScopeInfo,
     },
     marshalling,
-    scenario::{DefEventBind, DefEventDelay, DefEventRecv, DefEventRespond, DefEventSend, RequiredToBe},
+    scenario::{
+        DefEventBind, DefEventDelay, DefEventRecv, DefEventRespond, DefEventSend, RequiredToBe,
+    },
 };
 use crate::{
     execution::{EventDelay, EventRecv, EventRespond, EventSend, Events, Executable},
