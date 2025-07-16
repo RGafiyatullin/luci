@@ -20,9 +20,12 @@ events:
       for: 1m
       step: 10s
 
-  - id: small-talk-with-the-host
+  - id: smalltalk-with-the-host
     call:
       sub: smalltalk
+      cast:
+        guest: ALICE
+        host: ROBERT
 
   - id: guest-arrives-to-the-party
     recv:

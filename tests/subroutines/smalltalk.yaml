@@ -6,32 +6,32 @@ types:
   - use: subroutines::proto::smalltalk::NoWay
     as: NoWay
 cast:
-  - guest
-  - host
+  - ALICE
+  - ROBERT
 events:
-  - id: guest-arrives
+  - id: ALICE-arrives
     recv:
-      from: guest
+      from: ALICE
       type: Whatsup
       data:
         bind:
           topic: $TOPIC
-  - id: host-greets
+  - id: ROBERT-greets
     after:
-      - guest-arrives
+      - ALICE-arrives
     respond:
-      to_request: guest-arrives
-      from: host
+      to_request: ALICE-arrives
+      from: ROBERT
       data:
         literal:
           subs_id: 13
 
-  - id: host-remembers-a-thing-1
+  - id: ROBERT-remembers-a-thing-1
     after:
-      - host-greets
+      - ROBERT-greets
     send:
-      to: guest
-      from: host
+      to: ALICE
+      from: ROBERT
       type: OhByTheWay
       data:
         literal:
@@ -39,17 +39,17 @@ events:
 
   - id: delay-1
     after:
-      - host-remembers-a-thing-1
+      - ROBERT-remembers-a-thing-1
     delay:
       for: 1s
       step: 1s
   
-  - id: host-remembers-a-thing-2
+  - id: ROBERT-remembers-a-thing-2
     after:
       - delay-1
     send:
-      to: guest
-      from: host
+      to: ALICE
+      from: ROBERT
       type: OhByTheWay
       data:
         literal:
@@ -57,17 +57,17 @@ events:
   
   - id: delay-2
     after:
-      - host-remembers-a-thing-2
+      - ROBERT-remembers-a-thing-2
     delay:
       for: 1s
       step: 1s
   
-  - id: host-remembers-a-thing-3
+  - id: ROBERT-remembers-a-thing-3
     after:
       - delay-2
     send:
-      to: guest
-      from: host
+      to: ALICE
+      from: ROBERT
       type: OhByTheWay
       data:
         literal:
@@ -75,17 +75,17 @@ events:
     
   - id: delay-3
     after:
-      - host-remembers-a-thing-2
+      - ROBERT-remembers-a-thing-2
     delay:
       for: 1s
       step: 1s
 
-  - id: host-remembers-a-thing-4
+  - id: ROBERT-remembers-a-thing-4
     after:
       - delay-3
     send:
-      to: guest
-      from: host
+      to: ALICE
+      from: ROBERT
       type: OhByTheWay
       data:
         literal:
