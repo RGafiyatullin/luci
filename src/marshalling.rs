@@ -31,12 +31,13 @@ pub struct Injected {
 /// Manages [Msg] marshalling.
 ///
 /// Marshalling happens in two ways:
-/// - serializable message are marshalled by [Marshal] trait implementors.
+/// - serializable message are marshalled by binding variables in message
+///   templates to actual values an marshaling the result as [AnyMessage];
 /// - non-serializable messages are marshalled by storing those as predefined
 ///   [AnyMessage]s which can retrieved by key and injected into message flow
 ///   as-is.
 #[derive(Default, derive_more::Debug)]
-pub struct MarshallingManager {
+pub struct MarshallingRegistry {
     #[debug(skip)]
     values: HashMap<String, AnyMessage>,
 
@@ -44,10 +45,10 @@ pub struct MarshallingManager {
     marshallers: HashMap<String, Box<dyn Marshal>>,
 }
 
-/// Registers self as to [MarshallingManager] to be used in marshalling.
+/// Registers self as to [MarshallingRegistry] to be used in marshalling.
 pub trait RegisterMarshaller {
     /// Registers `self` to `marshalling`.
-    fn register(self, marshalling: &mut MarshallingManager);
+    fn register(self, marshalling: &mut MarshallingRegistry);
 }
 
 /// Marshals [Msg] as [AnyMessage].
@@ -66,7 +67,7 @@ pub(crate) trait Marshal {
     /// Binds values in `msg` with `bindings` and marshals it as [AnyMessage].
     fn marshal_outbound_message(
         &self,
-        messages: &MarshallingManager,
+        messages: &MarshallingRegistry,
         bindings: &bindings::Scope,
         msg: Msg,
     ) -> Result<AnyMessage, AnError>;
@@ -85,7 +86,7 @@ pub(crate) trait Respond<'a> {
         &self,
         proxy: &'a mut Proxy,
         token: ResponseToken,
-        messages: &'a MarshallingManager,
+        marshalling: &'a MarshallingRegistry,
         bindings: &'a bindings::Scope,
         msg: Msg,
     ) -> LocalBoxFuture<'a, Result<(), AnError>>;
@@ -93,17 +94,17 @@ pub(crate) trait Respond<'a> {
 pub(crate) trait DynRespond: for<'a> Respond<'a> {}
 impl<R> DynRespond for R where R: for<'a> Respond<'a> {}
 
-impl MarshallingManager {
+impl MarshallingRegistry {
     pub fn new() -> Self {
         Default::default()
     }
 
-    /// Adds `marshallable` to marshalling.
-    pub fn with_marshallable<R>(mut self, marshallable: R) -> Self
+    /// Adds `marshaller` to the [MarshallingRegistry].
+    pub fn with<R>(mut self, marshaller: R) -> Self
     where
         R: RegisterMarshaller,
     {
-        marshallable.register(&mut self);
+        marshaller.register(&mut self);
         self
     }
 
@@ -123,9 +124,9 @@ impl<M> RegisterMarshaller for Regular<M>
 where
     M: elfo::Message,
 {
-    fn register(self, messages: &mut MarshallingManager) {
+    fn register(self, marshalling: &mut MarshallingRegistry) {
         let fqn = std::any::type_name::<M>();
-        messages.marshallers.insert(fqn.into(), Box::new(self));
+        marshalling.marshallers.insert(fqn.into(), Box::new(self));
     }
 }
 
@@ -133,15 +134,15 @@ impl<Rq> RegisterMarshaller for Request<Rq>
 where
     Rq: elfo::Request,
 {
-    fn register(self, messages: &mut MarshallingManager) {
+    fn register(self, marshalling: &mut MarshallingRegistry) {
         let fqn = std::any::type_name::<Rq>();
-        messages.marshallers.insert(fqn.into(), Box::new(self));
+        marshalling.marshallers.insert(fqn.into(), Box::new(self));
     }
 }
 
 impl RegisterMarshaller for Injected {
-    fn register(self, messages: &mut MarshallingManager) {
-        messages.values.insert(self.key, self.value);
+    fn register(self, marshalling: &mut MarshallingRegistry) {
+        marshalling.values.insert(self.key, self.value);
     }
 }
 
@@ -166,11 +167,11 @@ where
     }
     fn marshal_outbound_message(
         &self,
-        messages: &MarshallingManager,
+        marshalling: &MarshallingRegistry,
         bindings: &bindings::Scope,
         msg: Msg,
     ) -> Result<AnyMessage, AnError> {
-        do_marshal_message::<M>(messages, bindings, msg)
+        do_marshal_message::<M>(marshalling, bindings, msg)
     }
     fn response(&self) -> Option<&'static dyn DynRespond> {
         None
@@ -198,11 +199,11 @@ where
     }
     fn marshal_outbound_message(
         &self,
-        messages: &MarshallingManager,
+        marshalling: &MarshallingRegistry,
         bindings: &bindings::Scope,
         msg: Msg,
     ) -> Result<AnyMessage, AnError> {
-        do_marshal_message::<Rq::Wrapper>(messages, bindings, msg)
+        do_marshal_message::<Rq::Wrapper>(marshalling, bindings, msg)
     }
     fn response(&self) -> Option<&'static dyn DynRespond> {
         Some(&Response::<Rq>)
@@ -217,7 +218,7 @@ where
         &self,
         proxy: &'a mut Proxy,
         token: ResponseToken,
-        messages: &'a MarshallingManager,
+        marshalling: &'a MarshallingRegistry,
         bindings: &'a bindings::Scope,
         value: Msg,
     ) -> LocalBoxFuture<'a, Result<(), AnError>> {
@@ -236,7 +237,11 @@ where
                     }
                 }
                 Msg::Inject(name) => {
-                    let a = messages.values.get(&name).cloned().ok_or("no such value")?;
+                    let a = marshalling
+                        .values
+                        .get(&name)
+                        .cloned()
+                        .ok_or("no such value")?;
                     if let Ok(response) = a.downcast::<Rq::Wrapper>() {
                         proxy.respond(token, response.into());
                         Ok(())
@@ -280,7 +285,7 @@ fn do_match_message(bind_to: &Msg, serialized: Value, bindings: &mut bindings::T
 }
 
 fn do_marshal_message<M: Message>(
-    messages: &MarshallingManager,
+    marshalling: &MarshallingRegistry,
     bindings: &bindings::Scope,
     msg: Msg,
 ) -> Result<AnyMessage, AnError> {
@@ -292,7 +297,7 @@ fn do_marshal_message<M: Message>(
             Ok(a)
         }
         Msg::Inject(name) => {
-            let a = messages.values.get(&name).cloned().ok_or("no such value")?;
+            let a = marshalling.values.get(&name).cloned().ok_or("no such value")?;
             Ok(a)
         }
         Msg::Literal(value) => {

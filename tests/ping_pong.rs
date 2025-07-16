@@ -1,6 +1,6 @@
 use luci::{
     execution::Executable,
-    marshalling::{MarshallingManager, Regular},
+    marshalling::{MarshallingRegistry, Regular},
     scenario::{RequiredToBe, Scenario},
 };
 use serde_json::json;
@@ -117,13 +117,13 @@ async fn run_scenario(scenario_text: &str) {
         .try_init();
     tokio::time::pause();
 
-    let messages = MarshallingManager::new()
-        .with_marshallable(Regular::<crate::proto::Bro>)
-        .with_marshallable(Regular::<crate::proto::Ping>)
-        .with_marshallable(Regular::<crate::proto::Pong>)
-        .with_marshallable(Regular::<crate::proto::Bye>);
+    let marshalling = MarshallingRegistry::new()
+        .with(Regular::<crate::proto::Bro>)
+        .with(Regular::<crate::proto::Ping>)
+        .with(Regular::<crate::proto::Pong>)
+        .with(Regular::<crate::proto::Bye>);
     let scenario: Scenario = serde_yaml::from_str(scenario_text).unwrap();
-    let exec_graph = Executable::build(messages, &scenario).expect("building graph");
+    let exec_graph = Executable::build(marshalling, &scenario).expect("building graph");
     let report = exec_graph
         .start(pinger::blueprint(), json!(null))
         .await
