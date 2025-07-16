@@ -6,8 +6,7 @@ use elfo::Addr;
 use serde_json::Value;
 use tracing::info;
 
-use crate::bindings;
-use crate::names::ActorName;
+use crate::{bindings, names::ActorName};
 
 #[derive(Debug, thiserror::Error)]
 pub enum BindError {
@@ -15,12 +14,20 @@ pub enum BindError {
     UnboundValue(String),
 }
 
+/// Stores bindings:
+/// - luci variables bound to [values](Value);
+/// - actor names bound to [addresses](Addr).
 #[derive(Debug, Default)]
 pub(crate) struct Scope {
     values: HashMap<String, Value>,
     actors: BiHashMap<ActorName, Addr>,
 }
 
+/// A transaction on a [Scope].
+///
+/// Bindings to variables and addresses can be added to the transaction.
+/// Then a transaction can be either commited (applied to the [Scope]) or
+/// dropped.
 #[derive(Debug)]
 pub(crate) struct Txn<'a> {
     values_committed: &'a mut HashMap<String, Value>,
@@ -31,6 +38,7 @@ pub(crate) struct Txn<'a> {
 }
 
 impl Scope {
+    /// Creates a [Txn] on the current state of the [Scope].
     pub(crate) fn txn(&mut self) -> Txn {
         Txn {
             values_committed: &mut self.values,
@@ -41,16 +49,21 @@ impl Scope {
         }
     }
 
+    /// Returns bound [Addr] for the specified `name` if there is one.
+    /// Otherwise returns `None`.
     pub(crate) fn address_of(&self, name: &ActorName) -> Option<Addr> {
         self.actors.get_by_left(name).copied()
     }
 
+    /// Returns bound [Value] for the specified `key` if there is one.
+    /// Otherwise returns `None`.
     fn value_of(&self, key: &str) -> Option<&Value> {
         self.values.get(key)
     }
 }
 
 impl<'a> Txn<'a> {
+    /// Binds `key` to `value` and stores in the transaction.
     pub(crate) fn bind_value(&mut self, key: &str, value: &Value) -> bool {
         if let Some(defined_in_state) = self.values_committed.get(key) {
             defined_in_state == value
@@ -65,6 +78,7 @@ impl<'a> Txn<'a> {
         }
     }
 
+    /// Binds `name` to `addr` and stores in the transaction.
     pub(crate) fn bind_actor(&mut self, name: &ActorName, addr: Addr) -> bool {
         if let Some(existing_name) = {
             let old_opt = self.actors_committed.get_by_right(&addr);
@@ -90,6 +104,7 @@ impl<'a> Txn<'a> {
         true
     }
 
+    /// Commits transaction to the [Scope].
     pub(crate) fn commit(self) {
         self.values_committed.extend(
             self.values_added
@@ -104,6 +119,8 @@ impl<'a> Txn<'a> {
     }
 }
 
+/// Binds luci variables from `value` according to `pattern` and adds the result
+/// to `bindings`.
 pub(crate) fn bind_to_pattern(value: Value, pattern: &Value, bindings: &mut Txn) -> bool {
     match (value, pattern) {
         (_, Value::String(wildcard)) if wildcard == "$_" => true,
@@ -133,6 +150,11 @@ pub(crate) fn bind_to_pattern(value: Value, pattern: &Value, bindings: &mut Txn)
     }
 }
 
+/// Renders luci variables in `template` with values from `bindings`.
+///
+/// Returns:
+/// - The resulting [Value] after template render on success;
+/// - [BindError] on error.
 pub(crate) fn render(template: Value, bindings: &bindings::Scope) -> Result<Value, BindError> {
     match template {
         Value::String(wildcard) if wildcard == "$_" => Err(BindError::UnboundValue(wildcard)),

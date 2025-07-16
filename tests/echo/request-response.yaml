@@ -1,0 +1,37 @@
+types:
+  - use: echo::proto::Hey
+    as: Hey
+  - use: echo::proto::R
+    as: R
+
+cast:
+  - client
+  - server
+
+events:
+  - id: server-announces-itself
+    send:
+      from: server
+      type: Hey
+      data:
+        literal: ~
+
+  - id: client-requests-an-R
+    after:
+      - server-announces-itself
+    recv:
+      from: client
+      to: server
+      type: R
+      data:
+        bind: $PAYLOAD
+  
+  - id: server-responds-to-R
+    require: reached
+    after:
+      - client-requests-an-R
+    respond:
+      to_request: client-requests-an-R
+      from: server
+      data:
+        bind: $PAYLOAD

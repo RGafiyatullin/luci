@@ -8,12 +8,12 @@ use tracing::{debug, trace};
 
 use crate::{
     execution::{EventBind, EventKey, KeyBind, KeyDelay, KeyRecv, KeyRespond, KeySend},
-    messages,
+    marshalling,
     scenario::{DefEventBind, DefEventDelay, DefEventRecv, DefEventRespond, DefEventSend},
 };
 use crate::{
     execution::{EventDelay, EventRecv, EventRespond, EventSend, Events, Executable},
-    messages::Messages,
+    marshalling::MarshallingRegistry,
     names::{ActorName, EventName, MessageName},
     scenario::{DefEvent, DefEventKind, DefTypeAlias, Scenario},
 };
@@ -45,23 +45,18 @@ pub enum BuildError<'a> {
     DuplicateActorName(&'a ActorName),
 
     #[error("invalid data: {}", _0)]
-    InvalidData(messages::AnError),
+    InvalidData(marshalling::AnError),
 }
 
 impl Executable {
-    /// Builds an executable graph from a scenario.
-    ///
-    /// * `scenario`: Parsed scenario definition.
-    /// * `messages`: [Optional] Types registry.
-    ///    May be `None` if types validation is not needed (at graph drawing).
     pub fn build<'s>(
         scenario: &'s Scenario,
-        messages: Option<&Messages>,
+        marshalling: Option<&MarshallingRegistry>,
     ) -> Result<Self, BuildError<'s>> {
         debug!("building...");
 
         debug!("storing type-aliases...");
-        let type_aliases = type_aliases(messages, &scenario.types)?;
+        let type_aliases = type_aliases(marshalling, &scenario.types)?;
         for (a, fqn) in &type_aliases {
             trace!("- {:?} -> {:?}", a, fqn);
         }
@@ -73,7 +68,7 @@ impl Executable {
         }
 
         debug!("building the graph...");
-        let vertices = build_graph(&scenario.events, &type_aliases, &actors, messages)?;
+        let vertices = build_graph(&scenario.events, &type_aliases, &actors, marshalling)?;
 
         debug!("- bind-vertices:\t{}", vertices.bind.len());
         debug!("- send-vertices:\t{}", vertices.send.len());
@@ -87,7 +82,7 @@ impl Executable {
 }
 
 fn type_aliases<'a>(
-    messages: Option<&Messages>,
+    marshalling: Option<&MarshallingRegistry>,
     imports: impl IntoIterator<Item = &'a DefTypeAlias>,
 ) -> Result<HashMap<MessageName, Arc<str>>, BuildError<'a>> {
     use std::collections::hash_map::Entry::Vacant;
@@ -96,8 +91,8 @@ fn type_aliases<'a>(
         let Vacant(entry) = aliases.entry(import.type_alias.to_owned()) else {
             return Err(BuildError::DuplicateAlias(&import.type_alias));
         };
-        if let Some(messages) = messages {
-            let _marshaller = messages
+        if let Some(marshalling) = marshalling {
+            let _marshaller = marshalling
                 .resolve(&import.type_name)
                 .ok_or(BuildError::UnknownFqn(&import.type_name))?;
         }
@@ -126,7 +121,7 @@ fn build_graph<'a>(
     event_defs: impl IntoIterator<Item = &'a DefEvent>,
     type_aliases: &HashMap<MessageName, Arc<str>>,
     actors: &HashSet<ActorName>,
-    messages: Option<&Messages>,
+    marshalling: Option<&MarshallingRegistry>,
 ) -> Result<Events, BuildError<'a>> {
     let mut v_delay = SlotMap::<KeyDelay, _>::default();
     let mut v_bind = SlotMap::<KeyBind, _>::default();
@@ -253,8 +248,8 @@ fn build_graph<'a>(
                     return Err(BuildError::UnknownActor(bad_actor));
                 }
 
-                if let Some(messages) = messages {
-                    if messages
+                if let Some(marshalling) = marshalling {
+                    if marshalling
                         .resolve(&request_fqn)
                         .is_none_or(|m| m.response().is_none())
                     {

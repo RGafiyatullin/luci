@@ -14,7 +14,6 @@ events:
         exact:
           one: vienas
           two: du
-          three: trys
   - id: recv
     after:
       - send
@@ -45,7 +44,7 @@ events:
         bind: $PAYLOAD
 
   - id: bind-payload-three
-    require: reached
+    require: unreached
     after:
       - recv
     bind:
@@ -69,11 +68,9 @@ events:
     after:
       - bind-payload-one
       - bind-payload-two
-      - bind-payload-three
     bind:
       dst: $PAYLOAD
       src:
         bind:
           one: $ONE
           two: $TWO
-          three: $THREE

@@ -8,7 +8,7 @@
 
 pub mod execution;
 pub mod graphics;
-pub mod messages;
+pub mod marshalling;
 pub mod names;
 pub mod scenario;
 

@@ -7,14 +7,14 @@ use std::time::Duration;
 use tokio::time::Instant;
 use tracing::{debug, info, trace, warn};
 
-use crate::messages::Messages;
+use crate::marshalling::MarshallingRegistry;
 use crate::{
     bindings,
     execution::{
         EventBind, EventDelay, EventKey, EventRecv, EventRespond, EventSend, Executable, KeyDelay,
         KeyRecv, KeyRespond, KeySend,
     },
-    messages,
+    marshalling,
     names::{ActorName, EventName},
     scenario::Msg,
 };
@@ -42,9 +42,12 @@ pub enum RunError {
     BindError(bindings::BindError),
 
     #[error("marshalling error: {}", _0)]
-    Marshalling(messages::AnError),
+    Marshalling(marshalling::AnError),
 }
 
+/// A key for an event that is ready to be processed by [Runner].
+///
+/// A trimmed version of [EventKey].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ReadyEventKey {
     Bind,
@@ -75,6 +78,7 @@ impl TryFrom<ReadyEventKey> for EventKey {
     }
 }
 
+/// Runs the set up integration test.
 pub struct Runner<'a> {
     executable: &'a Executable,
     ready_events: BTreeSet<EventKey>,
@@ -97,6 +101,8 @@ struct Delays {
 }
 
 impl Executable {
+    /// Returns a [Runner] to run the test corresponding to this [Executable]
+    /// and specified `blueprint` and `config`.
     pub async fn start<C>(&self, blueprint: Blueprint, config: C) -> Runner<'_>
     where
         C: for<'de> serde::de::Deserializer<'de>,
@@ -106,10 +112,13 @@ impl Executable {
 }
 
 impl<'a> Runner<'a> {
-    /// Scenario execution.
+    /// Runs the test for which the runner was set up.
     ///
-    /// * `messages`: Types registry.
-    pub async fn run(mut self, messages: Messages) -> Result<Report, RunError> {
+    /// Returns;
+    /// - [Report] containing a text description of the test run if test was
+    ///   completed without errors, either successfully or not.
+    /// - [RunError] in case of any errors during the test run.
+    pub async fn run(mut self, messages: MarshallingRegistry) -> Result<Report, RunError> {
         let mut unreached = self.executable.events.required.clone();
         let mut reached = HashMap::new();
 
@@ -177,6 +186,7 @@ impl<'a> Runner<'a> {
             .map(ReadyEventKey::from)
             .take(1);
 
+        // this is just a predictable order of events, no significant scientific basis behind it.
         binds.chain(send_and_respond).chain(recv_or_delay)
     }
 
@@ -188,7 +198,7 @@ impl<'a> Runner<'a> {
     // pub
     async fn fire_event(
         &mut self,
-        messages: &Messages,
+        messages: &MarshallingRegistry,
         ready_event_key: ReadyEventKey,
     ) -> Result<Vec<EventKey>, RunError> {
         let event_key_opt = EventKey::try_from(ready_event_key).ok();
@@ -197,18 +207,7 @@ impl<'a> Runner<'a> {
             if !self.ready_events.remove(&event_key) {
                 return Err(RunError::EventIsNotReady(ready_event_key));
             }
-        } else {
-            if !self.ready_events.iter().any(|e| {
-                matches!(
-                    e,
-                    EventKey::Recv(_) | EventKey::Delay(_) | EventKey::Bind(_)
-                )
-            }) {
-                return Err(RunError::EventIsNotReady(ready_event_key));
-            }
-        }
 
-        if let Some(event_key) = event_key_opt {
             let event_name = self
                 .executable
                 .events
@@ -219,6 +218,15 @@ impl<'a> Runner<'a> {
 
             debug!("firing {:?}...", event_name);
         } else {
+            if !self.ready_events.iter().any(|e| {
+                matches!(
+                    e,
+                    EventKey::Recv(_) | EventKey::Delay(_) | EventKey::Bind(_)
+                )
+            }) {
+                return Err(RunError::EventIsNotReady(ready_event_key));
+            }
+
             debug!("doing {:?}", ready_event_key);
         }
 
@@ -286,7 +294,7 @@ impl<'a> Runner<'a> {
 
     async fn fire_event_bind(
         &mut self,
-        messages: &Messages,
+        messages: &MarshallingRegistry,
         actually_fired_events: &mut Vec<EventKey>,
     ) -> Result<(), RunError> {
         let Executable { events } = self.executable;
@@ -345,7 +353,7 @@ impl<'a> Runner<'a> {
 
     async fn fire_event_recv_or_delay(
         &mut self,
-        messages: &Messages,
+        messages: &MarshallingRegistry,
         actually_fired_events: &mut Vec<EventKey>,
     ) -> Result<(), RunError> {
         let Executable { events: vertices } = self.executable;
@@ -507,7 +515,7 @@ impl<'a> Runner<'a> {
 
     async fn fire_event_send(
         &mut self,
-        messages: &Messages,
+        messages: &MarshallingRegistry,
         event_key: KeySend,
         actually_fired_events: &mut Vec<EventKey>,
     ) -> Result<(), RunError> {
@@ -578,7 +586,7 @@ impl<'a> Runner<'a> {
 
     async fn fire_event_respond(
         &mut self,
-        messages: &Messages,
+        messages: &MarshallingRegistry,
         k: KeyRespond,
         actually_fired_events: &mut Vec<EventKey>,
     ) -> Result<(), RunError> {
@@ -692,7 +700,7 @@ impl<'a> Runner<'a> {
 }
 
 impl Delays {
-    pub fn next(&mut self, now: Instant) -> (Instant, Vec<KeyDelay>) {
+    fn next(&mut self, now: Instant) -> (Instant, Vec<KeyDelay>) {
         let mut expired = vec![];
 
         assert_eq!(self.deadlines.len(), self.steps.len());
@@ -726,7 +734,7 @@ impl Delays {
         (effective_deadline, expired)
     }
 
-    pub fn insert(&mut self, now: Instant, key: KeyDelay, delay_vertex: &EventDelay) {
+    fn insert(&mut self, now: Instant, key: KeyDelay, delay_vertex: &EventDelay) {
         let delay_for = delay_vertex.delay_for;
         let step = delay_vertex.delay_step;
 

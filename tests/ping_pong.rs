@@ -1,11 +1,28 @@
 use luci::{
     execution::Executable,
-    messages::{Messages, Regular},
+    marshalling::{MarshallingRegistry, Regular},
     scenario::{RequiredToBe, Scenario},
 };
 use serde_json::json;
 
 pub mod proto {
+    //! An actor sends a [`Bro`] via the routing upon its start.
+    //!
+    //! Whoever receives a [`Bro`], replies with a directed [`Bro`] to
+    //! the sender of the received message, unless the sender is in the list of known-peers.
+    //!
+    //! After sending a directed [`Bro`] the destination address is put into the list of known-peers.
+    //!
+    //! Once every [`TIMEOUT`] an actor sends a [`Ping`] to each of the known-peers,
+    //! and marks them as a removal-candidate.
+    //!
+    //! If an actor receives a [`Pong`] from a known peer,
+    //! that peer is no longer considered a removal-candidate.
+    //!
+    //! Once every [`TIMEOUT`] an actor forgets all the peers known as removal-candidates,
+    //! those peers are no longer in the list of known-peers.
+    //!
+
     use std::time::Duration;
 
     use elfo::message;
@@ -117,17 +134,17 @@ async fn run_scenario(scenario_text: &str) {
         .try_init();
     tokio::time::pause();
 
-    let messages = Messages::new()
+    let marshalling = MarshallingRegistry::new()
         .with(Regular::<crate::proto::Bro>)
         .with(Regular::<crate::proto::Ping>)
         .with(Regular::<crate::proto::Pong>)
         .with(Regular::<crate::proto::Bye>);
     let scenario: Scenario = serde_yaml::from_str(scenario_text).unwrap();
-    let exec_graph = Executable::build(&scenario, Some(&messages)).expect("building graph");
+    let exec_graph = Executable::build(&scenario, Some(&marshalling)).expect("building graph");
     let report = exec_graph
         .start(pinger::blueprint(), json!(null))
         .await
-        .run(messages)
+        .run(marshalling)
         .await
         .expect("runner.run");
 
