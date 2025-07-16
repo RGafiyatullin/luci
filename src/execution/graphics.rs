@@ -1,6 +1,68 @@
 use std::collections::HashSet;
 
-use super::{EventBind, EventDelay, EventKey, EventRecv, EventRespond, EventSend, Events};
+use crate::graphics::{OutputFormat, RenderGraph};
+
+use super::{
+    EventBind, EventDelay, EventKey, EventRecv, EventRespond, EventSend, Events, Executable,
+};
+
+impl RenderGraph for Executable {
+    const OUTPUT: OutputFormat = OutputFormat::Graphviz;
+
+    fn render(&self) -> String {
+        let mut acc = String::new();
+        acc.push_str("digraph test { rankdir=LR layout=dot\n");
+
+        self.events
+            .entry_points
+            .iter()
+            .chain(self.events.key_unblocks_values.values().flatten())
+            .cloned()
+            .collect::<HashSet<EventKey>>() // deduplicate
+            .iter()
+            .for_each(|key| {
+                self.events.draw_node(&mut acc, &key);
+            });
+
+        for (parent, children) in &self.events.key_unblocks_values {
+            for child in children {
+                acc.push_str(&format!(r#"  "{:?}" -> "{:?}""#, parent, child));
+            }
+        }
+
+        acc.push_str("}\n");
+        acc
+    }
+}
+
+impl Events {
+    fn draw_node(&self, acc: &mut String, key: &EventKey) {
+        let node = match key {
+            EventKey::Delay(key_delay) => {
+                let delay = self.delay.get(*key_delay).unwrap();
+                delay.draw(*key)
+            }
+            EventKey::Bind(key_bind) => {
+                let bind = self.bind.get(*key_bind).unwrap();
+                bind.draw(*key)
+            }
+            EventKey::Recv(key_recv) => {
+                let recv = self.recv.get(*key_recv).unwrap();
+                recv.draw(*key)
+            }
+            EventKey::Send(key_send) => {
+                let send = self.send.get(*key_send).unwrap();
+                send.draw(*key)
+            }
+            EventKey::Respond(key_respond) => {
+                let respond = self.respond.get(*key_respond).unwrap();
+                respond.draw(*key)
+            }
+        };
+        acc.push_str(&format!("{}", &node));
+        acc.push('\n');
+    }
+}
 
 pub trait DrawDot {
     fn draw(&self, key: EventKey) -> String;
@@ -74,58 +136,5 @@ impl DrawDot for EventRespond {
                 .map(|actor| actor.to_string())
                 .unwrap_or_default(),
         )
-    }
-}
-
-impl Events {
-    pub fn render(&self) -> String {
-        let mut acc = String::new();
-        acc.push_str("digraph test { rankdir=LR layout=dot\n");
-
-        self.entry_points
-            .iter()
-            .chain(self.key_unblocks_values.values().flatten())
-            .cloned()
-            .collect::<HashSet<EventKey>>() // deduplicate
-            .iter()
-            .for_each(|key| {
-                self.draw_node(&mut acc, &key);
-            });
-
-        for (parent, children) in &self.key_unblocks_values {
-            for child in children {
-                acc.push_str(&format!(r#"  "{:?}" -> "{:?}""#, parent, child));
-            }
-        }
-
-        acc.push_str("}\n");
-        acc
-    }
-
-    fn draw_node(&self, acc: &mut String, key: &EventKey) {
-        let node = match key {
-            EventKey::Delay(key_delay) => {
-                let delay = self.delay.get(*key_delay).unwrap();
-                delay.draw(*key)
-            }
-            EventKey::Bind(key_bind) => {
-                let bind = self.bind.get(*key_bind).unwrap();
-                bind.draw(*key)
-            }
-            EventKey::Recv(key_recv) => {
-                let recv = self.recv.get(*key_recv).unwrap();
-                recv.draw(*key)
-            }
-            EventKey::Send(key_send) => {
-                let send = self.send.get(*key_send).unwrap();
-                send.draw(*key)
-            }
-            EventKey::Respond(key_respond) => {
-                let respond = self.respond.get(*key_respond).unwrap();
-                respond.draw(*key)
-            }
-        };
-        acc.push_str(&format!("{}", &node));
-        acc.push('\n');
     }
 }

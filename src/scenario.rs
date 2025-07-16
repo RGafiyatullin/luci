@@ -8,7 +8,7 @@ use crate::names::*;
 mod no_extra;
 use no_extra::NoExtra;
 
-mod draw;
+mod graphics;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DefTypeAlias {

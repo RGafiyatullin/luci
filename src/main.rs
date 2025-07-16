@@ -6,7 +6,7 @@ use std::{
 };
 
 use clap::{Parser, ValueEnum};
-use luci::{execution::Executable, scenario::Scenario};
+use luci::{execution::Executable, graphics::RenderGraph, scenario::Scenario};
 
 #[derive(Clone, Debug, Deserialize, ValueEnum)]
 #[serde(rename_all = "snake_case")]
@@ -62,7 +62,7 @@ fn main() {
         GraphDrawSource::Executable => {
             let executable =
                 Executable::build(&scenario, None).expect("Failed to build execution graph");
-            executable.render_graph()
+            executable.render()
         }
     };
 

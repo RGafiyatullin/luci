@@ -1,11 +1,16 @@
 use std::collections::HashSet;
 
-use crate::scenario::DefEventKind;
+use crate::{
+    graphics::{OutputFormat, RenderGraph},
+    scenario::DefEventKind,
+};
 
 use super::{DefEvent, Scenario};
 
-impl Scenario {
-    pub fn render(&self) -> String {
+impl RenderGraph for Scenario {
+    const OUTPUT: OutputFormat = OutputFormat::Graphviz;
+
+    fn render(&self) -> String {
         let mut acc = String::new();
         acc.push_str("digraph test { rankdir=LR layout=dot\n");
 
