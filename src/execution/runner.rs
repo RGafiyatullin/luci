@@ -42,6 +42,9 @@ pub enum RunError {
     Marshalling(marshalling::AnError),
 }
 
+/// A key for an event that is ready to be processed by [Runner].
+/// 
+/// A trimmed version of [EventKey].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ReadyEventKey {
     Bind,
@@ -72,6 +75,7 @@ impl TryFrom<ReadyEventKey> for EventKey {
     }
 }
 
+/// Runs the set up integration test.
 pub struct Runner<'a> {
     executable: &'a Executable,
     ready_events: BTreeSet<EventKey>,
@@ -94,6 +98,8 @@ struct Delays {
 }
 
 impl Executable {
+    /// Returns a [Runner] to run the test corresponding to this [Executable]
+    /// and specified `blueprint` and `config`.
     pub async fn start<C>(&self, blueprint: Blueprint, config: C) -> Runner<'_>
     where
         C: for<'de> serde::de::Deserializer<'de>,
@@ -103,6 +109,12 @@ impl Executable {
 }
 
 impl<'a> Runner<'a> {
+    /// Runs the test for which the runner was set up.
+    /// 
+    /// Returns;
+    /// - [Report] containing a text description of the test run if test was
+    ///   completed without errors, either successfully or not.
+    /// - [RunError] in case of any errors during the test run.
     pub async fn run(mut self) -> Result<Report, RunError> {
         let mut unreached = self.executable.events.required.clone();
         let mut reached = HashMap::new();
@@ -692,7 +704,7 @@ impl<'a> Runner<'a> {
 }
 
 impl Delays {
-    pub fn next(&mut self, now: Instant) -> (Instant, Vec<KeyDelay>) {
+    fn next(&mut self, now: Instant) -> (Instant, Vec<KeyDelay>) {
         let mut expired = vec![];
 
         assert_eq!(self.deadlines.len(), self.steps.len());
@@ -726,7 +738,7 @@ impl Delays {
         (effective_deadline, expired)
     }
 
-    pub fn insert(&mut self, now: Instant, key: KeyDelay, delay_vertex: &EventDelay) {
+    fn insert(&mut self, now: Instant, key: KeyDelay, delay_vertex: &EventDelay) {
         let delay_for = delay_vertex.delay_for;
         let step = delay_vertex.delay_step;
 

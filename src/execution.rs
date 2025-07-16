@@ -30,6 +30,7 @@ new_key_type! {
     pub struct KeyDelay;
 }
 
+/// A key corresponding to some event during test execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum EventKey {
     Bind(KeyBind),
