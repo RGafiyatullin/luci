@@ -4,6 +4,7 @@ use elfo::{test::Proxy, AnyMessage, AnyMessageRef, Envelope, Message, ResponseTo
 use futures::{future::LocalBoxFuture, FutureExt};
 use ghost::phantom;
 use serde_json::Value;
+use tracing::debug;
 
 use crate::bindings;
 use crate::scenario::Msg;
@@ -145,6 +146,7 @@ where
 {
     fn register(self, marshalling: &mut MarshallingRegistry) {
         let fqn = std::any::type_name::<M>();
+        debug!("registering regular message: {}", fqn);
         marshalling.marshallers.insert(fqn.into(), Box::new(self));
     }
 }
@@ -155,6 +157,7 @@ where
 {
     fn register(self, marshalling: &mut MarshallingRegistry) {
         let fqn = std::any::type_name::<Rq>();
+        debug!("registering request message: {}", fqn);
         marshalling.marshallers.insert(fqn.into(), Box::new(self));
     }
 }

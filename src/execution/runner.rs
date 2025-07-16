@@ -132,8 +132,11 @@ impl<'a> Runner<'a> {
 
             for ek in fired_events.iter() {
                 // FIXME: show scope info too
-                let (_scope_id, en) = self.event_name(*ek).expect("unknown event-key");
-                info!("fired event: {}", en);
+                if let Some((scope_id, en)) = self.event_name(*ek) {
+                    info!("fired event: {} ({:?}@{:?})", en, ek, scope_id);
+                } else {
+                    info!("fired unnabled event: {:?}", ek)
+                }
             }
 
             if fired_events.is_empty() {
@@ -566,6 +569,7 @@ impl<'a> Runner<'a> {
                 .find(|p| p.addr() == addr)
                 .ok_or_else(|| RunError::ActorName(send_from.clone()))?
         } else {
+            // FIXME: we do need a Txn here after all, don't we?
             let new_proxy = self.proxies[self.main_proxy_key].subproxy().await;
             let proxy_key = self.proxies.insert(new_proxy);
             &mut self.proxies[proxy_key]
@@ -626,14 +630,18 @@ impl<'a> Runner<'a> {
             request_fqn, respond_from
         );
 
-        let proxy_idx = if let Some(from_dummy_name) = respond_from {
-            let Some(addr) = self.scopes[*scope_key].address_of(from_dummy_name) else {
-                return Err(RunError::UnboundName(from_dummy_name.clone()));
-            };
-            self.proxies
-                .iter()
-                .find_map(|(k, p)| Some(k).filter(|_| p.addr() == addr))
-                .ok_or_else(|| RunError::ActorName(from_dummy_name.clone()))?
+        let proxy_key = if let Some(respond_from) = respond_from {
+            if let Some(addr) = self.scopes[*scope_key].address_of(respond_from) {
+                self.proxies
+                    .iter()
+                    .find_map(|(k, p)| Some(k).filter(|_| p.addr() == addr))
+                    .ok_or_else(|| RunError::ActorName(respond_from.clone()))?
+            } else {
+                // FIXME: we do need a Txn here after all, don't we?
+                let new_proxy = self.proxies[self.main_proxy_key].subproxy().await;
+                let proxy_key = self.proxies.insert(new_proxy);
+                proxy_key
+            }
         } else {
             self.main_proxy_key
         };
@@ -657,7 +665,7 @@ impl<'a> Runner<'a> {
             _ => return Err(RunError::NoRequest),
         };
 
-        let responding_proxy = &mut self.proxies[proxy_idx];
+        let responding_proxy = &mut self.proxies[proxy_key];
         response_marshaller
             .respond(
                 responding_proxy,

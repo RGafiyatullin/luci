@@ -1,0 +1,73 @@
+types:
+  - use: subroutines::proto::partying::MayI
+    as: MayI
+  - use: subroutines::proto::partying::SeeYou
+    as: SeeYou
+  - use: subroutines::proto::partying::Chug
+    as: Chug
+  - use: subroutines::proto::partying::Gulp
+    as: Gulp
+
+subs:
+  - load: smalltalk.yaml
+    as: smalltalk
+cast:
+  - guest
+  - host
+events:
+  - id: run for 120s
+    delay:
+      for: 1m
+      step: 10s
+
+  - id: small-talk-with-the-host
+    call:
+      sub: smalltalk
+
+  - id: guest-arrives-to-the-party
+    recv:
+      from: guest
+      type: MayI
+      data:
+        literal: ~
+  
+  - id: guest-is-welcome
+    after:
+      - guest-arrives-to-the-party
+    respond:
+      to_request: guest-arrives-to-the-party
+      from: host
+      data:
+        literal: ~
+
+  - id: guest-is-offered-a-sip-of-water
+    after:
+      - guest-is-welcome
+    send:
+      to: guest
+      from: host
+      type: Chug
+      data:
+        literal: ~
+
+  - id: guest-accepts-the-offer
+    after:
+      - guest-is-welcome
+    recv:
+      to: host
+      from: guest
+      type: Gulp
+      data:
+        literal: ~
+  
+  - id: guest-leaves-the-party-willingly
+    after:
+      - guest-accepts-the-offer
+    require: reached
+    recv:
+      to: host
+      from: guest
+      type: SeeYou
+      data:
+        literal: ~
+

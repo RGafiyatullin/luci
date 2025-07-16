@@ -1,0 +1,93 @@
+types:
+  - use: subroutines::proto::smalltalk::Whatsup
+    as: Whatsup
+  - use: subroutines::proto::smalltalk::OhByTheWay
+    as: OhByTheWay
+  - use: subroutines::proto::smalltalk::NoWay
+    as: NoWay
+cast:
+  - guest
+  - host
+events:
+  - id: guest-arrives
+    recv:
+      from: guest
+      type: Whatsup
+      data:
+        bind:
+          topic: $TOPIC
+  - id: host-greets
+    after:
+      - guest-arrives
+    respond:
+      to_request: guest-arrives
+      from: host
+      data:
+        literal:
+          subs_id: 13
+
+  - id: host-remembers-a-thing-1
+    after:
+      - host-greets
+    send:
+      to: guest
+      from: host
+      type: OhByTheWay
+      data:
+        literal:
+          subs_id: 13
+
+  - id: delay-1
+    after:
+      - host-remembers-a-thing-1
+    delay:
+      for: 1s
+      step: 1s
+  
+  - id: host-remembers-a-thing-2
+    after:
+      - delay-1
+    send:
+      to: guest
+      from: host
+      type: OhByTheWay
+      data:
+        literal:
+          subs_id: 13
+  
+  - id: delay-2
+    after:
+      - host-remembers-a-thing-2
+    delay:
+      for: 1s
+      step: 1s
+  
+  - id: host-remembers-a-thing-3
+    after:
+      - delay-2
+    send:
+      to: guest
+      from: host
+      type: OhByTheWay
+      data:
+        literal:
+          subs_id: 13
+    
+  - id: delay-3
+    after:
+      - host-remembers-a-thing-2
+    delay:
+      for: 1s
+      step: 1s
+
+  - id: host-remembers-a-thing-4
+    after:
+      - delay-3
+    send:
+      to: guest
+      from: host
+      type: OhByTheWay
+      data:
+        literal:
+          subs_id: 13
+

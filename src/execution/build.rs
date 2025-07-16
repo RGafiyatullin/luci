@@ -490,7 +490,7 @@ impl Builder {
             let prerequisites = resolve_event_ids(&mut this_scope_name_to_key, &prerequisites)
                 .collect::<Result<Vec<_>, _>>()?;
 
-            let this_key = match kind {
+            let (head_key, tail_key) = match kind {
                 DefEventKind::Call(def_call) => {
                     let sub_source_key = this_source
                         .subs
@@ -576,7 +576,7 @@ impl Builder {
                         }
                     }
 
-                    ek_bind_out
+                    (ek_bind_in, ek_bind_out)
                 }
                 DefEventKind::Delay(def_delay) => {
                     let DefEventDelay {
@@ -591,7 +591,8 @@ impl Builder {
                         delay_for,
                         delay_step,
                     });
-                    EventKey::Delay(key)
+                    let ek_delay = EventKey::Delay(key);
+                    (ek_delay, ek_delay)
                 }
                 DefEventKind::Bind(def_bind) => {
                     let DefEventBind {
@@ -608,7 +609,8 @@ impl Builder {
                         src_scope_key: this_scope_key,
                     });
 
-                    EventKey::Bind(key)
+                    let ek_bind = EventKey::Bind(key);
+                    (ek_bind, ek_bind)
                 }
                 DefEventKind::Recv(def_recv) => {
                     let DefEventRecv {
@@ -637,7 +639,8 @@ impl Builder {
                         payload: message_data.clone(),
                         scope_key: this_scope_key,
                     });
-                    EventKey::Recv(key)
+                    let ek_recv = EventKey::Recv(key);
+                    (ek_recv, ek_recv)
                 }
                 DefEventKind::Respond(def_respond) => {
                     let DefEventRespond {
@@ -675,7 +678,8 @@ impl Builder {
                         payload: data.clone(),
                         scope_key: this_scope_key,
                     });
-                    EventKey::Respond(key)
+                    let ek_respond = EventKey::Respond(key);
+                    (ek_respond, ek_respond)
                 }
                 DefEventKind::Send(def_send) => {
                     let DefEventSend {
@@ -704,20 +708,21 @@ impl Builder {
                         payload: message_data.clone(),
                         scope_key: this_scope_key,
                     });
-                    EventKey::Send(key)
+                    let ek_send = EventKey::Send(key);
+                    (ek_send, ek_send)
                 }
             };
 
             if let Some(r) = this_event_required_to_be {
-                this_scope_requires.insert(this_key, *r);
+                this_scope_requires.insert(tail_key, *r);
             }
 
             if prerequisites.is_empty() {
-                let should_be_a_new_element = this_scope_entry_points.insert(this_key);
+                let should_be_a_new_element = this_scope_entry_points.insert(head_key);
                 assert!(
                     should_be_a_new_element,
                     "non unique entry point? {:?}",
-                    this_key
+                    head_key
                 );
             }
             for prerequisite in &prerequisites {
@@ -725,21 +730,22 @@ impl Builder {
                     .key_unblocks_values
                     .entry(*prerequisite)
                     .or_default()
-                    .insert(this_key);
+                    .insert(head_key);
 
                 assert!(
                     should_be_a_new_element,
                     "duplicate  relation: {:?} unblocks {:?}",
-                    *prerequisite, this_key
+                    *prerequisite, head_key
                 );
             }
 
-            trace!("  done: {:?} -> {:?}", this_name, this_key);
+            trace!("  done: {:?} -> {:?}-{:?}", this_name, head_key, tail_key);
 
-            if this_scope_name_to_key.insert(this_name, this_key).is_some() {
+            if this_scope_name_to_key.insert(this_name, tail_key).is_some() {
                 return Err(BuildError::DuplicateEventName(this_name.clone()));
             }
-            self.definition_order.push(this_key);
+            self.definition_order.push(head_key);
+            self.definition_order.push(tail_key);
         }
 
         for (name, key) in this_scope_name_to_key {
