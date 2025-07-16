@@ -49,15 +49,11 @@ pub enum BuildError<'a> {
 }
 
 impl Executable {
-    pub fn build(
-        messages: Messages,
-        scenario: &Scenario,
-        validate_types: bool,
-    ) -> Result<Self, BuildError> {
+    pub fn build(messages: Messages, scenario: &Scenario) -> Result<Self, BuildError> {
         debug!("building...");
 
         debug!("storing type-aliases...");
-        let type_aliases = type_aliases(&messages, &scenario.types, validate_types)?;
+        let type_aliases = type_aliases(&messages, &scenario.types)?;
         for (a, fqn) in &type_aliases {
             trace!("- {:?} -> {:?}", a, fqn);
         }
@@ -88,7 +84,6 @@ impl Executable {
 fn type_aliases<'a>(
     messages: &Messages,
     imports: impl IntoIterator<Item = &'a DefTypeAlias>,
-    validate_types: bool,
 ) -> Result<HashMap<MessageName, Arc<str>>, BuildError<'a>> {
     use std::collections::hash_map::Entry::Vacant;
     let mut aliases = HashMap::new();
@@ -96,11 +91,9 @@ fn type_aliases<'a>(
         let Vacant(entry) = aliases.entry(import.type_alias.to_owned()) else {
             return Err(BuildError::DuplicateAlias(&import.type_alias));
         };
-        if validate_types {
-            let _marshaller = messages
-                .resolve(&import.type_name)
-                .ok_or(BuildError::UnknownFqn(&import.type_name))?;
-        }
+        let _marshaller = messages
+            .resolve(&import.type_name)
+            .ok_or(BuildError::UnknownFqn(&import.type_name))?;
 
         entry.insert(import.type_name.as_str().into());
     }
