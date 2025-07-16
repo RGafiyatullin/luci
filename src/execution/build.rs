@@ -523,7 +523,7 @@ impl Builder {
 
                     let event_bind_in = {
                         let (dst, src) = if let Some(def_bind_in) = def_call.input.as_ref() {
-                            (def_bind_in.dst.clone(), def_bind_in.src.clone())
+                            (def_bind_in.dst.clone(), Msg::Bind(def_bind_in.src.clone()))
                         } else {
                             (json!(null), Msg::Literal(json!(null)))
                         };

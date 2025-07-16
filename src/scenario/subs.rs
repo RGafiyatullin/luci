@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use crate::{
     names::{ActorName, SubroutineName},
-    scenario::{no_extra::NoExtra, Msg},
+    scenario::no_extra::NoExtra,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,12 +29,12 @@ pub struct DefCallSub {
     #[serde(rename = "in")]
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub input: Option<DefBindInput>,
+    pub input: Option<DefSubBind>,
 
     #[serde(rename = "out")]
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub output: Option<DefBindOutput>,
+    pub output: Option<DefSubBind>,
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -45,16 +45,7 @@ pub struct DefCallSub {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DefBindInput {
-    pub dst: Value,
-    pub src: Msg,
-
-    #[serde(flatten)]
-    pub no_extra: NoExtra,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DefBindOutput {
+pub struct DefSubBind {
     pub dst: Value,
     pub src: Value,
 
