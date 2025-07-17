@@ -4,6 +4,7 @@ use std::{
     time::Duration,
 };
 
+use bimap::BiHashMap;
 use serde_json::Value;
 use slotmap::SlotMap;
 
@@ -103,16 +104,26 @@ struct EventRespond {
 }
 
 #[derive(Debug)]
-struct EventBind {
-    src_scope_key: KeyScope,
-    dst_scope_key: KeyScope,
-
-    dst: Value,
-    src: Msg,
-}
-
-#[derive(Debug)]
 struct EventDelay {
     delay_for: Duration,
     delay_step: Duration,
+}
+
+#[derive(Debug)]
+struct EventBind {
+    dst: Value,
+    src: Msg,
+
+    scope: BindScope,
+}
+
+#[derive(Debug)]
+enum BindScope {
+    Same(KeyScope),
+    Two {
+        src: KeyScope,
+        dst: KeyScope,
+
+        actors: BiHashMap<ActorName, ActorName>,
+    },
 }

@@ -7,7 +7,7 @@ use std::time::Duration;
 use tokio::time::Instant;
 use tracing::{debug, info, trace, warn};
 
-use crate::execution::KeyScope;
+use crate::execution::{BindScope, KeyScope};
 use crate::{
     bindings,
     execution::{
@@ -329,15 +329,20 @@ impl<'a> Runner<'a> {
             let EventBind {
                 dst,
                 src,
-                src_scope_key,
-                dst_scope_key,
+                scope: bind_scope,
             } = &events.bind[bind_key];
+
+            let (src_scope_key, dst_scope_key) = match bind_scope {
+                BindScope::Same(scope_id) => (*scope_id, *scope_id),
+                BindScope::Two { src, dst, .. } => (*src, *dst),
+            };
+
+            let src_scope = &self.scopes[src_scope_key];
 
             let value = match src {
                 Msg::Literal(value) => value.clone(),
                 Msg::Bind(template) => {
-                    bindings::render(template.clone(), &self.scopes[*src_scope_key])
-                        .map_err(RunError::BindError)?
+                    bindings::render(template.clone(), src_scope).map_err(RunError::BindError)?
                 }
                 Msg::Inject(key) => {
                     let m = marshalling.value(key).ok_or(RunError::Marshalling(
@@ -347,14 +352,41 @@ impl<'a> Runner<'a> {
                 }
             };
 
-            let mut scope_txn = self.scopes[*dst_scope_key].txn();
+            let mut dst_actor_names = vec![];
+            if let BindScope::Two { actors, .. } = bind_scope {
+                dst_actor_names.extend(actors.into_iter().filter_map(|(src_name, dst_name)| {
+                    src_scope
+                        .address_of(src_name)
+                        .zip(Some((src_name, dst_name)))
+                }));
+            }
 
-            if !bindings::bind_to_pattern(value, dst, &mut scope_txn) {
-                trace!("  could not bind {:?}", bind_key);
+            let mut dst_scope_txn = self.scopes[dst_scope_key].txn();
+
+            if !dst_actor_names
+                .into_iter()
+                .all(|(addr, (src_name, dst_name))| {
+                    let bound = dst_scope_txn.bind_actor(dst_name, addr);
+                    trace!(
+                        "  binding {:?}->{:?} {} [bound: {}]",
+                        src_name,
+                        dst_name,
+                        addr,
+                        bound
+                    );
+                    bound
+                })
+            {
+                trace!("could not bind actor-names");
                 continue;
             }
 
-            scope_txn.commit();
+            if !bindings::bind_to_pattern(value, dst, &mut dst_scope_txn) {
+                trace!("could not bind {:?}", bind_key);
+                continue;
+            }
+
+            dst_scope_txn.commit();
 
             actually_fired_events.push(EventKey::Bind(bind_key));
         }

@@ -9,8 +9,8 @@ use tracing::{debug, trace};
 
 use crate::{
     execution::{
-        EventBind, EventKey, KeyBind, KeyDelay, KeyRecv, KeyRespond, KeyScope, KeySend, KeySource,
-        ScopeInfo, Sources,
+        BindScope, EventBind, EventKey, KeyBind, KeyDelay, KeyRecv, KeyRespond, KeyScope, KeySend,
+        KeySource, ScopeInfo, Sources,
     },
     marshalling,
     names::SubroutineName,
@@ -528,10 +528,13 @@ impl Builder {
                             (json!(null), Msg::Literal(json!(null)))
                         };
                         EventBind {
-                            src_scope_key: this_scope_key,
-                            dst_scope_key: sub_scope_key,
                             dst,
                             src,
+                            scope: BindScope::Two {
+                                src: this_scope_key,
+                                dst: sub_scope_key,
+                                actors: def_call.cast.clone().unwrap_or_default(),
+                            },
                         }
                     };
                     let bind_in = self.events_bind.insert(event_bind_in);
@@ -556,10 +559,19 @@ impl Builder {
                             (json!(null), Msg::Literal(json!(null)))
                         };
                         EventBind {
-                            src_scope_key: sub_scope_key,
-                            dst_scope_key: this_scope_key,
                             dst,
                             src,
+                            scope: BindScope::Two {
+                                src: sub_scope_key,
+                                dst: this_scope_key,
+                                actors: def_call
+                                    .cast
+                                    .clone()
+                                    .unwrap_or_default()
+                                    .into_iter()
+                                    .map(|(l, r)| (r, l))
+                                    .collect(),
+                            },
                         }
                     };
                     let bind_out = self.events_bind.insert(event_bind_out);
@@ -605,8 +617,7 @@ impl Builder {
                     let key = self.events_bind.insert(EventBind {
                         dst,
                         src,
-                        dst_scope_key: this_scope_key,
-                        src_scope_key: this_scope_key,
+                        scope: BindScope::Same(this_scope_key),
                     });
 
                     let ek_bind = EventKey::Bind(key);
