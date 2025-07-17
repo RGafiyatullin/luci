@@ -8,6 +8,8 @@ use tokio::time::Instant;
 use tracing::{debug, info, trace, warn};
 
 use crate::execution::{BindScope, KeyScope};
+use crate::recorder::records;
+use crate::recorder::{RecordLog, Recorder};
 use crate::{
     bindings,
     execution::{
@@ -118,6 +120,9 @@ impl<'a> Runner<'a> {
     ///   completed without errors, either successfully or not.
     /// - [RunError] in case of any errors during the test run.
     pub async fn run(mut self) -> Result<Report, RunError> {
+        let mut record_log = RecordLog::new();
+        let mut recorder = record_log.recorder();
+
         let mut unreached = self.executable.events.required.clone();
         let mut reached = HashMap::new();
 
@@ -128,7 +133,7 @@ impl<'a> Runner<'a> {
         } {
             debug!("firing: {:?}", event_key);
 
-            let fired_events = self.fire_event(event_key).await?;
+            let fired_events = self.fire_event(&mut recorder, event_key).await?;
 
             for ek in fired_events.iter() {
                 // FIXME: show scope info too
@@ -207,11 +212,12 @@ impl<'a> Runner<'a> {
     // pub
     async fn fire_event(
         &mut self,
+        recorder: &mut Recorder<'_>,
         ready_event_key: ReadyEventKey,
     ) -> Result<Vec<EventKey>, RunError> {
-        let event_key_opt = EventKey::try_from(ready_event_key).ok();
+        let mut recorder = recorder.write(records::ProcessEventClass(ready_event_key));
 
-        if let Some(event_key) = event_key_opt {
+        if let Ok(event_key) = EventKey::try_from(ready_event_key) {
             if !self.ready_events.remove(&event_key) {
                 return Err(RunError::EventIsNotReady(ready_event_key));
             }
@@ -239,10 +245,10 @@ impl<'a> Runner<'a> {
         }
 
         let actually_fired_events = match ready_event_key {
-            ReadyEventKey::Bind => self.fire_event_bind().await?,
-            ReadyEventKey::Send(k) => self.fire_event_send(k).await?,
-            ReadyEventKey::Respond(k) => self.fire_event_respond(k).await?,
-            ReadyEventKey::RecvOrDelay => self.fire_event_recv_or_delay().await?,
+            ReadyEventKey::Bind => self.fire_event_bind(&mut recorder).await?,
+            ReadyEventKey::Send(k) => self.fire_event_send(&mut recorder, k).await?,
+            ReadyEventKey::Respond(k) => self.fire_event_respond(&mut recorder, k).await?,
+            ReadyEventKey::RecvOrDelay => self.fire_event_recv_or_delay(&mut recorder).await?,
         };
 
         self.process_dependencies_of_fired_events(actually_fired_events.iter().copied());
@@ -286,7 +292,10 @@ impl<'a> Runner<'a> {
         }
     }
 
-    async fn fire_event_bind(&mut self) -> Result<Vec<EventKey>, RunError> {
+    async fn fire_event_bind(
+        &mut self,
+        recorder: &mut Recorder<'_>,
+    ) -> Result<Vec<EventKey>, RunError> {
         let Executable {
             marshalling,
             events,
@@ -310,9 +319,11 @@ impl<'a> Runner<'a> {
         };
 
         trace!("ready_bind_keys: {:#?}", ready_bind_keys);
+        recorder.write(records::ReadyBindKeys(ready_bind_keys.clone()));
 
         let mut actually_fired_events = vec![];
         for bind_key in ready_bind_keys {
+            let mut recorder = recorder.write(records::ProcessBindKey(bind_key));
             self.ready_events.remove(&EventKey::Bind(bind_key));
 
             trace!(" binding {:?}", bind_key);
@@ -327,8 +338,10 @@ impl<'a> Runner<'a> {
                 BindScope::Two { src, dst, .. } => (*src, *dst),
             };
 
+            let mut recorder_src = recorder.write(records::BindSrcScope(src_scope_key));
             let src_scope = &self.scopes[src_scope_key];
 
+            recorder_src.write(records::UsingMsg(src.clone()));
             let value = match src {
                 Msg::Literal(value) => value.clone(),
                 Msg::Bind(template) => {
@@ -341,6 +354,7 @@ impl<'a> Runner<'a> {
                     serde_json::to_value(m).expect("can't serialize a message?")
                 }
             };
+            recorder_src.write(records::BindSrcValue(value.clone()));
 
             let mut dst_actor_names = vec![];
             if let BindScope::Two { actors, .. } = bind_scope {
@@ -351,12 +365,14 @@ impl<'a> Runner<'a> {
                 }));
             }
 
+            let mut recorder_dst = recorder.write(records::BindDstScope(dst_scope_key));
             let mut dst_scope_txn = self.scopes[dst_scope_key].txn();
 
             if !dst_actor_names
                 .into_iter()
                 .all(|(addr, (src_name, dst_name))| {
                     let bound = dst_scope_txn.bind_actor(dst_name, addr);
+                    recorder_dst.write(records::BindActorName(dst_name.clone(), addr, bound));
                     trace!(
                         "  binding {:?}->{:?} {} [bound: {}]",
                         src_name,
@@ -367,24 +383,32 @@ impl<'a> Runner<'a> {
                     bound
                 })
             {
+                recorder.write(records::BindOutcome(false));
                 trace!("could not bind actor-names");
                 continue;
             }
 
+            // TODO: pass the recorder_dst inside
             if !bindings::bind_to_pattern(value, dst, &mut dst_scope_txn) {
+                recorder.write(records::BindOutcome(false));
                 trace!("could not bind {:?}", bind_key);
                 continue;
             }
 
+            recorder.write(records::BindOutcome(true));
             dst_scope_txn.commit();
 
+            recorder.write(records::EventFired(bind_key.into()));
             actually_fired_events.push(EventKey::Bind(bind_key));
         }
 
         Ok(actually_fired_events)
     }
 
-    async fn fire_event_recv_or_delay(&mut self) -> Result<Vec<EventKey>, RunError> {
+    async fn fire_event_recv_or_delay(
+        &mut self,
+        recorder: &mut Recorder<'_>,
+    ) -> Result<Vec<EventKey>, RunError> {
         let Executable {
             marshalling,
             events,
@@ -415,6 +439,7 @@ impl<'a> Runner<'a> {
             };
 
             trace!("ready_recv_keys: {:#?}", ready_recv_keys);
+            recorder.write(records::ReadyRecvKeys(ready_recv_keys.clone()));
 
             let mut unmatched_envelopes = 0;
 
@@ -549,7 +574,11 @@ impl<'a> Runner<'a> {
         Ok(actually_fired_events)
     }
 
-    async fn fire_event_send(&mut self, event_key: KeySend) -> Result<Vec<EventKey>, RunError> {
+    async fn fire_event_send(
+        &mut self,
+        recorder: &mut Recorder<'_>,
+        event_key: KeySend,
+    ) -> Result<Vec<EventKey>, RunError> {
         let Executable {
             marshalling,
             events: vertices,
@@ -566,6 +595,7 @@ impl<'a> Runner<'a> {
             " sending {:?} [from: {:?}; to: {:?}]",
             message_type, send_from, send_to
         );
+        recorder.write(records::ProcessSend(event_key));
 
         let send_to_addr_opt = send_to
             .as_ref()
@@ -576,15 +606,23 @@ impl<'a> Runner<'a> {
                 if self.proxies.iter().any(|(_, p)| p.addr() == addr) {
                     return Err(RunError::DummyName(actor_name.clone()));
                 }
+
+                recorder.write(records::ResolveActorName(actor_name.clone(), addr));
+
                 Ok(addr)
             })
             .transpose()?;
 
         let proxy = if let Some(addr) = self.scopes[*scope_key].address_of(send_from) {
-            self.proxies
+            let proxy = self
+                .proxies
                 .values_mut()
                 .find(|p| p.addr() == addr)
-                .ok_or_else(|| RunError::ActorName(send_from.clone()))?
+                .ok_or_else(|| RunError::ActorName(send_from.clone()))?;
+
+            recorder.write(records::ResolveActorName(send_from.clone(), proxy.addr()));
+
+            proxy
         } else {
             let new_proxy = self.proxies[self.main_proxy_key].subproxy().await;
             let new_addr = new_proxy.addr();
@@ -594,10 +632,14 @@ impl<'a> Runner<'a> {
                 "this name has just been unbound!"
             );
             txn.commit();
+            recorder.write(records::BindActorName(send_from.clone(), new_addr, true));
 
             let proxy_key = self.proxies.insert(new_proxy);
             &mut self.proxies[proxy_key]
         };
+
+        recorder.write(records::SendMessageType(message_type.clone()));
+        recorder.write(records::UsingMsg(message_data.clone()));
 
         let marshaller = self
             .executable
@@ -605,10 +647,12 @@ impl<'a> Runner<'a> {
             .resolve(&message_type)
             .expect("invalid FQN");
 
+        // TODO: pass the recorder inside of marshaller to record the actually rendered message
         let any_message = marshaller
             .marshal_outbound_message(&marshalling, &self.scopes[*scope_key], message_data.clone())
             .map_err(RunError::Marshalling)?;
 
+        recorder.write(records::SendTo(send_to_addr_opt));
         if let Some(dst_addr) = send_to_addr_opt {
             trace!(
                 "sending directly [from: {}; to: {}]: {:?}",
@@ -626,10 +670,15 @@ impl<'a> Runner<'a> {
             let () = proxy.send(any_message).await;
         }
 
+        recorder.write(records::EventFired(event_key.into()));
         Ok(vec![EventKey::Send(event_key)])
     }
 
-    async fn fire_event_respond(&mut self, k: KeyRespond) -> Result<Vec<EventKey>, RunError> {
+    async fn fire_event_respond(
+        &mut self,
+        recorder: &mut Recorder<'_>,
+        event_key: KeyRespond,
+    ) -> Result<Vec<EventKey>, RunError> {
         let Executable {
             marshalling,
             events: vertices,
@@ -642,11 +691,13 @@ impl<'a> Runner<'a> {
             respond_from,
             payload: message_data,
             scope_key,
-        } = &vertices.respond[k];
+        } = &vertices.respond[event_key];
         debug!(
             " responding to a {:?} [from: {:?}]",
             request_fqn, respond_from
         );
+
+        recorder.write(records::ProcessRespond(event_key));
 
         let proxy_key = if let Some(respond_from) = respond_from {
             if let Some(addr) = self.scopes[*scope_key].address_of(respond_from) {
@@ -691,6 +742,10 @@ impl<'a> Runner<'a> {
         };
 
         let responding_proxy = &mut self.proxies[proxy_key];
+
+        recorder.write(records::UsingMsg(message_data.clone()));
+
+        // TODO: pass the recorder inside to record what actual value is being sent
         response_marshaller
             .respond(
                 responding_proxy,
@@ -702,7 +757,8 @@ impl<'a> Runner<'a> {
             .await
             .map_err(RunError::Marshalling)?;
 
-        Ok(vec![EventKey::Respond(k)])
+        recorder.write(records::EventFired(event_key.into()));
+        Ok(vec![EventKey::Respond(event_key)])
     }
 }
 

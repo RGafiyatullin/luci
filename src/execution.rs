@@ -18,9 +18,8 @@ mod keys;
 pub use keys::*;
 
 mod build;
-mod recorder;
 mod report;
-mod runner;
+pub(crate) mod runner;
 mod sources;
 
 pub use build::BuildError;
@@ -31,7 +30,7 @@ pub use sources::SourceCode;
 pub use sources::SourceCodeLoader;
 
 /// A key corresponding to some event during test execution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::From)]
 pub enum EventKey {
     Bind(KeyBind),
     Send(KeySend),
