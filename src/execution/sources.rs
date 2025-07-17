@@ -114,8 +114,14 @@ impl SourceLoader {
         self
     }
 
-    pub fn load(&self, main: impl Into<PathBuf>) -> Result<(KeySource, Sources), LoadError> {
-        let main = path_sanitize(&main.into())?;
+    /// Loads the the scenario from the specified path.
+    ///
+    /// Returns the [`KeySource`] of the entry point along with the [`Sources`].
+    pub fn load(
+        &self,
+        entry_point_scenario: impl Into<PathBuf>,
+    ) -> Result<(KeySource, Sources), LoadError> {
+        let main = path_sanitize(&entry_point_scenario.into())?;
 
         let mut sources: Sources = Default::default();
         let mut context = LoaderContext {
