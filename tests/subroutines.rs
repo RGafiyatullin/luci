@@ -118,8 +118,8 @@ async fn run_scenario(scenario_file: &str, search_path: &[&str]) {
         .with_search_path(search_path)
         .load(scenario_file)
         .expect("SourceLoader::load");
-    let exec_graph = Executable::build(marshalling, &sources, key_main).expect("building graph");
-    let report = exec_graph
+    let executable = Executable::build(marshalling, &sources, key_main).expect("building graph");
+    let report = executable
         .start(socialite::blueprint(), json!(null))
         .await
         .run()
@@ -127,4 +127,7 @@ async fn run_scenario(scenario_file: &str, search_path: &[&str]) {
         .expect("runner.run");
 
     assert!(report.is_ok(), "{}", report.message());
+    report
+        .dump_record_log(std::io::stderr().lock(), &sources, &executable)
+        .expect("ew...");
 }
