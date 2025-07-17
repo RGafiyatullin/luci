@@ -125,7 +125,7 @@ impl SourceCodeLoader {
 
         let mut sources: SourceCode = Default::default();
         let mut context = LoaderContext {
-            loader: self,
+            search_path: &self.search_path,
             this_dir: &Path::new("."),
             this_file: &main,
             sources: &mut sources,
@@ -137,7 +137,7 @@ impl SourceCodeLoader {
 }
 
 struct LoaderContext<'a> {
-    loader: &'a SourceCodeLoader,
+    search_path: &'a [PathBuf],
     this_dir: &'a Path,
     this_file: &'a Path,
     sources: &'a mut SourceCode,
@@ -170,7 +170,7 @@ impl<'a> LoaderContext<'a> {
         for import in subroutines {
             let parent_keys = &mut *PopOnDrop::new(parent_keys, source_key);
             let mut context = LoaderContext {
-                loader: &self.loader,
+                search_path: self.search_path,
                 this_dir: &base_dir,
                 this_file: &sanitize_path(&import.file_name)?,
                 sources: self.sources,
@@ -201,8 +201,7 @@ impl<'a> LoaderContext<'a> {
         }
 
         let candidates = std::iter::once(self.this_dir.join(self.this_file)).chain(
-            self.loader
-                .search_path
+            self.search_path
                 .iter()
                 .inspect(|p| trace!("search-path candidate: {:?}", p))
                 .filter(|search_path| search_path.is_dir())
