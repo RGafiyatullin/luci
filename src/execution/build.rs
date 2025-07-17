@@ -12,8 +12,8 @@ use tracing::{debug, trace};
 
 use crate::{
     execution::{
-        BindScope, EventBind, EventKey, KeyBind, KeyDelay, KeyRecv, KeyRespond, KeyScope, KeySend,
-        KeySource, ScopeInfo, Sources,
+        BindScope, EventBind, EventKey, KeyBind, KeyDelay, KeyRecv, KeyRespond, KeyScenario,
+        KeyScope, KeySend, ScopeInfo, SourceCode,
     },
     marshalling,
     names::SubroutineName,
@@ -70,8 +70,8 @@ impl Executable {
     ///
     pub fn build(
         marshalling: MarshallingRegistry,
-        sources: &Sources,
-        entry_point: KeySource,
+        source_code: &SourceCode,
+        entry_point_key: KeyScenario,
     ) -> Result<Self, BuildError> {
         debug!("building...");
 
@@ -81,7 +81,7 @@ impl Executable {
             scope_key,
             entry_points,
             require: required,
-        } = builder.add_subgraph(&marshalling, sources, entry_point, None)?;
+        } = builder.add_subgraph(&marshalling, source_code, entry_point_key, None)?;
         let Builder {
             scopes,
             event_names,
@@ -196,8 +196,8 @@ impl Builder {
     fn add_subgraph(
         &mut self,
         marshalling: &MarshallingRegistry,
-        sources: &Sources,
-        source_key: KeySource,
+        sources: &SourceCode,
+        source_key: KeyScenario,
         invoked_as: Option<(KeyScope, EventName, SubroutineName)>,
     ) -> Result<SubgraphAdded, BuildError> {
         let this_source = &sources[source_key];
@@ -237,12 +237,12 @@ impl Builder {
             let (head_key, tail_key) = match kind {
                 DefEventKind::Call(def_call) => {
                     let sub_source_key = this_source
-                        .subs
+                        .subroutines
                         .get(&def_call.subroutine_name)
                         .copied()
                         .ok_or_else(|| {
-                        BuildError::UnknownSubroutine(def_call.subroutine_name.clone())
-                    })?;
+                            BuildError::UnknownSubroutine(def_call.subroutine_name.clone())
+                        })?;
                     let SubgraphAdded {
                         scope_key: sub_scope_key,
                         entry_points: sub_entry_points,

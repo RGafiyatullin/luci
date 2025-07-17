@@ -1,6 +1,6 @@
 use insta::{assert_debug_snapshot, assert_yaml_snapshot};
 use luci::{
-    execution::{Executable, SourceLoader},
+    execution::{Executable, SourceCodeLoader},
     marshalling::{MarshallingRegistry, Mock},
     scenario::Scenario,
 };
@@ -31,7 +31,9 @@ fn run(name: &str, build_executable_with_messages: Option<Vec<(&str, bool)>>) {
             marshalling = marshalling.with(Mock::new(fqn, is_request));
         }
 
-        let (key_main, sources) = SourceLoader::new().load(file).expect("SourceLoader::load");
+        let (key_main, sources) = SourceCodeLoader::new()
+            .load(file)
+            .expect("SourceLoader::load");
 
         let _executable =
             Executable::build(marshalling, &sources, key_main).expect("Executable::build");

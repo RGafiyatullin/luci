@@ -26,8 +26,8 @@ pub use build::BuildError;
 pub use report::Report;
 pub use runner::RunError;
 pub use runner::Runner;
-pub use sources::SourceLoader;
-pub use sources::Sources;
+pub use sources::SourceCode;
+pub use sources::SourceCodeLoader;
 
 /// A key corresponding to some event during test execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -52,7 +52,7 @@ pub struct Executable {
 // the fields of this structure can be used to build a sort of stack-trace, which might be useful
 #[allow(dead_code)]
 struct ScopeInfo {
-    source_key: KeySource,
+    source_key: KeyScenario,
     invoked_as: Option<(KeyScope, EventName, SubroutineName)>,
 }
 

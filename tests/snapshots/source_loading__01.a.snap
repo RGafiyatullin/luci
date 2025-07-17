@@ -4,7 +4,7 @@ expression: outcome
 ---
 Ok(
     (
-        KeySource(
+        KeyScenario(
             1v1,
         ),
         {

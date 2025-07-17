@@ -1,5 +1,5 @@
 use luci::execution::Executable;
-use luci::execution::SourceLoader;
+use luci::execution::SourceCodeLoader;
 use luci::marshalling::MarshallingRegistry;
 use luci::marshalling::Regular;
 use luci::marshalling::Request;
@@ -114,7 +114,7 @@ async fn run_scenario(scenario_file: &str, search_path: &[&str]) {
         .with(Regular::<crate::proto::partying::Chug>)
         .with(Regular::<crate::proto::partying::Gulp>);
 
-    let (key_main, sources) = SourceLoader::new()
+    let (key_main, sources) = SourceCodeLoader::new()
         .with_search_path(search_path)
         .load(scenario_file)
         .expect("SourceLoader::load");

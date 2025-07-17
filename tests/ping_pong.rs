@@ -1,5 +1,5 @@
 use luci::{
-    execution::{Executable, SourceLoader},
+    execution::{Executable, SourceCodeLoader},
     marshalling::{MarshallingRegistry, Regular},
     scenario::RequiredToBe,
 };
@@ -139,7 +139,7 @@ async fn run_scenario(scenario_file: &str) {
         .with(Regular::<crate::proto::Ping>)
         .with(Regular::<crate::proto::Pong>)
         .with(Regular::<crate::proto::Bye>);
-    let (key_main, sources) = SourceLoader::new()
+    let (key_main, sources) = SourceCodeLoader::new()
         .load(scenario_file)
         .expect("SourceLoader::load");
     let exec_graph = Executable::build(marshalling, &sources, key_main).expect("building graph");

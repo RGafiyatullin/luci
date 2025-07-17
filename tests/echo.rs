@@ -1,5 +1,5 @@
 use luci::{
-    execution::{Executable, SourceLoader},
+    execution::{Executable, SourceCodeLoader},
     marshalling::{MarshallingRegistry, Regular, Request},
 };
 use serde_json::json;
@@ -75,7 +75,7 @@ async fn run_scenario(scenario_file: &str) {
         .with(Request::<crate::proto::R>)
         .with(Regular::<crate::proto::Hey>);
 
-    let (key_main, sources) = SourceLoader::new()
+    let (key_main, sources) = SourceCodeLoader::new()
         .load(scenario_file)
         .expect("SourceLoader::load");
     let exec_graph = Executable::build(marshalling, &sources, key_main).expect("building graph");

@@ -13,5 +13,5 @@ new_key_type! {
 }
 
 new_key_type! {
-    pub struct KeySource;
+    pub struct KeyScenario;
 }

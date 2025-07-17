@@ -1,13 +1,13 @@
 //! This module is responsible for recursively loading a scenario along with its dependencies.
 //!
-//! Use a [`SourceLoader`] to load a scenario from the file to a [`Sources`].
+//! Use a [`SourceCodeLoader`] to load a scenario from the file to a [`SourceCode`].
 //!
-//! [`SourceLoader`] as a concept of search-path — a list of paths that will be checked for when trying to resolve an included file.
+//! [`SourceCodeLoader`] as a concept of search-path — a list of paths that will be checked for when trying to resolve an included file.
 //!
 //! Example:
 //!
 //! ```rust
-//! let (entry_point_key, sources) = SourceLoader::new()
+//! let (entry_point_key, sources) = SourceCodeLoader::new()
 //!     .with_search_path([
 //!         "../../tests-stdlib",
 //!         "../../list-of-episodes",
@@ -18,16 +18,16 @@
 //!     .expect("something went awry");
 //! ```
 //!
-//! An instance of [`Sources`] contains a list of [scenarios](`Scenario`) in it.
+//! An instance of [`SourceCode`] contains a list of [scenarios](`Scenario`) in it.
 //! It is guaranteed that the all the scenarios are syntactically correct,
 //! refer to only existing scenarios, and make no cycles in refering to other scenarios.
 //!
-//! [`Sources`] is essentially a map from some [`KeySource`] into a [`Source`],
-//! and a lookup table from the path on the filesystem to a [`KeySource`].
+//! [`SourceCode`] is essentially a map from some [`KeyScenario`] into a [`SingleScenarioSource`],
+//! and a lookup table from the path on the filesystem to a [`KeyScenario`].
 //!
-//! Each [`Source`] contains the parsed [`Scenario`],
+//! Each [`SingleScenarioSource`] contains the parsed [`Scenario`],
 //! and the table of subroutines refered by this scenario as
-//! a map from [`SubroutineName`] to the [`KeySource`] corresponding to the subroutine's scenario.
+//! a map from [`SubroutineName`] to the [`KeyScenario`] corresponding to the subroutine's scenario.
 //!
 
 use std::{
@@ -41,7 +41,7 @@ use std::{
 use slotmap::SlotMap;
 use tracing::trace;
 
-use crate::{execution::KeySource, names::SubroutineName, scenario::Scenario};
+use crate::{execution::KeyScenario, names::SubroutineName, scenario::Scenario};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
@@ -68,31 +68,31 @@ pub enum LoadError {
 }
 
 #[derive(Debug)]
-pub struct SourceLoader {
+pub struct SourceCodeLoader {
     pub search_path: Vec<PathBuf>,
 }
 
 #[derive(Default)]
-pub struct Sources {
-    by_effective_path: BTreeMap<Arc<Path>, KeySource>,
-    sources: SlotMap<KeySource, Source>,
+pub struct SourceCode {
+    by_effective_path: BTreeMap<Arc<Path>, KeyScenario>,
+    sources: SlotMap<KeyScenario, SingleScenarioSource>,
 }
 
-pub struct Source {
+pub struct SingleScenarioSource {
     pub source_file: Arc<Path>,
     pub scenario: Scenario,
-    pub subs: BTreeMap<SubroutineName, KeySource>,
+    pub subroutines: BTreeMap<SubroutineName, KeyScenario>,
 }
 
-impl Index<KeySource> for Sources {
-    type Output = Source;
+impl Index<KeyScenario> for SourceCode {
+    type Output = SingleScenarioSource;
 
-    fn index(&self, index: KeySource) -> &Self::Output {
+    fn index(&self, index: KeyScenario) -> &Self::Output {
         &self.sources[index]
     }
 }
 
-impl SourceLoader {
+impl SourceCodeLoader {
     pub fn new() -> Self {
         Default::default()
     }
@@ -120,10 +120,10 @@ impl SourceLoader {
     pub fn load(
         &self,
         entry_point_scenario: impl Into<PathBuf>,
-    ) -> Result<(KeySource, Sources), LoadError> {
+    ) -> Result<(KeyScenario, SourceCode), LoadError> {
         let main = sanitize_path(&entry_point_scenario.into())?;
 
-        let mut sources: Sources = Default::default();
+        let mut sources: SourceCode = Default::default();
         let mut context = LoaderContext {
             loader: self,
             this_dir: &Path::new("."),
@@ -137,26 +137,26 @@ impl SourceLoader {
 }
 
 struct LoaderContext<'a> {
-    loader: &'a SourceLoader,
+    loader: &'a SourceCodeLoader,
     this_dir: &'a Path,
     this_file: &'a Path,
-    sources: &'a mut Sources,
+    sources: &'a mut SourceCode,
 }
 
-impl Default for SourceLoader {
+impl Default for SourceCodeLoader {
     fn default() -> Self {
-        SourceLoader {
+        SourceCodeLoader {
             search_path: vec![".".into()],
         }
     }
 }
 
 impl<'a> LoaderContext<'a> {
-    fn load(&mut self) -> Result<KeySource, LoadError> {
-        let mut parent_keys: Vec<KeySource> = vec![];
+    fn load(&mut self) -> Result<KeyScenario, LoadError> {
+        let mut parent_keys: Vec<KeyScenario> = vec![];
         self.load_inner(&mut parent_keys)
     }
-    fn load_inner(&mut self, parent_keys: &mut Vec<KeySource>) -> Result<KeySource, LoadError> {
+    fn load_inner(&mut self, parent_keys: &mut Vec<KeyScenario>) -> Result<KeyScenario, LoadError> {
         let effective_path = self.choose_effective_path()?;
         let source_key = self.read_scenario(effective_path.as_ref())?;
 
@@ -177,7 +177,7 @@ impl<'a> LoaderContext<'a> {
             };
             let sub_source_key = context.load_inner(parent_keys)?;
             if self.sources.sources[source_key]
-                .subs
+                .subroutines
                 .insert(import.subroutine_name.clone(), sub_source_key)
                 .is_some()
             {
@@ -219,7 +219,7 @@ impl<'a> LoaderContext<'a> {
         Ok(effective_path)
     }
 
-    fn read_scenario(&mut self, effective_path: &Path) -> Result<KeySource, LoadError> {
+    fn read_scenario(&mut self, effective_path: &Path) -> Result<KeyScenario, LoadError> {
         if let Some(key) = self.sources.by_effective_path.get(effective_path).copied() {
             Ok(key)
         } else {
@@ -227,10 +227,10 @@ impl<'a> LoaderContext<'a> {
             let scenario: Scenario =
                 serde_yaml::from_str(&source_code).map_err(LoadError::Syntax)?;
             let source_file: Arc<Path> = effective_path.into();
-            let source = Source {
+            let source = SingleScenarioSource {
                 scenario,
                 source_file: source_file.clone(),
-                subs: Default::default(),
+                subroutines: Default::default(),
             };
             let key = self.sources.sources.insert(source);
             self.sources.by_effective_path.insert(source_file, key);
@@ -251,7 +251,7 @@ fn sanitize_path(p: &Path) -> Result<PathBuf, LoadError> {
         .collect::<Result<PathBuf, LoadError>>()
 }
 
-impl Source {
+impl SingleScenarioSource {
     fn base_dir(&self) -> &Path {
         self.source_file.parent().unwrap_or(Path::new("."))
     }
@@ -283,7 +283,7 @@ impl<'a, T> Drop for PopOnDrop<'a, T> {
 }
 
 // this implementation is needed for the tests (tests/source_loading.rs)
-impl fmt::Debug for Sources {
+impl fmt::Debug for SourceCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut f = f.debug_map();
 
@@ -296,9 +296,9 @@ impl fmt::Debug for Sources {
 }
 
 // this implementation is needed for the tests (tests/soruce_loading.rs)
-impl fmt::Debug for Source {
+impl fmt::Debug for SingleScenarioSource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let sub_names = self.subs.keys().collect::<BTreeSet<_>>();
+        let sub_names = self.subroutines.keys().collect::<BTreeSet<_>>();
         f.debug_struct("Source")
             .field("source_file", &self.source_file)
             .field("subs", &sub_names)
