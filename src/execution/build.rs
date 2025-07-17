@@ -62,9 +62,9 @@ pub enum BuildError {
 }
 
 impl Executable {
-    pub fn build<'a>(
+    pub fn build(
         marshalling: MarshallingRegistry,
-        sources: &'a Sources,
+        sources: &Sources,
         main: KeySource,
     ) -> Result<Self, BuildError> {
         debug!("building...");
