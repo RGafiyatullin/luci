@@ -1,9 +1,11 @@
 use std::{collections::HashMap, io};
 
+use slotmap::SlotMap;
+
 use crate::{
     execution::{Executable, SourceCode},
     names::EventName,
-    recorder::RecordLog,
+    recorder::{KeyRecord, Record, RecordLog},
     scenario::RequiredToBe,
 };
 
@@ -76,10 +78,35 @@ Unreached:
     }
 
     pub fn dump_record_log(
-        mut _io: impl std::io::Read,
+        &self,
+        mut io: impl std::io::Write,
         _sources: &SourceCode,
         _executable: &Executable,
     ) -> Result<(), io::Error> {
-        unimplemented!()
+        use std::io::Write;
+
+        fn dump(
+            io: &mut impl Write,
+            depth: usize,
+            records: &SlotMap<KeyRecord, Record>,
+            this_key: KeyRecord,
+        ) -> Result<(), io::Error> {
+            write!(io, "{:1$}", "", depth)?;
+            writeln!(io, "{:?}", this_key)?;
+
+            let this = &records[this_key];
+            for child_key in this.children.iter().copied() {
+                dump(io, depth + 1, records, child_key)?;
+            }
+
+            Ok(())
+        }
+
+        for root_key in self.record_log.roots.iter().copied() {
+            writeln!(io, "ROOT: {:?}", root_key)?;
+            dump(&mut io, 0, &self.record_log.records, root_key)?;
+        }
+
+        Ok(())
     }
 }

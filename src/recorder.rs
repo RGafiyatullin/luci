@@ -20,8 +20,9 @@ new_key_type! {
 
 #[derive(Debug, Clone)]
 pub struct RecordLog {
-    t_zero: (StdInstant, RtInstant),
-    records: SlotMap<KeyRecord, Record>,
+    pub(crate) t_zero: (StdInstant, RtInstant),
+    pub(crate) roots: Vec<KeyRecord>,
+    pub(crate) records: SlotMap<KeyRecord, Record>,
 }
 
 #[derive(Debug)]
@@ -45,6 +46,7 @@ pub(crate) struct Record {
 
 #[derive(Debug, Clone, derive_more::From)]
 pub(crate) enum RecordKind {
+    Root,
     Error(records::Error),
     CallFireEvent(records::ProcessEventClass),
     EventFired(records::EventFired),
@@ -69,6 +71,7 @@ impl RecordLog {
         let t_zero = (StdInstant::now(), RtInstant::now());
         Self {
             t_zero,
+            roots: Default::default(),
             records: Default::default(),
         }
     }
@@ -78,10 +81,24 @@ impl RecordLog {
     }
 
     pub(crate) fn recorder(&mut self) -> Recorder {
+        let at = (StdInstant::now(), RtInstant::now());
+        let kind = RecordKind::Root;
+        let parent = None;
+        let root_record = Record {
+            at,
+            parent,
+            children: vec![],
+            previous: None,
+            kind,
+
+            _no_pub_constructor: NoPubConstructor,
+        };
+        let root_key = self.records.insert(root_record);
+        self.roots.push(root_key);
         Recorder {
             log: self,
-            parent: None,
-            last: None,
+            parent: Some(root_key),
+            last: Some(root_key),
         }
     }
 }
