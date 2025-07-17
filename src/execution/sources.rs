@@ -121,7 +121,7 @@ impl SourceLoader {
         &self,
         entry_point_scenario: impl Into<PathBuf>,
     ) -> Result<(KeySource, Sources), LoadError> {
-        let main = path_sanitize(&entry_point_scenario.into())?;
+        let main = sanitize_path(&entry_point_scenario.into())?;
 
         let mut sources: Sources = Default::default();
         let mut context = LoaderContext {
@@ -172,7 +172,7 @@ impl<'a> LoaderContext<'a> {
             let mut context = LoaderContext {
                 loader: &self.loader,
                 this_dir: &base_dir,
-                this_file: &path_sanitize(&import.file_name)?,
+                this_file: &sanitize_path(&import.file_name)?,
                 sources: self.sources,
             };
             let sub_source_key = context.load_inner(parent_keys)?;
@@ -240,7 +240,7 @@ impl<'a> LoaderContext<'a> {
     }
 }
 
-fn path_sanitize(p: &Path) -> Result<PathBuf, LoadError> {
+fn sanitize_path(p: &Path) -> Result<PathBuf, LoadError> {
     use std::path::Component::*;
     p.components()
         .filter_map(|pc| match pc {
