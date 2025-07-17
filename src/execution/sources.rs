@@ -249,7 +249,7 @@ impl<'a, T> Drop for PopOnDrop<'a, T> {
     }
 }
 
-// this implementation is needed for the tests (tests/soruce_loading.rs)
+// this implementation is needed for the tests (tests/source_loading.rs)
 impl fmt::Debug for Sources {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut f = f.debug_map();
