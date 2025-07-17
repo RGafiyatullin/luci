@@ -74,7 +74,7 @@ pub(crate) trait Marshal {
     /// Binds values in `msg` with `bindings` and marshals it as [AnyMessage].
     fn marshal_outbound_message(
         &self,
-        messages: &MarshallingRegistry,
+        marshalling: &MarshallingRegistry,
         bindings: &bindings::Scope,
         msg: Msg,
     ) -> Result<AnyMessage, AnError>;
@@ -169,9 +169,9 @@ impl RegisterMarshaller for Injected {
 }
 
 impl RegisterMarshaller for Mock {
-    fn register(self, messages: &mut MarshallingRegistry) {
+    fn register(self, marshalling: &mut MarshallingRegistry) {
         let fqn = self.fqn.clone();
-        let should_be_none = messages.marshallers.insert(fqn, Box::new(self));
+        let should_be_none = marshalling.marshallers.insert(fqn, Box::new(self));
         assert!(should_be_none.is_none(), "duplicate FQN");
     }
 }
@@ -179,7 +179,7 @@ impl RegisterMarshaller for Mock {
 impl Marshal for Mock {
     fn marshal_outbound_message(
         &self,
-        _messages: &MarshallingRegistry,
+        _marshalling: &MarshallingRegistry,
         _bindings: &bindings::Scope,
         _msg: Msg,
     ) -> Result<AnyMessage, AnError> {

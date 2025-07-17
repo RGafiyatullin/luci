@@ -566,7 +566,7 @@ impl<'a> Runner<'a> {
         actually_fired_events: &mut Vec<EventKey>,
     ) -> Result<(), RunError> {
         let Executable {
-            marshalling: messages,
+            marshalling,
             events: vertices,
             ..
         } = self.executable;
@@ -621,7 +621,7 @@ impl<'a> Runner<'a> {
             .expect("invalid FQN");
 
         let any_message = marshaller
-            .marshal_outbound_message(&messages, &self.scopes[*scope_key], message_data.clone())
+            .marshal_outbound_message(&marshalling, &self.scopes[*scope_key], message_data.clone())
             .map_err(RunError::Marshalling)?;
 
         if let Some(dst_addr) = send_to_addr_opt {
@@ -652,7 +652,7 @@ impl<'a> Runner<'a> {
         actually_fired_events: &mut Vec<EventKey>,
     ) -> Result<(), RunError> {
         let Executable {
-            marshalling: messages,
+            marshalling,
             events: vertices,
             ..
         } = self.executable;
@@ -716,7 +716,7 @@ impl<'a> Runner<'a> {
             .respond(
                 responding_proxy,
                 token,
-                &messages,
+                &marshalling,
                 &self.scopes[*scope_key],
                 message_data.clone(),
             )

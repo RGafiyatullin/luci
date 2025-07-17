@@ -26,14 +26,14 @@ fn run(name: &str, build_executable_with_messages: Option<Vec<(&str, bool)>>) {
     assert_yaml_snapshot!(format!("{name}-yaml"), scenario);
 
     if let Some(ms) = build_executable_with_messages {
-        let mut messages = MarshallingRegistry::new();
+        let mut marshalling = MarshallingRegistry::new();
         for (fqn, is_request) in ms {
-            messages = messages.with(Mock::new(fqn, is_request));
+            marshalling = marshalling.with(Mock::new(fqn, is_request));
         }
 
         let (key_main, sources) = SourceLoader::new().load(file).expect("SourceLoader::load");
 
         let _executable =
-            Executable::build(messages, &sources, key_main).expect("Executable::build");
+            Executable::build(marshalling, &sources, key_main).expect("Executable::build");
     }
 }
