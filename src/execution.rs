@@ -18,6 +18,7 @@ mod keys;
 pub use keys::*;
 
 mod build;
+mod recorder;
 mod report;
 mod runner;
 mod sources;
