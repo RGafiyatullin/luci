@@ -62,10 +62,16 @@ pub enum BuildError {
 }
 
 impl Executable {
+    /// Build an executable.
+    /// Needs
+    /// - [`MarshallingRegistry`] with all the used messages registered;
+    /// - [`Sources`] with the loaded scenarios;
+    /// - [`KeySource`] specifying the entry point in the sources.
+    ///
     pub fn build(
         marshalling: MarshallingRegistry,
         sources: &Sources,
-        main: KeySource,
+        entry_point: KeySource,
     ) -> Result<Self, BuildError> {
         debug!("building...");
 
@@ -75,7 +81,7 @@ impl Executable {
             scope_key,
             entry_points,
             require: required,
-        } = builder.add_subgraph(&marshalling, sources, main, None)?;
+        } = builder.add_subgraph(&marshalling, sources, entry_point, None)?;
         let Builder {
             scopes,
             event_names,
