@@ -1,14 +1,17 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, io};
 
-use serde::{Deserialize, Serialize};
+use crate::{
+    execution::{Executable, SourceCode},
+    names::EventName,
+    recorder::RecordLog,
+    scenario::RequiredToBe,
+};
 
-use crate::{names::EventName, scenario::RequiredToBe};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Report {
     pub reached: HashMap<EventName, RequiredToBe>,
     pub unreached: HashMap<EventName, RequiredToBe>,
-    // record_log: RecordLog,
+    pub record_log: RecordLog,
 }
 
 impl Report {
@@ -70,5 +73,13 @@ Unreached:
         }
 
         out
+    }
+
+    pub fn dump_record_log(
+        mut _io: impl std::io::Read,
+        _sources: &SourceCode,
+        _executable: &Executable,
+    ) -> Result<(), io::Error> {
+        unimplemented!()
     }
 }
