@@ -8,6 +8,7 @@ use crate::{names::EventName, scenario::RequiredToBe};
 pub struct Report {
     pub reached: HashMap<EventName, RequiredToBe>,
     pub unreached: HashMap<EventName, RequiredToBe>,
+    // record_log: RecordLog,
 }
 
 impl Report {

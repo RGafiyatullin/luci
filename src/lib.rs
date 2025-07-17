@@ -9,6 +9,7 @@
 pub mod execution;
 pub mod marshalling;
 pub mod names;
+pub mod recorder;
 pub mod scenario;
 pub mod visualization;
 
