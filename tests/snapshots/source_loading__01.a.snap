@@ -13,7 +13,7 @@ Ok(
                 subs: {},
                 scenario: Scenario {
                     types: [],
-                    subs: [],
+                    subroutines: [],
                     cast: [],
                     events: [],
                     no_extra: NoExtra,
@@ -28,7 +28,7 @@ Ok(
                 },
                 scenario: Scenario {
                     types: [],
-                    subs: [
+                    subroutines: [
                         DefDeclareSub {
                             file_name: "00-the-simplest-case.yaml",
                             subroutine_name: SubroutineName(

@@ -19,7 +19,7 @@ Scenario {
             no_extra: NoExtra,
         },
     ],
-    subs: [],
+    subroutines: [],
     cast: [],
     events: [],
     no_extra: NoExtra,

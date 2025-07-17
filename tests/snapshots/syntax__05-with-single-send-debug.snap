@@ -12,7 +12,7 @@ Scenario {
             no_extra: NoExtra,
         },
     ],
-    subs: [],
+    subroutines: [],
     cast: [
         ActorName(
             "Jorge",

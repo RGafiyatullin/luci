@@ -5,7 +5,7 @@ edition = "2021"
 
 [features]
 default = []
-backwards-compatibility = []
+backward-compatibility = []
 
 [lib]
 name = "luci"

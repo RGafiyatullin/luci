@@ -166,8 +166,8 @@ impl<'a> LoaderContext<'a> {
 
         let source = &self.sources.sources[source_key];
         let base_dir = source.base_dir().to_owned();
-        let subs = source.scenario.subs.clone();
-        for import in subs {
+        let subroutines = source.scenario.subroutines.clone();
+        for import in subroutines {
             let parent_keys = &mut *PopOnDrop::new(parent_keys, source_key);
             let mut context = LoaderContext {
                 loader: &self.loader,

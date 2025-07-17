@@ -13,7 +13,7 @@ Ok(
                 subs: {},
                 scenario: Scenario {
                     types: [],
-                    subs: [],
+                    subroutines: [],
                     cast: [],
                     events: [],
                     no_extra: NoExtra,
