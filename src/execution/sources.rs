@@ -97,19 +97,14 @@ impl SourceLoader {
         Default::default()
     }
 
-    pub fn with_search_path<I, P>(self, search_path: I) -> Self
-    where
-        I: IntoIterator<Item = P>,
-        P: Into<PathBuf>,
-    {
-        let search_path = search_path.into_iter().map(Into::into).collect();
+    pub fn reset_search_path(self) -> Self {
         Self {
-            search_path,
+            search_path: vec![],
             ..self
         }
     }
 
-    pub fn with_extra_search_path<I, P>(mut self, extra_search_path: I) -> Self
+    pub fn with_search_path<I, P>(mut self, extra_search_path: I) -> Self
     where
         I: IntoIterator<Item = P>,
         P: Into<PathBuf>,
