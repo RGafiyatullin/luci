@@ -168,7 +168,11 @@ impl<'a> Runner<'a> {
             .map(|(k, v)| (self.event_name(k).expect("bad event-key").1.clone(), v))
             .collect();
 
-        Ok(Report { reached, unreached })
+        Ok(Report {
+            reached,
+            unreached,
+            record_log,
+        })
     }
 
     // #[doc(hidden)]

@@ -18,7 +18,7 @@ new_key_type! {
     pub struct KeyRecord;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RecordLog {
     t_zero: (StdInstant, RtInstant),
     records: SlotMap<KeyRecord, Record>,
@@ -31,7 +31,7 @@ pub(crate) struct Recorder<'a> {
     last: Option<KeyRecord>,
 }
 
-#[derive(derive_more::Debug)]
+#[derive(derive_more::Debug, Clone)]
 pub(crate) struct Record {
     pub(crate) at: (StdInstant, RtInstant),
     pub(crate) parent: Option<KeyRecord>,
@@ -128,4 +128,5 @@ impl<'a> Recorder<'a> {
     }
 }
 
+#[derive(Clone, Copy)]
 struct NoPubConstructor;
