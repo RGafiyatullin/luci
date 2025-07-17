@@ -1,3 +1,6 @@
+//! This module is responsible for building an [`Executable`] from [`Sources`].
+//!
+
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
     sync::Arc,

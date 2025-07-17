@@ -1,3 +1,35 @@
+//! This module is responsible for recursively loading a scenario along with its dependencies.
+//!
+//! Use a [`SourceLoader`] to load a scenario from the file to a [`Sources`].
+//!
+//! [`SourceLoader`] as a concept of search-path — a list of paths that will be checked for when trying to resolve an included file.
+//!
+//! Example:
+//!
+//! ```rust
+//! let (entry_point_key, sources) = SourceLoader::new()
+//!     .with_search_path([
+//!         "../../tests-stdlib",
+//!         "../../list-of-episodes",
+//!         "../../list-of-seasons",
+//!         "tests/this-crate-goodies",
+//!     ])
+//!     .load("the-one-with-the-blackout.yaml")
+//!     .expect("something went awry");
+//! ```
+//!
+//! An instance of [`Sources`] contains a list of [scenarios](`Scenario`) in it.
+//! It is guaranteed that the all the scenarios are syntactically correct,
+//! refer to only existing scenarios, and make no cycles in refering to other scenarios.
+//!
+//! [`Sources`] is essentially a map from some [`KeySource`] into a [`Source`],
+//! and a lookup table from the path on the filesystem to a [`KeySource`].
+//!
+//! Each [`Source`] contains the parsed [`Scenario`],
+//! and the table of subroutines refered by this scenario as
+//! a map from [`SubroutineName`] to the [`KeySource`] corresponding to the subroutine's scenario.
+//!
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt, io,
