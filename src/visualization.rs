@@ -44,6 +44,7 @@ fn draw_node(digraph: &mut Scope, event: &DefEvent, verbose: bool) {
         DefEventKind::Send(send) => ("SEND", serde_yaml::to_string(&send).unwrap()),
         DefEventKind::Respond(respond) => ("RESPOND", serde_yaml::to_string(&respond).unwrap()),
         DefEventKind::Delay(delay) => ("DELAY", serde_yaml::to_string(&delay).unwrap()),
+        DefEventKind::Call(call) => ("CALL", serde_yaml::to_string(&call).unwrap()),
     };
 
     let data = if verbose { data } else { "".to_string() };
