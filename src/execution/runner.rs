@@ -358,7 +358,7 @@ impl<'a> Runner<'a> {
                     serde_json::to_value(m).expect("can't serialize a message?")
                 }
             };
-            recorder_src.write(records::BindSrcValue(value.clone()));
+            recorder_src.write(records::BindValue(value.clone()));
 
             let mut dst_actor_names = vec![];
             if let BindScope::Two { actors, .. } = bind_scope {
