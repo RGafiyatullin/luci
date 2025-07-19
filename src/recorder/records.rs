@@ -36,7 +36,7 @@ pub(crate) struct BindSrcScope(pub KeyScope);
 pub(crate) struct UsingMsg(pub Msg);
 
 #[derive(Debug, Clone)]
-pub(crate) struct BindSrcValue(pub Value);
+pub(crate) struct BindValue(pub Value);
 
 #[derive(Debug, Clone)]
 pub(crate) struct BindDstScope(pub KeyScope);
