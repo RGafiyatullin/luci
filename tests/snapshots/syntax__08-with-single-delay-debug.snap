@@ -1,0 +1,27 @@
+---
+source: tests/syntax.rs
+expression: scenario
+---
+Scenario {
+    types: [],
+    subroutines: [],
+    cast: [],
+    events: [
+        DefEvent {
+            id: EventName(
+                "the-delay",
+            ),
+            require: None,
+            prerequisites: [],
+            kind: Delay(
+                DefEventDelay {
+                    delay_for: 3600s,
+                    delay_step: 1µs,
+                    no_extra: NoExtra,
+                },
+            ),
+            no_extra: NoExtra,
+        },
+    ],
+    no_extra: NoExtra,
+}

@@ -1,0 +1,11 @@
+---
+source: tests/syntax.rs
+expression: scenario
+---
+types:
+  - use: One
+    as: T1
+  - use: Two
+    as: T2
+cast: []
+events: []

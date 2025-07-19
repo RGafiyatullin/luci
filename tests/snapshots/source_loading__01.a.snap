@@ -1,0 +1,47 @@
+---
+source: tests/source_loading.rs
+expression: outcome
+---
+Ok(
+    (
+        KeyScenario(
+            1v1,
+        ),
+        {
+            "tests/source_loading/00-the-simplest-case.yaml": Source {
+                source_file: "tests/source_loading/00-the-simplest-case.yaml",
+                subs: {},
+                scenario: Scenario {
+                    types: [],
+                    subroutines: [],
+                    cast: [],
+                    events: [],
+                    no_extra: NoExtra,
+                },
+            },
+            "tests/source_loading/01-one-inclusion.yaml": Source {
+                source_file: "tests/source_loading/01-one-inclusion.yaml",
+                subs: {
+                    SubroutineName(
+                        "f00",
+                    ),
+                },
+                scenario: Scenario {
+                    types: [],
+                    subroutines: [
+                        DefDeclareSub {
+                            file_name: "00-the-simplest-case.yaml",
+                            subroutine_name: SubroutineName(
+                                "f00",
+                            ),
+                            no_extra: NoExtra,
+                        },
+                    ],
+                    cast: [],
+                    events: [],
+                    no_extra: NoExtra,
+                },
+            },
+        },
+    ),
+)

@@ -5,7 +5,7 @@ edition = "2021"
 
 [features]
 default = []
-backwards-compatibility = []
+backward-compatibility = []
 
 [lib]
 name = "luci"
@@ -16,7 +16,7 @@ name = "luci"
 path = "src/bin/luci_graph.rs"
 
 [dependencies]
-bimap = "^0.6"
+bimap = { version = "^0.6", features = ["serde"] }
 derive_more = { version = "^2.0.1", features = ["debug", "from"] }
 futures = "^0.3"
 ghost = "^0.1"
@@ -39,3 +39,4 @@ elfo-configurer = { version = "0.2.0-alpha.18" }
 
 [dev-dependencies]
 insta = { version = "^1.43" }
+test-case = "^3.3"

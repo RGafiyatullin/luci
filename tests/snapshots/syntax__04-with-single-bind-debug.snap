@@ -1,0 +1,37 @@
+---
+source: tests/syntax.rs
+expression: scenario
+---
+Scenario {
+    types: [],
+    subroutines: [],
+    cast: [],
+    events: [
+        DefEvent {
+            id: EventName(
+                "the-bind",
+            ),
+            require: None,
+            prerequisites: [],
+            kind: Bind(
+                DefEventBind {
+                    dst: Object {
+                        "a": String("$A"),
+                        "b": String("$B"),
+                        "c": String("$_"),
+                    },
+                    src: Literal(
+                        Object {
+                            "a": String("A"),
+                            "b": String("B"),
+                            "c": String("C"),
+                        },
+                    ),
+                    no_extra: NoExtra,
+                },
+            ),
+            no_extra: NoExtra,
+        },
+    ],
+    no_extra: NoExtra,
+}

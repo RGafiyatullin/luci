@@ -1,0 +1,5 @@
+subs:
+  - load: 00-the-simplest-case.yaml
+    as: f00
+cast: []
+events: []

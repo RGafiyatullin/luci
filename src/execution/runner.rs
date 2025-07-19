@@ -2,11 +2,12 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use elfo::_priv::MessageKind;
 use elfo::{test::Proxy, Blueprint, Envelope, Message};
-use slotmap::{new_key_type, SlotMap};
+use slotmap::{new_key_type, SecondaryMap, SlotMap};
 use std::time::Duration;
 use tokio::time::Instant;
 use tracing::{debug, info, trace, warn};
 
+use crate::execution::{BindScope, KeyScope};
 use crate::{
     bindings,
     execution::{
@@ -43,7 +44,7 @@ pub enum RunError {
 }
 
 /// A key for an event that is ready to be processed by [Runner].
-/// 
+///
 /// A trimmed version of [EventKey].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ReadyEventKey {
@@ -80,7 +81,8 @@ pub struct Runner<'a> {
     executable: &'a Executable,
     ready_events: BTreeSet<EventKey>,
     key_requires_values: HashMap<EventKey, HashSet<EventKey>>,
-    scope: bindings::Scope,
+    scopes: SecondaryMap<KeyScope, bindings::Scope>,
+
     main_proxy_key: ProxyKey,
     proxies: SlotMap<ProxyKey, Proxy>,
     envelopes: HashMap<KeyRecv, Envelope>,
@@ -110,7 +112,7 @@ impl Executable {
 
 impl<'a> Runner<'a> {
     /// Runs the test for which the runner was set up.
-    /// 
+    ///
     /// Returns;
     /// - [Report] containing a text description of the test run if test was
     ///   completed without errors, either successfully or not.
@@ -129,8 +131,12 @@ impl<'a> Runner<'a> {
             let fired_events = self.fire_event(event_key).await?;
 
             for ek in fired_events.iter() {
-                let en = self.event_name(*ek).expect("unknown event-key");
-                info!("fired event: {}", en);
+                // FIXME: show scope info too
+                if let Some((scope_id, en)) = self.event_name(*ek) {
+                    info!("fired event: {} ({:?}@{:?})", en, ek, scope_id);
+                } else {
+                    info!("fired unnabled event: {:?}", ek)
+                }
             }
 
             if fired_events.is_empty() {
@@ -148,11 +154,13 @@ impl<'a> Runner<'a> {
 
         let reached = reached
             .into_iter()
-            .map(|(k, v)| (self.event_name(k).cloned().expect("bad event-key"), v))
+            // XXX: are we expecting only the root-scope's names here?
+            .map(|(k, v)| (self.event_name(k).expect("bad event-key").1.clone(), v))
             .collect();
         let unreached = unreached
             .into_iter()
-            .map(|(k, v)| (self.event_name(k).cloned().expect("bad event-key"), v))
+            // XXX: are we expecting only the root-scope's names here?
+            .map(|(k, v)| (self.event_name(k).expect("bad event-key").1.clone(), v))
             .collect();
 
         Ok(Report { reached, unreached })
@@ -187,8 +195,12 @@ impl<'a> Runner<'a> {
         binds.chain(send_and_respond).chain(recv_or_delay)
     }
 
-    pub fn event_name(&self, event_key: EventKey) -> Option<&EventName> {
-        self.executable.events.names.get(&event_key)
+    pub fn event_name(&self, event_key: EventKey) -> Option<(KeyScope, &EventName)> {
+        self.executable
+            .events
+            .names
+            .get(&event_key)
+            .map(|(s, e)| (*s, e))
     }
 
     // #[doc(hidden)]
@@ -287,8 +299,9 @@ impl<'a> Runner<'a> {
         actually_fired_events: &mut Vec<EventKey>,
     ) -> Result<(), RunError> {
         let Executable {
-            marshalling: messages,
+            marshalling,
             events,
+            ..
         } = self.executable;
 
         let ready_bind_keys = {
@@ -313,29 +326,67 @@ impl<'a> Runner<'a> {
             self.ready_events.remove(&EventKey::Bind(bind_key));
 
             trace!(" binding {:?}", bind_key);
-            let EventBind { dst, src } = &events.bind[bind_key];
+            let EventBind {
+                dst,
+                src,
+                scope: bind_scope,
+            } = &events.bind[bind_key];
+
+            let (src_scope_key, dst_scope_key) = match bind_scope {
+                BindScope::Same(scope_id) => (*scope_id, *scope_id),
+                BindScope::Two { src, dst, .. } => (*src, *dst),
+            };
+
+            let src_scope = &self.scopes[src_scope_key];
 
             let value = match src {
                 Msg::Literal(value) => value.clone(),
                 Msg::Bind(template) => {
-                    bindings::render(template.clone(), &self.scope).map_err(RunError::BindError)?
+                    bindings::render(template.clone(), src_scope).map_err(RunError::BindError)?
                 }
                 Msg::Inject(key) => {
-                    let m = messages.value(key).ok_or(RunError::Marshalling(
+                    let m = marshalling.value(key).ok_or(RunError::Marshalling(
                         format!("no such key: {:?}", key).into(),
                     ))?;
                     serde_json::to_value(m).expect("can't serialize a message?")
                 }
             };
 
-            let mut scope_txn = self.scope.txn();
+            let mut dst_actor_names = vec![];
+            if let BindScope::Two { actors, .. } = bind_scope {
+                dst_actor_names.extend(actors.into_iter().filter_map(|(src_name, dst_name)| {
+                    src_scope
+                        .address_of(src_name)
+                        .zip(Some((src_name, dst_name)))
+                }));
+            }
 
-            if !bindings::bind_to_pattern(value, dst, &mut scope_txn) {
-                trace!("  could not bind {:?}", bind_key);
+            let mut dst_scope_txn = self.scopes[dst_scope_key].txn();
+
+            if !dst_actor_names
+                .into_iter()
+                .all(|(addr, (src_name, dst_name))| {
+                    let bound = dst_scope_txn.bind_actor(dst_name, addr);
+                    trace!(
+                        "  binding {:?}->{:?} {} [bound: {}]",
+                        src_name,
+                        dst_name,
+                        addr,
+                        bound
+                    );
+                    bound
+                })
+            {
+                trace!("could not bind actor-names");
                 continue;
             }
 
-            scope_txn.commit();
+            if !bindings::bind_to_pattern(value, dst, &mut dst_scope_txn) {
+                trace!("could not bind {:?}", bind_key);
+                continue;
+            }
+
+            dst_scope_txn.commit();
 
             actually_fired_events.push(EventKey::Bind(bind_key));
         }
@@ -348,8 +399,9 @@ impl<'a> Runner<'a> {
         actually_fired_events: &mut Vec<EventKey>,
     ) -> Result<(), RunError> {
         let Executable {
-            marshalling: messages,
-            events: vertices,
+            marshalling,
+            events,
+            ..
         } = self.executable;
 
         'recv_or_delay: loop {
@@ -369,7 +421,7 @@ impl<'a> Runner<'a> {
                         }
                     })
                     .collect::<Vec<_>>();
-                tmp.sort_by_key(|k| vertices.priority.get(&EventKey::Recv(*k)));
+                tmp.sort_by_key(|k| events.priority.get(&EventKey::Recv(*k)));
                 tmp
             };
 
@@ -398,18 +450,19 @@ impl<'a> Runner<'a> {
                     trace!(
                         "   matching against {:?} [{:?}]",
                         recv_key,
-                        vertices.names.get(&EventKey::Recv(recv_key)).unwrap()
+                        events.names.get(&EventKey::Recv(recv_key)).unwrap()
                     );
                     let EventRecv {
                         fqn: match_type,
                         from: match_from,
                         to: match_to,
                         payload: match_message,
-                    } = &vertices.recv[recv_key];
+                        scope_key,
+                    } = &events.recv[recv_key];
 
-                    let mut scope_txn = self.scope.txn();
+                    let mut scope_txn = self.scopes[*scope_key].txn();
 
-                    let marshaller = messages.resolve(&match_type).expect("bad FQN");
+                    let marshaller = marshalling.resolve(&match_type).expect("bad FQN");
 
                     if let Some(from_name) = match_from {
                         trace!("expecting source: {:?}", from_name);
@@ -513,14 +566,16 @@ impl<'a> Runner<'a> {
         actually_fired_events: &mut Vec<EventKey>,
     ) -> Result<(), RunError> {
         let Executable {
-            marshalling: messages,
+            marshalling,
             events: vertices,
+            ..
         } = self.executable;
         let EventSend {
             from: send_from,
             to: send_to,
             fqn: message_type,
             payload: message_data,
+            scope_key,
         } = &vertices.send[event_key];
         debug!(
             " sending {:?} [from: {:?}; to: {:?}]",
@@ -530,8 +585,7 @@ impl<'a> Runner<'a> {
         let send_to_addr_opt = send_to
             .as_ref()
             .map(|actor_name| {
-                let addr = self
-                    .scope
+                let addr = self.scopes[*scope_key]
                     .address_of(&actor_name)
                     .ok_or_else(|| RunError::UnboundName(actor_name.clone()))?;
                 if self.proxies.iter().any(|(_, p)| p.addr() == addr) {
@@ -541,13 +595,21 @@ impl<'a> Runner<'a> {
             })
             .transpose()?;
 
-        let proxy = if let Some(addr) = self.scope.address_of(send_from) {
+        let proxy = if let Some(addr) = self.scopes[*scope_key].address_of(send_from) {
             self.proxies
                 .values_mut()
                 .find(|p| p.addr() == addr)
                 .ok_or_else(|| RunError::ActorName(send_from.clone()))?
         } else {
             let new_proxy = self.proxies[self.main_proxy_key].subproxy().await;
+            let new_addr = new_proxy.addr();
+            let mut txn = self.scopes[*scope_key].txn();
+            assert!(
+                txn.bind_actor(send_from, new_addr),
+                "this name has just been unbound!"
+            );
+            txn.commit();
+
             let proxy_key = self.proxies.insert(new_proxy);
             &mut self.proxies[proxy_key]
         };
@@ -559,7 +621,7 @@ impl<'a> Runner<'a> {
             .expect("invalid FQN");
 
         let any_message = marshaller
-            .marshal_outbound_message(&messages, &self.scope, message_data.clone())
+            .marshal_outbound_message(&marshalling, &self.scopes[*scope_key], message_data.clone())
             .map_err(RunError::Marshalling)?;
 
         if let Some(dst_addr) = send_to_addr_opt {
@@ -590,8 +652,9 @@ impl<'a> Runner<'a> {
         actually_fired_events: &mut Vec<EventKey>,
     ) -> Result<(), RunError> {
         let Executable {
-            marshalling: messages,
+            marshalling,
             events: vertices,
+            ..
         } = self.executable;
 
         let EventRespond {
@@ -599,20 +662,32 @@ impl<'a> Runner<'a> {
             request_type: request_fqn,
             respond_from,
             payload: message_data,
+            scope_key,
         } = &vertices.respond[k];
         debug!(
             " responding to a {:?} [from: {:?}]",
             request_fqn, respond_from
         );
 
-        let proxy_idx = if let Some(from_dummy_name) = respond_from {
-            let Some(addr) = self.scope.address_of(from_dummy_name) else {
-                return Err(RunError::UnboundName(from_dummy_name.clone()));
-            };
-            self.proxies
-                .iter()
-                .find_map(|(k, p)| Some(k).filter(|_| p.addr() == addr))
-                .ok_or_else(|| RunError::ActorName(from_dummy_name.clone()))?
+        let proxy_key = if let Some(respond_from) = respond_from {
+            if let Some(addr) = self.scopes[*scope_key].address_of(respond_from) {
+                self.proxies
+                    .iter()
+                    .find_map(|(k, p)| Some(k).filter(|_| p.addr() == addr))
+                    .ok_or_else(|| RunError::ActorName(respond_from.clone()))?
+            } else {
+                let new_proxy = self.proxies[self.main_proxy_key].subproxy().await;
+                let new_addr = new_proxy.addr();
+                let mut txn = self.scopes[*scope_key].txn();
+                assert!(
+                    txn.bind_actor(respond_from, new_addr),
+                    "this name has just been unbound!"
+                );
+                txn.commit();
+
+                let proxy_key = self.proxies.insert(new_proxy);
+                proxy_key
+            }
         } else {
             self.main_proxy_key
         };
@@ -636,13 +711,13 @@ impl<'a> Runner<'a> {
             _ => return Err(RunError::NoRequest),
         };
 
-        let responding_proxy = &mut self.proxies[proxy_idx];
+        let responding_proxy = &mut self.proxies[proxy_key];
         response_marshaller
             .respond(
                 responding_proxy,
                 token,
-                &messages,
-                &self.scope,
+                &marshalling,
+                &self.scopes[*scope_key],
                 message_data.clone(),
             )
             .await
@@ -655,7 +730,7 @@ impl<'a> Runner<'a> {
 }
 
 impl<'a> Runner<'a> {
-    async fn new<C>(graph: &'a Executable, blueprint: Blueprint, config: C) -> Self
+    async fn new<C>(executable: &'a Executable, blueprint: Blueprint, config: C) -> Self
     where
         C: for<'de> serde::de::Deserializer<'de>,
     {
@@ -666,16 +741,16 @@ impl<'a> Runner<'a> {
 
         let mut delays = Delays::default();
 
-        let ready_events = graph.events.entry_points.clone();
+        let ready_events = executable.events.entry_points.clone();
 
         let now = Instant::now();
         ready_events.iter().copied().for_each(|k| {
             if let EventKey::Delay(k) = k {
-                delays.insert(now, k, &graph.events.delay[k]);
+                delays.insert(now, k, &executable.events.delay[k]);
             }
         });
 
-        let key_requires_values = graph
+        let key_requires_values = executable
             .events
             .key_unblocks_values
             .iter()
@@ -692,14 +767,22 @@ impl<'a> Runner<'a> {
                     acc
                 },
             );
+
+        let mut scopes: SecondaryMap<KeyScope, bindings::Scope> = executable
+            .scopes
+            .iter()
+            .map(|(key, _info)| (key, Default::default()))
+            .collect();
+        scopes.insert(executable.root_scope_key, Default::default());
+
         Self {
-            executable: graph,
+            executable,
             ready_events,
             key_requires_values,
             delays,
             main_proxy_key,
             proxies,
-            scope: Default::default(),
+            scopes,
             envelopes: Default::default(),
         }
     }

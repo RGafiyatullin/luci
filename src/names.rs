@@ -19,3 +19,9 @@ pub struct EventName(Arc<str>);
 )]
 #[display("MSG:{_0}")]
 pub struct MessageName(Arc<str>);
+
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, derive_more::Display,
+)]
+#[display("SUB:{_0}")]
+pub struct SubroutineName(Arc<str>);

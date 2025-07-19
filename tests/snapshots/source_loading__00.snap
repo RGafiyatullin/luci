@@ -1,0 +1,24 @@
+---
+source: tests/source_loading.rs
+expression: outcome
+---
+Ok(
+    (
+        KeyScenario(
+            1v1,
+        ),
+        {
+            "./tests/source_loading/00-the-simplest-case.yaml": Source {
+                source_file: "./tests/source_loading/00-the-simplest-case.yaml",
+                subs: {},
+                scenario: Scenario {
+                    types: [],
+                    subroutines: [],
+                    cast: [],
+                    events: [],
+                    no_extra: NoExtra,
+                },
+            },
+        },
+    ),
+)

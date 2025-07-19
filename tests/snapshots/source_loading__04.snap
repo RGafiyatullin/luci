@@ -1,0 +1,103 @@
+---
+source: tests/source_loading.rs
+expression: outcome
+---
+Ok(
+    (
+        KeyScenario(
+            1v1,
+        ),
+        {
+            "tests/source_loading/04-diamond/a.yaml": Source {
+                source_file: "tests/source_loading/04-diamond/a.yaml",
+                subs: {},
+                scenario: Scenario {
+                    types: [],
+                    subroutines: [],
+                    cast: [],
+                    events: [],
+                    no_extra: NoExtra,
+                },
+            },
+            "tests/source_loading/04-diamond/b-left.yaml": Source {
+                source_file: "tests/source_loading/04-diamond/b-left.yaml",
+                subs: {
+                    SubroutineName(
+                        "a",
+                    ),
+                },
+                scenario: Scenario {
+                    types: [],
+                    subroutines: [
+                        DefDeclareSub {
+                            file_name: "a.yaml",
+                            subroutine_name: SubroutineName(
+                                "a",
+                            ),
+                            no_extra: NoExtra,
+                        },
+                    ],
+                    cast: [],
+                    events: [],
+                    no_extra: NoExtra,
+                },
+            },
+            "tests/source_loading/04-diamond/b-right.yaml": Source {
+                source_file: "tests/source_loading/04-diamond/b-right.yaml",
+                subs: {
+                    SubroutineName(
+                        "a",
+                    ),
+                },
+                scenario: Scenario {
+                    types: [],
+                    subroutines: [
+                        DefDeclareSub {
+                            file_name: "a.yaml",
+                            subroutine_name: SubroutineName(
+                                "a",
+                            ),
+                            no_extra: NoExtra,
+                        },
+                    ],
+                    cast: [],
+                    events: [],
+                    no_extra: NoExtra,
+                },
+            },
+            "tests/source_loading/04-diamond.yaml": Source {
+                source_file: "tests/source_loading/04-diamond.yaml",
+                subs: {
+                    SubroutineName(
+                        "b-left",
+                    ),
+                    SubroutineName(
+                        "b-right",
+                    ),
+                },
+                scenario: Scenario {
+                    types: [],
+                    subroutines: [
+                        DefDeclareSub {
+                            file_name: "b-left.yaml",
+                            subroutine_name: SubroutineName(
+                                "b-left",
+                            ),
+                            no_extra: NoExtra,
+                        },
+                        DefDeclareSub {
+                            file_name: "b-right.yaml",
+                            subroutine_name: SubroutineName(
+                                "b-right",
+                            ),
+                            no_extra: NoExtra,
+                        },
+                    ],
+                    cast: [],
+                    events: [],
+                    no_extra: NoExtra,
+                },
+            },
+        },
+    ),
+)

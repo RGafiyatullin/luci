@@ -1,0 +1,16 @@
+---
+source: tests/syntax.rs
+expression: scenario
+---
+types:
+  - use: A
+    as: A
+cast:
+  - Jorge
+events:
+  - id: the-send
+    send:
+      from: Jorge
+      type: A
+      data:
+        literal: ~

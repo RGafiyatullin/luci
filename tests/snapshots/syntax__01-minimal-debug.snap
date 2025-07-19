@@ -1,0 +1,11 @@
+---
+source: tests/syntax.rs
+expression: scenario
+---
+Scenario {
+    types: [],
+    subroutines: [],
+    cast: [],
+    events: [],
+    no_extra: NoExtra,
+}

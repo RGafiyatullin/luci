@@ -1,0 +1,48 @@
+---
+source: tests/syntax.rs
+expression: scenario
+---
+Scenario {
+    types: [
+        DefTypeAlias {
+            type_name: "A",
+            type_alias: MessageName(
+                "A",
+            ),
+            no_extra: NoExtra,
+        },
+    ],
+    subroutines: [],
+    cast: [
+        ActorName(
+            "Pablo",
+        ),
+    ],
+    events: [
+        DefEvent {
+            id: EventName(
+                "the-respond",
+            ),
+            require: None,
+            prerequisites: [],
+            kind: Respond(
+                DefEventRespond {
+                    from: Some(
+                        ActorName(
+                            "Pablo",
+                        ),
+                    ),
+                    to_request: EventName(
+                        "something-that-did-not-happen",
+                    ),
+                    data: Literal(
+                        Null,
+                    ),
+                    no_extra: NoExtra,
+                },
+            ),
+            no_extra: NoExtra,
+        },
+    ],
+    no_extra: NoExtra,
+}

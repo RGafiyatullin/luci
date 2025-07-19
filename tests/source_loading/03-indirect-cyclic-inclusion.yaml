@@ -1,0 +1,5 @@
+subs:
+  - load: 03-indirect-cyclic-inclusion/call-me-back.yaml
+    as:   the-sub
+cast: []
+events: []

@@ -1,0 +1,47 @@
+---
+source: tests/syntax.rs
+expression: scenario
+---
+Scenario {
+    types: [
+        DefTypeAlias {
+            type_name: "A",
+            type_alias: MessageName(
+                "A",
+            ),
+            no_extra: NoExtra,
+        },
+    ],
+    subroutines: [],
+    cast: [
+        ActorName(
+            "Jorge",
+        ),
+    ],
+    events: [
+        DefEvent {
+            id: EventName(
+                "the-send",
+            ),
+            require: None,
+            prerequisites: [],
+            kind: Send(
+                DefEventSend {
+                    from: ActorName(
+                        "Jorge",
+                    ),
+                    to: None,
+                    message_type: MessageName(
+                        "A",
+                    ),
+                    message_data: Literal(
+                        Null,
+                    ),
+                    no_extra: NoExtra,
+                },
+            ),
+            no_extra: NoExtra,
+        },
+    ],
+    no_extra: NoExtra,
+}

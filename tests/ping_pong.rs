@@ -1,7 +1,7 @@
 use luci::{
-    execution::Executable,
+    execution::{Executable, SourceCodeLoader},
     marshalling::{MarshallingRegistry, Regular},
-    scenario::{RequiredToBe, Scenario},
+    scenario::RequiredToBe,
 };
 use serde_json::json;
 
@@ -119,15 +119,15 @@ pub mod pinger {
 
 #[tokio::test]
 async fn test_no_peers() {
-    run_scenario(include_str!("ping_pong/test-no-peers.yaml")).await
+    run_scenario("tests/ping_pong/test-no-peers.yaml").await
 }
 
 #[tokio::test]
 async fn test_one_peer() {
-    run_scenario(include_str!("ping_pong/test-one-peer.yaml")).await
+    run_scenario("tests/ping_pong/test-one-peer.yaml").await
 }
 
-async fn run_scenario(scenario_text: &str) {
+async fn run_scenario(scenario_file: &str) {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .with_max_level(tracing::Level::TRACE)
@@ -139,8 +139,10 @@ async fn run_scenario(scenario_text: &str) {
         .with(Regular::<crate::proto::Ping>)
         .with(Regular::<crate::proto::Pong>)
         .with(Regular::<crate::proto::Bye>);
-    let scenario: Scenario = serde_yaml::from_str(scenario_text).unwrap();
-    let exec_graph = Executable::build(marshalling, &scenario).expect("building graph");
+    let (key_main, sources) = SourceCodeLoader::new()
+        .load(scenario_file)
+        .expect("SourceLoader::load");
+    let exec_graph = Executable::build(marshalling, &sources, key_main).expect("building graph");
     let report = exec_graph
         .start(pinger::blueprint(), json!(null))
         .await

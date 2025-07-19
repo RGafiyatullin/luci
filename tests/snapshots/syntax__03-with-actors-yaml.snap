@@ -1,0 +1,8 @@
+---
+source: tests/syntax.rs
+expression: scenario
+---
+cast:
+  - Alicia
+  - Roberto
+events: []

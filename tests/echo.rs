@@ -1,7 +1,6 @@
 use luci::{
-    execution::Executable,
+    execution::{Executable, SourceCodeLoader},
     marshalling::{MarshallingRegistry, Regular, Request},
-    scenario::Scenario,
 };
 use serde_json::json;
 
@@ -51,20 +50,20 @@ pub mod echo {
 
 #[tokio::test]
 async fn bind_node() {
-    run_scenario(include_str!("echo/bind-node.yaml")).await;
+    run_scenario("tests/echo/bind-node.yaml").await;
 }
 
 #[tokio::test]
 async fn marshalling() {
-    run_scenario(include_str!("echo/marshalling.yaml")).await;
+    run_scenario("tests/echo/marshalling.yaml").await;
 }
 
 #[tokio::test]
 async fn request_response() {
-    run_scenario(include_str!("echo/request-response.yaml")).await;
+    run_scenario("tests/echo/request-response.yaml").await;
 }
 
-async fn run_scenario(scenario_text: &str) {
+async fn run_scenario(scenario_file: &str) {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .with_max_level(tracing::Level::TRACE)
@@ -75,8 +74,11 @@ async fn run_scenario(scenario_text: &str) {
         .with(Regular::<crate::proto::V>)
         .with(Request::<crate::proto::R>)
         .with(Regular::<crate::proto::Hey>);
-    let scenario: Scenario = serde_yaml::from_str(scenario_text).unwrap();
-    let exec_graph = Executable::build(marshalling, &scenario).expect("building graph");
+
+    let (key_main, sources) = SourceCodeLoader::new()
+        .load(scenario_file)
+        .expect("SourceLoader::load");
+    let exec_graph = Executable::build(marshalling, &sources, key_main).expect("building graph");
     let report = exec_graph
         .start(echo::blueprint(), json!(null))
         .await

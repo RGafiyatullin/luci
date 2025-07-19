@@ -4,31 +4,30 @@ use std::{
     time::Duration,
 };
 
+use bimap::BiHashMap;
 use serde_json::Value;
-use slotmap::{new_key_type, SlotMap};
+use slotmap::SlotMap;
 
 use crate::{
     marshalling::MarshallingRegistry,
-    names::{ActorName, EventName},
+    names::{ActorName, EventName, SubroutineName},
     scenario::{Msg, RequiredToBe},
 };
+
+mod keys;
+pub use keys::*;
 
 mod build;
 mod report;
 mod runner;
+mod sources;
 
 pub use build::BuildError;
 pub use report::Report;
 pub use runner::RunError;
 pub use runner::Runner;
-
-new_key_type! {
-    pub struct KeyBind;
-    pub struct KeySend;
-    pub struct KeyRecv;
-    pub struct KeyRespond;
-    pub struct KeyDelay;
-}
+pub use sources::SourceCode;
+pub use sources::SourceCodeLoader;
 
 /// A key corresponding to some event during test execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -44,13 +43,24 @@ pub enum EventKey {
 pub struct Executable {
     marshalling: MarshallingRegistry,
     events: Events,
+
+    root_scope_key: KeyScope,
+    scopes: SlotMap<KeyScope, ScopeInfo>,
+}
+
+#[derive(Debug)]
+// the fields of this structure can be used to build a sort of stack-trace, which might be useful
+#[allow(dead_code)]
+struct ScopeInfo {
+    source_key: KeyScenario,
+    invoked_as: Option<(KeyScope, EventName, SubroutineName)>,
 }
 
 #[derive(Debug, Default)]
 struct Events {
     priority: HashMap<EventKey, usize>,
     required: HashMap<EventKey, RequiredToBe>,
-    names: HashMap<EventKey, EventName>,
+    names: HashMap<EventKey, (KeyScope, EventName)>,
 
     bind: SlotMap<KeyBind, EventBind>,
     send: SlotMap<KeySend, EventSend>,
@@ -65,6 +75,8 @@ struct Events {
 
 #[derive(Debug)]
 struct EventSend {
+    scope_key: KeyScope,
+
     from: ActorName,
     to: Option<ActorName>,
     fqn: Arc<str>,
@@ -73,6 +85,8 @@ struct EventSend {
 
 #[derive(Debug)]
 struct EventRecv {
+    scope_key: KeyScope,
+
     from: Option<ActorName>,
     to: Option<ActorName>,
     fqn: Arc<str>,
@@ -81,6 +95,8 @@ struct EventRecv {
 
 #[derive(Debug)]
 struct EventRespond {
+    scope_key: KeyScope,
+
     respond_to: KeyRecv,
     request_type: Arc<str>,
     respond_from: Option<ActorName>,
@@ -88,13 +104,26 @@ struct EventRespond {
 }
 
 #[derive(Debug)]
-struct EventBind {
-    dst: Value,
-    src: Msg,
-}
-
-#[derive(Debug)]
 struct EventDelay {
     delay_for: Duration,
     delay_step: Duration,
+}
+
+#[derive(Debug)]
+struct EventBind {
+    dst: Value,
+    src: Msg,
+
+    scope: BindScope,
+}
+
+#[derive(Debug)]
+enum BindScope {
+    Same(KeyScope),
+    Two {
+        src: KeyScope,
+        dst: KeyScope,
+
+        actors: BiHashMap<ActorName, ActorName>,
+    },
 }

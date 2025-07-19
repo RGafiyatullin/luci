@@ -1,0 +1,13 @@
+cast: []
+events:
+  - id: the-bind
+    bind:
+      dst:
+        a: $A
+        b: $B
+        c: $_
+      src:
+        literal:
+          a: A
+          b: B
+          c: C

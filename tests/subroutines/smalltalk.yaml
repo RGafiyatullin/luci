@@ -1,0 +1,93 @@
+types:
+  - use: subroutines::proto::smalltalk::Whatsup
+    as: Whatsup
+  - use: subroutines::proto::smalltalk::OhByTheWay
+    as: OhByTheWay
+  - use: subroutines::proto::smalltalk::NoWay
+    as: NoWay
+cast:
+  - ALICE
+  - ROBERT
+events:
+  - id: ALICE-arrives
+    recv:
+      from: ALICE
+      type: Whatsup
+      data:
+        bind:
+          topic: $TOPIC
+  - id: ROBERT-greets
+    after:
+      - ALICE-arrives
+    respond:
+      to_request: ALICE-arrives
+      from: ROBERT
+      data:
+        literal:
+          subs_id: 13
+
+  - id: ROBERT-remembers-a-thing-1
+    after:
+      - ROBERT-greets
+    send:
+      to: ALICE
+      from: ROBERT
+      type: OhByTheWay
+      data:
+        literal:
+          subs_id: 13
+
+  - id: delay-1
+    after:
+      - ROBERT-remembers-a-thing-1
+    delay:
+      for: 1s
+      step: 1s
+  
+  - id: ROBERT-remembers-a-thing-2
+    after:
+      - delay-1
+    send:
+      to: ALICE
+      from: ROBERT
+      type: OhByTheWay
+      data:
+        literal:
+          subs_id: 13
+  
+  - id: delay-2
+    after:
+      - ROBERT-remembers-a-thing-2
+    delay:
+      for: 1s
+      step: 1s
+  
+  - id: ROBERT-remembers-a-thing-3
+    after:
+      - delay-2
+    send:
+      to: ALICE
+      from: ROBERT
+      type: OhByTheWay
+      data:
+        literal:
+          subs_id: 13
+    
+  - id: delay-3
+    after:
+      - ROBERT-remembers-a-thing-2
+    delay:
+      for: 1s
+      step: 1s
+
+  - id: ROBERT-remembers-a-thing-4
+    after:
+      - delay-3
+    send:
+      to: ALICE
+      from: ROBERT
+      type: OhByTheWay
+      data:
+        literal:
+          subs_id: 13
+

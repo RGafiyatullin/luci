@@ -1,0 +1,7 @@
+subs:
+  - load: b-left.yaml
+    as: b-left
+  - load: b-right.yaml
+    as: b-right
+cast: []
+events: []

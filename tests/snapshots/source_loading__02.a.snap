@@ -1,0 +1,9 @@
+---
+source: tests/source_loading.rs
+expression: outcome
+---
+Err(
+    SourceFileCyclicDependency(
+        "tests/source_loading/02-direct-cyclic-inclusion.yaml",
+    ),
+)

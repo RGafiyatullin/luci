@@ -1,0 +1,18 @@
+---
+source: tests/syntax.rs
+expression: scenario
+---
+Scenario {
+    types: [],
+    subroutines: [],
+    cast: [
+        ActorName(
+            "Alicia",
+        ),
+        ActorName(
+            "Roberto",
+        ),
+    ],
+    events: [],
+    no_extra: NoExtra,
+}

@@ -1,0 +1,31 @@
+---
+source: tests/syntax.rs
+expression: scenario
+---
+Scenario {
+    types: [],
+    subroutines: [],
+    cast: [],
+    events: [
+        DefEvent {
+            id: EventName(
+                "the-call",
+            ),
+            require: None,
+            prerequisites: [],
+            kind: Call(
+                DefCallSub {
+                    subroutine_name: SubroutineName(
+                        "the-sub",
+                    ),
+                    input: None,
+                    output: None,
+                    cast: None,
+                    no_extra: NoExtra,
+                },
+            ),
+            no_extra: NoExtra,
+        },
+    ],
+    no_extra: NoExtra,
+}
