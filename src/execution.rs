@@ -124,6 +124,8 @@ enum BindScope {
         src: KeyScope,
         dst: KeyScope,
 
+        // left: src-scope
+        // right: dst-scope
         actors: BiHashMap<ActorName, ActorName>,
     },
 }
