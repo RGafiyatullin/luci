@@ -29,6 +29,9 @@ pub struct Injected {
     pub value: AnyMessage,
 }
 
+// This one is used in the tests, that do not require to actually run their scenarios,
+// but instead just check the how build works.
+#[doc(hidden)]
 #[derive(derive_more::Debug)]
 pub struct Mock {
     fqn: String,
