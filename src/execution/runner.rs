@@ -103,7 +103,9 @@ struct Delays {
 }
 
 #[derive(Default)]
-struct Receives {}
+struct Receives {
+    deadlines: BTreeSet<(Instant, KeyRecv)>,
+}
 
 impl Executable {
     /// Returns a [Runner] to run the test corresponding to this [Executable]
@@ -433,6 +435,12 @@ impl<'a> Runner<'a> {
         'recv_or_delay: loop {
             self.proxies[self.main_proxy_key].sync().await;
 
+            for timed_out_recv_key in self.receives.select_timed_out(Instant::now()) {
+                trace!("recv timed out: {:?}", timed_out_recv_key);
+                self.ready_events
+                    .remove(&EventKey::Recv(timed_out_recv_key));
+            }
+
             trace!(" receiving...");
 
             let ready_recv_keys = {
@@ -539,6 +547,7 @@ impl<'a> Runner<'a> {
                     scope_txn.commit();
                     self.envelopes.insert(recv_key, envelope);
                     self.ready_events.remove(&EventKey::Recv(recv_key));
+                    self.receives.remove_by_key(recv_key);
                     actually_fired_events.push(EventKey::Recv(recv_key));
 
                     envelope_unused = false;
@@ -841,7 +850,31 @@ impl<'a> Runner<'a> {
 
 impl Receives {
     fn insert(&mut self, now: Instant, key: KeyRecv, recv_event: &EventRecv) {
-        let _ = (now, key, recv_event);
+        if let Some(timeout) = recv_event.timeout {
+            let deadline = now.checked_add(timeout).expect("oh don't be ridiculous!");
+            let new_entry = self.deadlines.insert((deadline, key));
+            assert!(new_entry);
+        }
+    }
+
+    fn select_timed_out(&mut self, now: Instant) -> impl Iterator<Item = KeyRecv> + use<'_> {
+        std::iter::repeat_with(move || {
+            let (deadline, _) = self.deadlines.first().copied()?;
+            if deadline < now {
+                let (_, key) = self
+                    .deadlines
+                    .pop_first()
+                    .expect("we've just seen it be there!");
+                Some(key)
+            } else {
+                None
+            }
+        })
+        .map_while(std::convert::identity)
+    }
+
+    fn remove_by_key(&mut self, key: KeyRecv) {
+        self.deadlines.retain(|(_deadline, k)| *k != key);
     }
 }
 
