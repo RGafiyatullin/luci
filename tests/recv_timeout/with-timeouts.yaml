@@ -31,8 +31,18 @@ events:
         literal: ~
       timeout: 1s100ms
   
-  - id: actor-does-no-say-bye-for-1m
-    require: reached
+  - id: actor-does-no-say-bye-within-15s
+    require: unreached
+    recv:
+      from: actor
+      to: dummy
+      type: Bye
+      data:
+        literal: ~
+      timeout: 15s
+
+  - id: actor-does-no-say-bye-within-30s
+    require: unreached
     recv:
       from: actor
       to: dummy
@@ -40,12 +50,23 @@ events:
       data:
         literal: ~
       timeout: 30s
+  
+  - id: actor-does-no-say-bye-within-45s
+    require: unreached
+    recv:
+      from: actor
+      to: dummy
+      type: Bye
+      data:
+        literal: ~
+      timeout: 45s
 
-  # - id: actor-says-bye
-  #   require: reached
-  #   recv:
-  #     from: actor
-  #     to: dummy
-  #     type: Bye
-  #     data:
-  #       literal: ~
+  - id: actor-says-bye
+    require: reached
+    recv:
+      from: actor
+      to: dummy
+      type: Bye
+      data:
+        literal: ~
+      timeout: 62s

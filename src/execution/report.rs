@@ -3,7 +3,7 @@ use std::{collections::HashMap, io};
 use crate::{
     execution::{Executable, SourceCode},
     names::EventName,
-    recorder::{KeyRecord, RecordLog},
+    recorder::{KeyRecord, RecordKind, RecordLog},
     scenario::RequiredToBe,
 };
 
@@ -83,16 +83,23 @@ Unreached:
     ) -> Result<(), io::Error> {
         use std::io::Write;
 
-        fn dump(
+        fn dump<'a>(
             io: &mut impl Write,
             depth: usize,
-            log: &RecordLog,
+            last_kind: &mut Option<&'a RecordKind>,
+            log: &'a RecordLog,
             this_key: KeyRecord,
             executable: &Executable,
         ) -> Result<(), io::Error> {
+            let record = &log.records[this_key];
+
+            if last_kind.is_some_and(|k| k == &record.kind) && record.children.is_empty() {
+                return Ok(());
+            }
+            *last_kind = Some(&record.kind);
+
             write!(io, "{:1$}", "", depth)?;
 
-            let record = &log.records[this_key];
             writeln!(
                 io,
                 "{}",
@@ -104,15 +111,23 @@ Unreached:
             )?;
 
             for child_key in record.children.iter().copied() {
-                dump(io, depth + 1, log, child_key, executable)?;
+                dump(io, depth + 1, last_kind, log, child_key, executable)?;
             }
 
             Ok(())
         }
 
+        let mut last_kind = None;
         for root_key in self.record_log.roots.iter().copied() {
             writeln!(io, "ROOT: {:?}", root_key)?;
-            dump(&mut io, 0, &self.record_log, root_key, executable)?;
+            dump(
+                &mut io,
+                0,
+                &mut last_kind,
+                &self.record_log,
+                root_key,
+                executable,
+            )?;
         }
 
         Ok(())
@@ -184,8 +199,26 @@ mod display {
                     write!(f, "requested RESP: {} (@{:?})", event, scope)
                 }
 
-                ReadyBindKeys(r::ReadyBindKeys(ks)) => write!(f, "ready binds {:?}", ks),
-                ReadyRecvKeys(r::ReadyRecvKeys(ks)) => write!(f, "ready recvs {:?}", ks),
+                ReadyBindKeys(r::ReadyBindKeys(ks)) => {
+                    write!(f, "ready binds: [")?;
+                    for k in ks {
+                        let (scope, event) = self.executable.event_name((*k).into()).unwrap();
+                        write!(f, " {}(@{:?}) ", event, scope)?;
+                    }
+                    write!(f, "]")
+                }
+                ReadyRecvKeys(r::ReadyRecvKeys(ks)) => {
+                    write!(f, "ready recvs: [")?;
+                    for k in ks {
+                        let (scope, event) = self.executable.event_name((*k).into()).unwrap();
+                        write!(f, " {}(@{:?}) ", event, scope)?;
+                    }
+                    write!(f, "]")
+                }
+                TimedOutRecvKey(r::TimedOutRecvKey(k)) => {
+                    let (scope, event) = self.executable.event_name((*k).into()).unwrap();
+                    write!(f, "timed out RECV: {} (@{:?})", event, scope)
+                }
 
                 ProcessBindKey(r::ProcessBindKey(k)) => {
                     let (scope, event) = self.executable.event_name((*k).into()).unwrap();

@@ -19,7 +19,7 @@ pub mod echo {
 
     use crate::proto;
     use elfo::{assert_msg, ActorGroup, Blueprint, Context};
-    
+
     pub async fn actor(mut ctx: Context) {
         let envelope = ctx.recv().await.expect("where's my Hi");
         let reply_to = envelope.sender();
@@ -61,13 +61,16 @@ async fn run_scenario(scenario_file: &str) {
     let (key_main, sources) = SourceCodeLoader::new()
         .load(scenario_file)
         .expect("SourceLoader::load");
-    let exec_graph = Executable::build(marshalling, &sources, key_main).expect("building graph");
-    let report = exec_graph
+    let executable = Executable::build(marshalling, &sources, key_main).expect("building graph");
+    let report = executable
         .start(echo::blueprint(), json!(null))
         .await
         .run()
         .await
         .expect("runner.run");
 
+    report
+        .dump_record_log(std::io::stderr().lock(), &sources, &executable)
+        .unwrap();
     assert!(report.is_ok(), "{}", report.message());
 }

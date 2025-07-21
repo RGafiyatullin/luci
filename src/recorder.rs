@@ -44,7 +44,7 @@ pub(crate) struct Record {
     _no_pub_constructor: NoPubConstructor,
 }
 
-#[derive(Debug, Clone, derive_more::From)]
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::From)]
 pub(crate) enum RecordKind {
     Root,
     Error(records::Error),
@@ -52,6 +52,7 @@ pub(crate) enum RecordKind {
     EventFired(records::EventFired),
     ReadyBindKeys(records::ReadyBindKeys),
     ReadyRecvKeys(records::ReadyRecvKeys),
+    TimedOutRecvKey(records::TimedOutRecvKey),
     ProcessBindKey(records::ProcessBindKey),
     BindSrcScope(records::BindSrcScope),
     BindValue(records::BindValue),

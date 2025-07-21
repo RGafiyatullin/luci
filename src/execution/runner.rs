@@ -436,6 +436,7 @@ impl<'a> Runner<'a> {
             self.proxies[self.main_proxy_key].sync().await;
 
             for timed_out_recv_key in self.receives.select_timed_out(Instant::now()) {
+                recorder.write(records::TimedOutRecvKey(timed_out_recv_key));
                 trace!("recv timed out: {:?}", timed_out_recv_key);
                 self.ready_events
                     .remove(&EventKey::Recv(timed_out_recv_key));
@@ -549,6 +550,8 @@ impl<'a> Runner<'a> {
                     self.ready_events.remove(&EventKey::Recv(recv_key));
                     self.receives.remove_by_key(recv_key);
                     actually_fired_events.push(EventKey::Recv(recv_key));
+
+                    recorder.write(records::EventFired(recv_key.into()));
 
                     envelope_unused = false;
                     break;

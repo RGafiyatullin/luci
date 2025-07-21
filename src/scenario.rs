@@ -169,7 +169,7 @@ pub struct DefEventDelay {
 }
 
 /// A template for marshalling [elfo::AnyMessage].
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Msg {
     /// Stores [Value] to be marshalled as [elfo::AnyMessage] as-is.
