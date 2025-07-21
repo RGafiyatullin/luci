@@ -238,19 +238,11 @@ impl<'a> Runner<'a> {
             debug!("doing {:?}", ready_event_key);
         }
 
-        let mut actually_fired_events = vec![];
-        match ready_event_key {
-            ReadyEventKey::Bind => self.fire_event_bind(&mut actually_fired_events).await?,
-            ReadyEventKey::Send(k) => self.fire_event_send(k, &mut actually_fired_events).await?,
-            ReadyEventKey::Respond(k) => {
-                self.fire_event_respond(k, &mut actually_fired_events)
-                    .await?
-            }
-
-            ReadyEventKey::RecvOrDelay => {
-                self.fire_event_recv_or_delay(&mut actually_fired_events)
-                    .await?
-            }
+        let actually_fired_events = match ready_event_key {
+            ReadyEventKey::Bind => self.fire_event_bind().await?,
+            ReadyEventKey::Send(k) => self.fire_event_send(k).await?,
+            ReadyEventKey::Respond(k) => self.fire_event_respond(k).await?,
+            ReadyEventKey::RecvOrDelay => self.fire_event_recv_or_delay().await?,
         };
 
         self.process_dependencies_of_fired_events(actually_fired_events.iter().copied());
@@ -294,10 +286,7 @@ impl<'a> Runner<'a> {
         }
     }
 
-    async fn fire_event_bind(
-        &mut self,
-        actually_fired_events: &mut Vec<EventKey>,
-    ) -> Result<(), RunError> {
+    async fn fire_event_bind(&mut self) -> Result<Vec<EventKey>, RunError> {
         let Executable {
             marshalling,
             events,
@@ -322,6 +311,7 @@ impl<'a> Runner<'a> {
 
         trace!("ready_bind_keys: {:#?}", ready_bind_keys);
 
+        let mut actually_fired_events = vec![];
         for bind_key in ready_bind_keys {
             self.ready_events.remove(&EventKey::Bind(bind_key));
 
@@ -391,18 +381,17 @@ impl<'a> Runner<'a> {
             actually_fired_events.push(EventKey::Bind(bind_key));
         }
 
-        Ok(())
+        Ok(actually_fired_events)
     }
 
-    async fn fire_event_recv_or_delay(
-        &mut self,
-        actually_fired_events: &mut Vec<EventKey>,
-    ) -> Result<(), RunError> {
+    async fn fire_event_recv_or_delay(&mut self) -> Result<Vec<EventKey>, RunError> {
         let Executable {
             marshalling,
             events,
             ..
         } = self.executable;
+
+        let mut actually_fired_events = vec![];
 
         'recv_or_delay: loop {
             self.proxies[self.main_proxy_key].sync().await;
@@ -557,14 +546,10 @@ impl<'a> Runner<'a> {
             }
         }
 
-        Ok(())
+        Ok(actually_fired_events)
     }
 
-    async fn fire_event_send(
-        &mut self,
-        event_key: KeySend,
-        actually_fired_events: &mut Vec<EventKey>,
-    ) -> Result<(), RunError> {
+    async fn fire_event_send(&mut self, event_key: KeySend) -> Result<Vec<EventKey>, RunError> {
         let Executable {
             marshalling,
             events: vertices,
@@ -641,16 +626,10 @@ impl<'a> Runner<'a> {
             let () = proxy.send(any_message).await;
         }
 
-        actually_fired_events.push(EventKey::Send(event_key));
-
-        Ok(())
+        Ok(vec![EventKey::Send(event_key)])
     }
 
-    async fn fire_event_respond(
-        &mut self,
-        k: KeyRespond,
-        actually_fired_events: &mut Vec<EventKey>,
-    ) -> Result<(), RunError> {
+    async fn fire_event_respond(&mut self, k: KeyRespond) -> Result<Vec<EventKey>, RunError> {
         let Executable {
             marshalling,
             events: vertices,
@@ -723,9 +702,7 @@ impl<'a> Runner<'a> {
             .await
             .map_err(RunError::Marshalling)?;
 
-        actually_fired_events.push(EventKey::Respond(k));
-
-        Ok(())
+        Ok(vec![EventKey::Respond(k)])
     }
 }
 
