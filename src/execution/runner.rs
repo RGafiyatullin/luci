@@ -744,11 +744,11 @@ impl<'a> Runner<'a> {
         let ready_events = executable.events.entry_points.clone();
 
         let now = Instant::now();
-        ready_events.iter().copied().for_each(|k| {
+        for k in ready_events.iter().copied() {
             if let EventKey::Delay(k) = k {
                 delays.insert(now, k, &executable.events.delay[k]);
             }
-        });
+        }
 
         let key_requires_values = executable
             .events
