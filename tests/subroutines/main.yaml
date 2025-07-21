@@ -15,7 +15,7 @@ cast:
   - guest
   - host
 events:
-  - id: run for 120s
+  - id: run for 1m
     delay:
       for: 1m
       step: 10s
