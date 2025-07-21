@@ -115,6 +115,11 @@ pub struct DefEventRecv {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to: Option<ActorName>,
 
+    #[serde(with = "humantime_serde")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub timeout: Option<Duration>,
+
     #[serde(flatten)]
     pub no_extra: NoExtra,
 }

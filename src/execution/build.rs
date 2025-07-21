@@ -377,6 +377,7 @@ impl Builder {
                         message_data,
                         from,
                         to,
+                        timeout,
                         no_extra: _,
                     } = def_recv;
 
@@ -396,6 +397,7 @@ impl Builder {
                         to: to.clone(),
                         fqn: type_fqn,
                         payload: message_data.clone(),
+                        timeout: *timeout,
                         scope_key: this_scope_key,
                     });
                     let ek_recv = EventKey::Recv(key);

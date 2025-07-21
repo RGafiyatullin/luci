@@ -91,6 +91,7 @@ struct EventRecv {
     from: Option<ActorName>,
     to: Option<ActorName>,
     fqn: Arc<str>,
+    timeout: Option<Duration>,
     payload: Msg,
 }
 

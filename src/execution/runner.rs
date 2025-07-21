@@ -89,6 +89,7 @@ pub struct Runner<'a> {
     proxies: SlotMap<ProxyKey, Proxy>,
     envelopes: HashMap<KeyRecv, Envelope>,
     delays: Delays,
+    receives: Receives,
 }
 
 new_key_type! {
@@ -100,6 +101,9 @@ struct Delays {
     deadlines: BTreeSet<(Instant, KeyDelay, Duration)>,
     steps: BTreeSet<(Duration, KeyDelay, Instant)>,
 }
+
+#[derive(Default)]
+struct Receives {}
 
 impl Executable {
     /// Returns a [Runner] to run the test corresponding to this [Executable]
@@ -268,13 +272,12 @@ impl<'a> Runner<'a> {
     ) {
         use std::collections::hash_map::Entry::Occupied;
 
-        let Executable {
-            events: vertices, ..
-        } = self.executable;
+        let Executable { events, .. } = self.executable;
         for fired_event in actually_fired_events.into_iter() {
-            if let Some(ds) = vertices.key_unblocks_values.get(&fired_event) {
-                for d in ds.iter().copied() {
-                    let Occupied(mut remove_from) = self.key_requires_values.entry(d) else {
+            if let Some(dependent_keys) = events.key_unblocks_values.get(&fired_event) {
+                for dependent_key in dependent_keys.iter().copied() {
+                    let Occupied(mut remove_from) = self.key_requires_values.entry(dependent_key)
+                    else {
                         panic!("key_requires_values inconsistent with key_unblocks_values [1]")
                     };
                     let should_have_existed = remove_from.get_mut().remove(&fired_event);
@@ -283,12 +286,18 @@ impl<'a> Runner<'a> {
                         "key_requires_values inconsistent with key_unblocks_values [2]"
                     );
                     if remove_from.get().is_empty() {
-                        debug!("  unblocked {:?}", d);
+                        debug!("  unblocked {:?}", dependent_key);
                         remove_from.remove();
-                        self.ready_events.insert(d);
+                        self.ready_events.insert(dependent_key);
 
-                        if let EventKey::Delay(k) = d {
-                            self.delays.insert(Instant::now(), k, &vertices.delay[k]);
+                        match dependent_key {
+                            EventKey::Delay(k) => {
+                                self.delays.insert(Instant::now(), k, &events.delay[k])
+                            }
+                            EventKey::Recv(k) => {
+                                self.receives.insert(Instant::now(), k, &events.recv[k])
+                            }
+                            _ => (),
                         }
                     }
                 }
@@ -475,6 +484,7 @@ impl<'a> Runner<'a> {
                         from: match_from,
                         to: match_to,
                         payload: match_message,
+                        timeout: _,
                         scope_key,
                     } = &events.recv[recv_key];
 
@@ -777,13 +787,16 @@ impl<'a> Runner<'a> {
         let main_proxy_key = proxies.insert(main_proxy);
 
         let mut delays = Delays::default();
+        let mut receives = Receives::default();
 
         let ready_events = executable.events.entry_points.clone();
 
         let now = Instant::now();
         for k in ready_events.iter().copied() {
-            if let EventKey::Delay(k) = k {
-                delays.insert(now, k, &executable.events.delay[k]);
+            match k {
+                EventKey::Delay(k) => delays.insert(now, k, &executable.events.delay[k]),
+                EventKey::Recv(k) => receives.insert(now, k, &executable.events.recv[k]),
+                _ => (),
             }
         }
 
@@ -817,11 +830,18 @@ impl<'a> Runner<'a> {
             ready_events,
             key_requires_values,
             delays,
+            receives,
             main_proxy_key,
             proxies,
             scopes,
             envelopes: Default::default(),
         }
+    }
+}
+
+impl Receives {
+    fn insert(&mut self, now: Instant, key: KeyRecv, recv_event: &EventRecv) {
+        let _ = (now, key, recv_event);
     }
 }
 
@@ -860,9 +880,9 @@ impl Delays {
         (effective_deadline, expired)
     }
 
-    fn insert(&mut self, now: Instant, key: KeyDelay, delay_vertex: &EventDelay) {
-        let delay_for = delay_vertex.delay_for;
-        let step = delay_vertex.delay_step;
+    fn insert(&mut self, now: Instant, key: KeyDelay, delay_event: &EventDelay) {
+        let delay_for = delay_event.delay_for;
+        let step = delay_event.delay_step;
 
         let deadline = now.checked_add(delay_for).expect("please pretty please");
 
