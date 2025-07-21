@@ -4,6 +4,8 @@
 //!
 //! [`SourceCodeLoader`] as a concept of search-path — a list of paths that will be checked for when trying to resolve an included file.
 //!
+//! Scenarios from the preceding paths may "shadow" those having the same name, but from the paths coming later in the search-path list.
+//!
 //! Example:
 //!
 //! ```rust
