@@ -1,0 +1,40 @@
+types:
+  - use: recv_timeout::proto::Hi
+    as:  Hi
+  - use: recv_timeout::proto::Bye
+    as:  Bye
+
+cast:
+  - actor
+  - dummy
+
+events:
+  - id: run for
+    delay:
+      for: 2m
+      step: 500ms
+
+  - id: dummy-says-hi-to-actor
+    send:
+      from: dummy
+      type: Hi
+      data:
+        literal: ~
+    
+  - id: actor-says-hi-back
+    require: reached
+    recv:
+      from: actor
+      to: dummy
+      type: Hi
+      data:
+        literal: ~
+  
+  - id: actor-says-bye
+    require: reached
+    recv:
+      from: actor
+      to: dummy
+      type: Bye
+      data:
+        literal: ~
