@@ -79,7 +79,7 @@ Unreached:
         &self,
         mut io: impl std::io::Write,
         _sources: &SourceCode,
-        _executable: &Executable,
+        executable: &Executable,
     ) -> Result<(), io::Error> {
         use std::io::Write;
 
@@ -88,14 +88,23 @@ Unreached:
             depth: usize,
             log: &RecordLog,
             this_key: KeyRecord,
+            executable: &Executable,
         ) -> Result<(), io::Error> {
             write!(io, "{:1$}", "", depth)?;
 
             let record = &log.records[this_key];
-            writeln!(io, "{}", display::DisplayRecord { record, log })?;
+            writeln!(
+                io,
+                "{}",
+                display::DisplayRecord {
+                    record,
+                    log,
+                    executable,
+                }
+            )?;
 
             for child_key in record.children.iter().copied() {
-                dump(io, depth + 1, log, child_key)?;
+                dump(io, depth + 1, log, child_key, executable)?;
             }
 
             Ok(())
@@ -103,7 +112,7 @@ Unreached:
 
         for root_key in self.record_log.roots.iter().copied() {
             writeln!(io, "ROOT: {:?}", root_key)?;
-            dump(&mut io, 0, &self.record_log, root_key)?;
+            dump(&mut io, 0, &self.record_log, root_key, executable)?;
         }
 
         Ok(())
@@ -114,6 +123,7 @@ mod display {
     use std::fmt;
 
     use crate::execution::runner::ReadyEventKey;
+    use crate::execution::Executable;
     use crate::recorder::records as r;
     use crate::recorder::Record;
     use crate::recorder::RecordKind;
@@ -123,11 +133,16 @@ mod display {
     pub(super) struct DisplayRecord<'a> {
         pub(super) record: &'a Record,
         pub(super) log: &'a RecordLog,
+        pub(super) executable: &'a Executable,
     }
 
     impl<'a> fmt::Display for DisplayRecord<'a> {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            let Self { record, log } = self;
+            let Self {
+                record,
+                log,
+                executable,
+            } = self;
             let (t0_wall, t0_rt) = log.t_zero;
             let (t_wall, t_rt) = record.at;
             let kind = &record.kind;
@@ -139,13 +154,14 @@ mod display {
                 "[wall: {:?}; rt: {:?}] {}",
                 dt_wall,
                 dt_rt,
-                DisplayRecordKind { kind }
+                DisplayRecordKind { kind, executable }
             )
         }
     }
 
     pub(super) struct DisplayRecordKind<'a> {
         kind: &'a RecordKind,
+        executable: &'a Executable,
     }
 
     impl<'a> fmt::Display for DisplayRecordKind<'a> {
@@ -160,16 +176,21 @@ mod display {
                     write!(f, "requested RECV or DELAY")
                 }
                 ProcessEventClass(r::ProcessEventClass(ReadyEventKey::Send(k))) => {
-                    write!(f, "requested SEND:{:?}", k)
+                    let (scope, event) = self.executable.event_name((*k).into()).unwrap();
+                    write!(f, "requested SEND: {} (@{:?})", event, scope)
                 }
                 ProcessEventClass(r::ProcessEventClass(ReadyEventKey::Respond(k))) => {
-                    write!(f, "requested RESP:{:?}", k)
+                    let (scope, event) = self.executable.event_name((*k).into()).unwrap();
+                    write!(f, "requested RESP: {} (@{:?})", event, scope)
                 }
 
                 ReadyBindKeys(r::ReadyBindKeys(ks)) => write!(f, "ready binds {:?}", ks),
                 ReadyRecvKeys(r::ReadyRecvKeys(ks)) => write!(f, "ready recvs {:?}", ks),
 
-                ProcessBindKey(r::ProcessBindKey(k)) => write!(f, "process bind {:?}", k),
+                ProcessBindKey(r::ProcessBindKey(k)) => {
+                    let (scope, event) = self.executable.event_name((*k).into()).unwrap();
+                    write!(f, "process bind {} (@{:?})", event, scope)
+                }
                 ProcessSend(r::ProcessSend(k)) => write!(f, "process send {:?}", k),
                 ProcessRespond(r::ProcessRespond(k)) => write!(f, "process resp {:?}", k),
 
@@ -188,7 +209,10 @@ mod display {
                     write!(f, "value: {}", serde_json::to_string(json).unwrap())
                 }
 
-                EventFired(r::EventFired(k)) => write!(f, "fired {:?}", k),
+                EventFired(r::EventFired(k)) => {
+                    let (scope, event) = self.executable.event_name(*k).unwrap();
+                    write!(f, "completed {} (@{:?})", event, scope)
+                }
 
                 BindActorName(r::BindActorName(name, addr, true)) => {
                     write!(f, "SET {} = {}", name, addr)

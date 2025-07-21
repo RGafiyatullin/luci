@@ -25,3 +25,9 @@ pub struct MessageName(Arc<str>);
 )]
 #[display("SUB:{_0}")]
 pub struct SubroutineName(Arc<str>);
+
+impl EventName {
+    pub fn with_suffix(&self, suffix: &str) -> Self {
+        Self(format!("{}{}", self.0, suffix).into())
+    }
+}

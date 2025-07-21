@@ -18,6 +18,7 @@ mod keys;
 pub use keys::*;
 
 mod build;
+mod names;
 mod report;
 pub(crate) mod runner;
 mod sources;
