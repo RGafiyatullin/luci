@@ -78,7 +78,7 @@ Unreached:
     pub fn dump_record_log(
         &self,
         mut io: impl std::io::Write,
-        _sources: &SourceCode,
+        source_code: &SourceCode,
         executable: &Executable,
     ) -> Result<(), io::Error> {
         use std::io::Write;
@@ -90,6 +90,7 @@ Unreached:
             log: &'a RecordLog,
             this_key: KeyRecord,
             executable: &Executable,
+            source_code: &SourceCode,
         ) -> Result<(), io::Error> {
             let record = &log.records[this_key];
 
@@ -107,11 +108,20 @@ Unreached:
                     record,
                     log,
                     executable,
+                    source_code,
                 }
             )?;
 
             for child_key in record.children.iter().copied() {
-                dump(io, depth + 1, last_kind, log, child_key, executable)?;
+                dump(
+                    io,
+                    depth + 1,
+                    last_kind,
+                    log,
+                    child_key,
+                    executable,
+                    source_code,
+                )?;
             }
 
             Ok(())
@@ -127,6 +137,7 @@ Unreached:
                 &self.record_log,
                 root_key,
                 executable,
+                source_code,
             )?;
         }
 
@@ -139,6 +150,8 @@ mod display {
 
     use crate::execution::runner::ReadyEventKey;
     use crate::execution::Executable;
+    use crate::execution::KeyScope;
+    use crate::execution::SourceCode;
     use crate::recorder::records as r;
     use crate::recorder::Record;
     use crate::recorder::RecordKind;
@@ -149,6 +162,7 @@ mod display {
         pub(super) record: &'a Record,
         pub(super) log: &'a RecordLog,
         pub(super) executable: &'a Executable,
+        pub(super) source_code: &'a SourceCode,
     }
 
     impl<'a> fmt::Display for DisplayRecord<'a> {
@@ -157,6 +171,7 @@ mod display {
                 record,
                 log,
                 executable,
+                source_code,
             } = self;
             let (t0_wall, t0_rt) = log.t_zero;
             let (t_wall, t_rt) = record.at;
@@ -169,7 +184,11 @@ mod display {
                 "[wall: {:?}; rt: {:?}] {}",
                 dt_wall,
                 dt_rt,
-                DisplayRecordKind { kind, executable }
+                DisplayRecordKind {
+                    kind,
+                    executable,
+                    source_code,
+                }
             )
         }
     }
@@ -177,6 +196,38 @@ mod display {
     pub(super) struct DisplayRecordKind<'a> {
         kind: &'a RecordKind,
         executable: &'a Executable,
+        source_code: &'a SourceCode,
+    }
+
+    struct DisplayScope<'a> {
+        scope: KeyScope,
+        executable: &'a Executable,
+        source_code: &'a SourceCode,
+    }
+
+    impl<'a> DisplayRecordKind<'a> {
+        fn scope(&self, scope: KeyScope) -> DisplayScope<'a> {
+            DisplayScope {
+                scope,
+                executable: self.executable,
+                source_code: self.source_code,
+            }
+        }
+    }
+
+    impl<'a> fmt::Display for DisplayScope<'a> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            let this_scope = &self.executable.scopes[self.scope];
+            let this_source = &self.source_code.sources[this_scope.source_key].source_file;
+            write!(f, "in {:?} ", &this_source)?;
+
+            let mut invoked_as = this_scope.invoked_as.as_ref();
+            while let Some((scope, event_name, _subroutine_name)) = invoked_as.take() {
+                write!(f, "< {} ", event_name)?;
+                invoked_as = self.executable.scopes[*scope].invoked_as.as_ref();
+            }
+            Ok(())
+        }
     }
 
     impl<'a> fmt::Display for DisplayRecordKind<'a> {
@@ -192,18 +243,18 @@ mod display {
                 }
                 ProcessEventClass(r::ProcessEventClass(ReadyEventKey::Send(k))) => {
                     let (scope, event) = self.executable.event_name((*k).into()).unwrap();
-                    write!(f, "requested SEND: {} (@{:?})", event, scope)
+                    write!(f, "requested SEND: {} ({})", event, self.scope(scope))
                 }
                 ProcessEventClass(r::ProcessEventClass(ReadyEventKey::Respond(k))) => {
                     let (scope, event) = self.executable.event_name((*k).into()).unwrap();
-                    write!(f, "requested RESP: {} (@{:?})", event, scope)
+                    write!(f, "requested RESP: {} ({})", event, self.scope(scope))
                 }
 
                 ReadyBindKeys(r::ReadyBindKeys(ks)) => {
                     write!(f, "ready binds: [")?;
                     for k in ks {
                         let (scope, event) = self.executable.event_name((*k).into()).unwrap();
-                        write!(f, " {}(@{:?}) ", event, scope)?;
+                        write!(f, " {}({}) ", event, self.scope(scope))?;
                     }
                     write!(f, "]")
                 }
@@ -211,18 +262,18 @@ mod display {
                     write!(f, "ready recvs: [")?;
                     for k in ks {
                         let (scope, event) = self.executable.event_name((*k).into()).unwrap();
-                        write!(f, " {}(@{:?}) ", event, scope)?;
+                        write!(f, " {}({}) ", event, self.scope(scope))?;
                     }
                     write!(f, "]")
                 }
                 TimedOutRecvKey(r::TimedOutRecvKey(k)) => {
                     let (scope, event) = self.executable.event_name((*k).into()).unwrap();
-                    write!(f, "timed out RECV: {} (@{:?})", event, scope)
+                    write!(f, "timed out RECV: {} ({})", event, self.scope(scope))
                 }
 
                 ProcessBindKey(r::ProcessBindKey(k)) => {
                     let (scope, event) = self.executable.event_name((*k).into()).unwrap();
-                    write!(f, "process bind {} (@{:?})", event, scope)
+                    write!(f, "process bind {} ({})", event, self.scope(scope))
                 }
                 ProcessSend(r::ProcessSend(k)) => write!(f, "process send {:?}", k),
                 ProcessRespond(r::ProcessRespond(k)) => write!(f, "process resp {:?}", k),
@@ -281,7 +332,7 @@ mod display {
 
                 MatchingRecv(r::MatchingRecv(k)) => {
                     let (scope, event) = self.executable.event_name((*k).into()).unwrap();
-                    write!(f, "matching RECV: {} (@{:?})", event, scope)
+                    write!(f, "matching RECV: {} ({})", event, self.scope(scope))
                 }
 
                 ExpectedDirectedGotRouted(r::ExpectedDirectedGotRouted(name)) => {

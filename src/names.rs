@@ -5,25 +5,25 @@ use serde::{Deserialize, Serialize};
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, derive_more::Display,
 )]
-#[display("ACT:{_0}")]
+#[display("A:{_0}")]
 pub struct ActorName(Arc<str>);
 
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, derive_more::Display,
 )]
-#[display("EVT:{_0}")]
+#[display("E:{_0}")]
 pub struct EventName(Arc<str>);
 
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, derive_more::Display,
 )]
-#[display("MSG:{_0}")]
+#[display("M:{_0}")]
 pub struct MessageName(Arc<str>);
 
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, derive_more::Display,
 )]
-#[display("SUB:{_0}")]
+#[display("S:{_0}")]
 pub struct SubroutineName(Arc<str>);
 
 impl EventName {

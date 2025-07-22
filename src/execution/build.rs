@@ -289,7 +289,7 @@ impl Builder {
                     let ek_bind_in = EventKey::Bind(bind_in);
                     self.event_names.insert(
                         ek_bind_in,
-                        (this_scope_key, this_name.with_suffix(" (ENTER)")),
+                        (this_scope_key, this_name.with_suffix("[ENTER SUB]")),
                     );
 
                     for sub_entry_point in sub_entry_points {

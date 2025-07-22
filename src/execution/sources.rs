@@ -77,7 +77,7 @@ pub struct SourceCodeLoader {
 #[derive(Default)]
 pub struct SourceCode {
     by_effective_path: BTreeMap<Arc<Path>, KeyScenario>,
-    sources: SlotMap<KeyScenario, SingleScenarioSource>,
+    pub(crate) sources: SlotMap<KeyScenario, SingleScenarioSource>,
 }
 
 pub struct SingleScenarioSource {

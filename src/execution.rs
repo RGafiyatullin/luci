@@ -45,15 +45,15 @@ pub struct Executable {
     events: Events,
 
     root_scope_key: KeyScope,
-    scopes: SlotMap<KeyScope, ScopeInfo>,
+    pub(crate) scopes: SlotMap<KeyScope, ScopeInfo>,
 }
 
 #[derive(Debug)]
 // the fields of this structure can be used to build a sort of stack-trace, which might be useful
 #[allow(dead_code)]
-struct ScopeInfo {
-    source_key: KeyScenario,
-    invoked_as: Option<(KeyScope, EventName, SubroutineName)>,
+pub(crate) struct ScopeInfo {
+    pub(crate) source_key: KeyScenario,
+    pub(crate) invoked_as: Option<(KeyScope, EventName, SubroutineName)>,
 }
 
 #[derive(Debug, Default)]
