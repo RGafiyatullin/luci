@@ -35,4 +35,37 @@ events:
       to: dummy
       type: V
       data: $PAYLOAD
+      also:
+        - one: $ONE
+          two: $TWO
+          three: $THREE
   
+  - id: check-one
+    require: reached
+    happens_after:
+      - recv
+    bind:
+      dst:
+        - $ONE
+        - du
+        - $THREE
+      src:
+        bind:
+          - vienas
+          - $TWO
+          - trys
+  
+  - id: check-two
+    require: reached
+    happens_after:
+      - recv
+    bind:
+      dst:
+        - vienas
+        - $TWO
+        - trys
+      src:
+        bind:
+          - $ONE
+          - du
+          - $THREE
