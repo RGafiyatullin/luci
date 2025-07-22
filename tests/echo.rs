@@ -78,13 +78,14 @@ async fn run_scenario(scenario_file: &str) {
     let (key_main, sources) = SourceCodeLoader::new()
         .load(scenario_file)
         .expect("SourceLoader::load");
-    let exec_graph = Executable::build(marshalling, &sources, key_main).expect("building graph");
-    let report = exec_graph
+    let executable = Executable::build(marshalling, &sources, key_main).expect("building graph");
+    let report = executable
         .start(echo::blueprint(), json!(null))
         .await
         .run()
         .await
         .expect("runner.run");
 
+    let _ = report.dump_record_log(std::io::stderr().lock(), &sources, &executable);
     assert!(report.is_ok(), "{}", report.message());
 }

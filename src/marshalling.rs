@@ -7,7 +7,7 @@ use serde_json::Value;
 use tracing::debug;
 
 use crate::bindings;
-use crate::scenario::Msg;
+use crate::scenario::{DstPattern, SrcMsg};
 
 pub type AnError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -70,7 +70,7 @@ pub(crate) trait Marshal {
     fn match_inbound_message(
         &self,
         envelope: &Envelope,
-        msg: &Msg,
+        msg: &DstPattern,
         bindings: &mut bindings::Txn,
     ) -> bool;
 
@@ -79,7 +79,7 @@ pub(crate) trait Marshal {
         &self,
         marshalling: &MarshallingRegistry,
         bindings: &bindings::Scope,
-        msg: Msg,
+        msg: SrcMsg,
     ) -> Result<AnyMessage, AnError>;
 
     /// Returns:
@@ -98,7 +98,7 @@ pub(crate) trait Respond<'a> {
         token: ResponseToken,
         marshalling: &'a MarshallingRegistry,
         bindings: &'a bindings::Scope,
-        msg: Msg,
+        msg: SrcMsg,
     ) -> LocalBoxFuture<'a, Result<(), AnError>>;
 }
 pub(crate) trait DynRespond: for<'a> Respond<'a> {}
@@ -184,7 +184,7 @@ impl Marshal for Mock {
         &self,
         _marshalling: &MarshallingRegistry,
         _bindings: &bindings::Scope,
-        _msg: Msg,
+        _msg: SrcMsg,
     ) -> Result<AnyMessage, AnError> {
         panic!("it's a mock!")
     }
@@ -192,7 +192,7 @@ impl Marshal for Mock {
     fn match_inbound_message(
         &self,
         _envelope: &Envelope,
-        _msg: &Msg,
+        _msg: &DstPattern,
         _bindings: &mut bindings::Txn,
     ) -> bool {
         panic!("it's a mock!")
@@ -211,7 +211,7 @@ impl<'a> Respond<'a> for Mock {
         _token: ResponseToken,
         _marshalling: &'a MarshallingRegistry,
         _bindings: &'a bindings::Scope,
-        _msg: Msg,
+        _msg: SrcMsg,
     ) -> LocalBoxFuture<'a, Result<(), AnError>> {
         panic!("it's a mock!")
     }
@@ -224,7 +224,7 @@ where
     fn match_inbound_message(
         &self,
         envelope: &Envelope,
-        bind_to: &Msg,
+        bind_to: &DstPattern,
         bindings: &mut bindings::Txn,
     ) -> bool {
         if !envelope.is::<M>() {
@@ -234,13 +234,13 @@ where
         let serialized = extract_message_payload(envelope)
             .expect("AnyMessage has changed serialization format?");
 
-        do_match_message(bind_to, serialized, bindings)
+        bindings::bind_to_pattern(serialized, bind_to, bindings)
     }
     fn marshal_outbound_message(
         &self,
         marshalling: &MarshallingRegistry,
         bindings: &bindings::Scope,
-        msg: Msg,
+        msg: SrcMsg,
     ) -> Result<AnyMessage, AnError> {
         do_marshal_message::<M>(marshalling, bindings, msg)
     }
@@ -256,7 +256,7 @@ where
     fn match_inbound_message(
         &self,
         envelope: &Envelope,
-        bind_to: &Msg,
+        bind_to: &DstPattern,
         bindings: &mut bindings::Txn,
     ) -> bool {
         if !envelope.is::<Rq>() {
@@ -266,13 +266,13 @@ where
         let serialized = extract_message_payload(envelope)
             .expect("AnyMessage has changed serialization format?");
 
-        do_match_message(bind_to, serialized, bindings)
+        bindings::bind_to_pattern(serialized, bind_to, bindings)
     }
     fn marshal_outbound_message(
         &self,
         marshalling: &MarshallingRegistry,
         bindings: &bindings::Scope,
-        msg: Msg,
+        msg: SrcMsg,
     ) -> Result<AnyMessage, AnError> {
         do_marshal_message::<Rq::Wrapper>(marshalling, bindings, msg)
     }
@@ -291,12 +291,12 @@ where
         token: ResponseToken,
         marshalling: &'a MarshallingRegistry,
         bindings: &'a bindings::Scope,
-        value: Msg,
+        value: SrcMsg,
     ) -> LocalBoxFuture<'a, Result<(), AnError>> {
         async move {
             let token = token.into_received::<Rq>();
             match value {
-                Msg::Bind(template) => {
+                SrcMsg::Bind(template) => {
                     let value = bindings::render(template, bindings)?;
                     let de: Result<Rq::Wrapper, _> = serde_json::from_value(value);
                     match de {
@@ -307,7 +307,7 @@ where
                         Err(e) => Err(e.into()),
                     }
                 }
-                Msg::Inject(name) => {
+                SrcMsg::Inject(name) => {
                     let a = marshalling
                         .values
                         .get(&name)
@@ -320,7 +320,7 @@ where
                         Err("couldn't cast".into())
                     }
                 }
-                Msg::Literal(value) => {
+                SrcMsg::Literal(value) => {
                     let de: Result<Rq::Wrapper, _> = serde_json::from_value(value);
                     match de {
                         Ok(w) => {
@@ -347,27 +347,19 @@ fn extract_message_payload(envelope: &Envelope) -> Option<Value> {
     Some(payload)
 }
 
-fn do_match_message(bind_to: &Msg, serialized: Value, bindings: &mut bindings::Txn) -> bool {
-    match bind_to {
-        Msg::Literal(value) => serialized == *value,
-        Msg::Bind(pattern) => bindings::bind_to_pattern(serialized, pattern, bindings),
-        Msg::Inject(_name) => false,
-    }
-}
-
 fn do_marshal_message<M: Message>(
     marshalling: &MarshallingRegistry,
     bindings: &bindings::Scope,
-    msg: Msg,
+    msg: SrcMsg,
 ) -> Result<AnyMessage, AnError> {
     match msg {
-        Msg::Bind(template) => {
+        SrcMsg::Bind(template) => {
             let value = bindings::render(template, bindings)?;
             let m: M = serde_json::from_value(value)?;
             let a = AnyMessage::new(m);
             Ok(a)
         }
-        Msg::Inject(name) => {
+        SrcMsg::Inject(name) => {
             let a = marshalling
                 .values
                 .get(&name)
@@ -375,7 +367,7 @@ fn do_marshal_message<M: Message>(
                 .ok_or("no such value")?;
             Ok(a)
         }
-        Msg::Literal(value) => {
+        SrcMsg::Literal(value) => {
             let m: M = serde_json::from_value(value)?;
             let a = AnyMessage::new(m);
             Ok(a)

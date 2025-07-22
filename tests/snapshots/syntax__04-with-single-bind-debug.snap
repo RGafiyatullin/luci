@@ -15,11 +15,13 @@ Scenario {
             prerequisites: [],
             kind: Bind(
                 DefEventBind {
-                    dst: Object {
-                        "a": String("$A"),
-                        "b": String("$B"),
-                        "c": String("$_"),
-                    },
+                    dst: DstPattern(
+                        Object {
+                            "a": String("$A"),
+                            "b": String("$B"),
+                            "c": String("$_"),
+                        },
+                    ),
                     src: Literal(
                         Object {
                             "a": String("A"),

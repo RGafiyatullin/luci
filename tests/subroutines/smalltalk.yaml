@@ -14,8 +14,7 @@ events:
       from: ALICE
       type: Whatsup
       data:
-        bind:
-          topic: $TOPIC
+        topic: $TOPIC
   - id: ROBERT-greets
     after:
       - ALICE-arrives

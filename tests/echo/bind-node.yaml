@@ -20,8 +20,7 @@ events:
     recv:
       to: dummy
       type: V
-      data:
-        bind: $PAYLOAD
+      data: $PAYLOAD
   
   - id: bind-payload-one
     require: reached

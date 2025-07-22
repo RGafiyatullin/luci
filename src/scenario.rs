@@ -95,8 +95,8 @@ pub enum DefEventKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DefEventBind {
-    pub dst: Value,
-    pub src: Msg,
+    pub dst: DstPattern,
+    pub src: SrcMsg,
 
     #[serde(flatten)]
     pub no_extra: NoExtra,
@@ -107,7 +107,7 @@ pub struct DefEventRecv {
     #[serde(rename = "type")]
     pub message_type: MessageName,
     #[serde(rename = "data")]
-    pub message_data: Msg,
+    pub message_data: DstPattern,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub from: Option<ActorName>,
@@ -134,7 +134,7 @@ pub struct DefEventSend {
     #[serde(rename = "type")]
     pub message_type: MessageName,
     #[serde(rename = "data")]
-    pub message_data: Msg,
+    pub message_data: SrcMsg,
 
     #[serde(flatten)]
     pub no_extra: NoExtra,
@@ -147,7 +147,7 @@ pub struct DefEventRespond {
 
     #[cfg_attr(feature = "backward-compatibility", serde(alias = "to"))]
     pub to_request: EventName,
-    pub data: Msg,
+    pub data: SrcMsg,
 
     #[serde(flatten)]
     pub no_extra: NoExtra,
@@ -168,10 +168,10 @@ pub struct DefEventDelay {
     pub no_extra: NoExtra,
 }
 
-/// A template for marshalling [elfo::AnyMessage].
+/// A template for constructing a message.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum Msg {
+pub enum SrcMsg {
     /// Stores [Value] to be marshalled as [elfo::AnyMessage] as-is.
     #[cfg_attr(feature = "backward-compatibility", serde(alias = "exact"))]
     Literal(Value),
@@ -183,6 +183,10 @@ pub enum Msg {
     #[cfg_attr(feature = "backward-compatibility", serde(alias = "injected"))]
     Inject(String),
 }
+
+// A template for deconstructing a message.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DstPattern(pub Value);
 
 mod defaults {
     use std::time::Duration;

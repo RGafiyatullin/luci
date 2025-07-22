@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use crate::{
     names::{ActorName, SubroutineName},
-    scenario::no_extra::NoExtra,
+    scenario::{no_extra::NoExtra, DstPattern},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,7 +46,7 @@ pub struct DefCallSub {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DefSubBind {
-    pub dst: Value,
+    pub dst: DstPattern,
     pub src: Value,
 
     #[serde(flatten)]

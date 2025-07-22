@@ -1,7 +1,6 @@
 use luci::{
     execution::{Executable, SourceCodeLoader},
     marshalling::{MarshallingRegistry, Regular},
-    scenario::RequiredToBe,
 };
 use serde_json::json;
 
@@ -142,32 +141,14 @@ async fn run_scenario(scenario_file: &str) {
     let (key_main, sources) = SourceCodeLoader::new()
         .load(scenario_file)
         .expect("SourceLoader::load");
-    let exec_graph = Executable::build(marshalling, &sources, key_main).expect("building graph");
-    let report = exec_graph
+    let executable = Executable::build(marshalling, &sources, key_main).expect("building graph");
+    let report = executable
         .start(pinger::blueprint(), json!(null))
         .await
         .run()
         .await
         .expect("runner.run");
 
-    let mut okay = true;
-    for (event_name, required) in report
-        .reached
-        .into_iter()
-        .filter(|(_, r)| matches!(r, RequiredToBe::Unreached))
-        .chain(
-            report
-                .unreached
-                .into_iter()
-                .filter(|(_, r)| matches!(r, RequiredToBe::Reached)),
-        )
-    {
-        okay = false;
-        let opposite = match required {
-            RequiredToBe::Reached => "unreached",
-            RequiredToBe::Unreached => "reached",
-        };
-        eprintln!("- {}: {}", event_name, opposite);
-    }
-    assert!(okay);
+    let _ = report.dump_record_log(std::io::stderr().lock(), &sources, &executable);
+    assert!(report.is_ok(), "{}", report.message());
 }

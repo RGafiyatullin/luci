@@ -11,5 +11,4 @@ events:
     recv:
       from: p0
       type: Bro
-      data:
-        exact: ~
+      data: ~

@@ -21,7 +21,7 @@ data: !literal
     NodeId: 104
 "];
   "EVT:request:SubscribeToData" [label="RECV\nid=EVT:request:SubscribeToData\n\ntype: SubscribeToData
-data: !bind $_
+data: $_
 from: master
 "];
   "EVT:response:SubscribeToData" [label="RESPOND\nid=EVT:response:SubscribeToData\n\nfrom: someone-else
@@ -29,7 +29,7 @@ to_request: request:SubscribeToData
 data: !inject SubscribeToData::Response
 "];
   "EVT:request:FetchSettings" [label="RECV\nid=EVT:request:FetchSettings\n\ntype: FetchSettings
-data: !bind
+data:
 - real
 - FetchSettings
 - account_id: $ACCOUNT_ID
@@ -43,7 +43,7 @@ data: !bind
   local_time: $ENV_NOW.nanos
 "];
   "EVT:request:FetchData" [label="RECV\nid=EVT:request:FetchData\n\ntype: FetchData
-data: !bind
+data:
 - real
 - FetchData
 - account_id: $ACCOUNT_ID
@@ -57,15 +57,15 @@ data: !bind
   local_time: $ENV_NOW.nanos
 "];
   "EVT:msg:UpdateStatus" [label="RECV\nid=EVT:msg:UpdateStatus\n\ntype: UpdateStatus
-data: !bind $UpdateStatus.msg
+data: $UpdateStatus.msg
 from: master
 "];
   "EVT:msg:RunStatusReport" [label="RECV\nid=EVT:msg:RunStatusReport\n\ntype: RunStatusReport
-data: !bind $RunStatusReport.msg
+data: $RunStatusReport.msg
 from: master
 "];
   "EVT:request:LoadState" [label="RECV\nid=EVT:request:LoadState\n\ntype: LoadState
-data: !bind $LoadState.request
+data: $LoadState.request
 from: master
 "];
   "EVT:response:LoadState" [label="RESPOND\nid=EVT:response:LoadState\n\nfrom: someone-else
@@ -74,7 +74,7 @@ data: !literal
   Err: NotFound
 "];
   "EVT:msg:StartWorker" [label="RECV\nid=EVT:msg:StartWorker\n\ntype: StartWorker
-data: !bind
+data:
 - master_sdk
 - StartWorker
 - $StartWorker.msg
@@ -91,7 +91,7 @@ data: !bind
   account_id: $ACCOUNT_ID
 "];
   "EVT:msg:OpenConnection[1]" [label="RECV\nid=EVT:msg:OpenConnection[1]\n\ntype: OpenConnection
-data: !bind
+data:
 - master_sdk
 - OpenConnection
 - $OpenConnection[1].msg
@@ -99,7 +99,7 @@ from: master
 to: conn
 "];
   "EVT:msg:OpenConnection[2]" [label="RECV\nid=EVT:msg:OpenConnection[2]\n\ntype: OpenConnection
-data: !bind
+data:
 - master_sdk
 - OpenConnection
 - $OpenConnection[2].msg
@@ -131,7 +131,7 @@ data: !bind
   open: $OpenConnection[2].msg
 "];
   "EVT:msg:Poll" [label="RECV\nid=EVT:msg:Poll\n\ntype: Poll
-data: !bind
+data:
 - master_sdk
 - Poll
 - $Poll.msg
@@ -236,7 +236,7 @@ data: !bind
     user_id: 108
 "];
   "EVT:msg:DataAdjustment" [label="RECV\nid=EVT:msg:DataAdjustment\n\ntype: DataAdjustment
-data: !bind
+data:
 - real
 - DataAdjustment
 - account_id: $ACCOUNT_ID

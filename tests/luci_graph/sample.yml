@@ -66,8 +66,7 @@ events:
     recv:
       from: master
       type: SubscribeToData
-      data:
-        bind: $_
+      data: $_
 
   - id: response:SubscribeToData
     happens_after:
@@ -85,10 +84,9 @@ events:
       from: master
       type: FetchSettings
       data:
-        bind:
-          - real
-          - FetchSettings
-          - account_id: $ACCOUNT_ID
+        - real
+        - FetchSettings
+        - account_id: $ACCOUNT_ID
 
   - id: response:FetchSettings
     happens_after:
@@ -109,10 +107,9 @@ events:
       from: master
       type: FetchData
       data:
-        bind:
-          - real
-          - FetchData
-          - account_id: $ACCOUNT_ID
+        - real
+        - FetchData
+        - account_id: $ACCOUNT_ID
 
   - id: response:FetchData
     happens_after:
@@ -132,8 +129,7 @@ events:
     recv:
       from: master
       type: UpdateStatus
-      data:
-        bind: $UpdateStatus.msg
+      data: $UpdateStatus.msg
 
   - id: msg:RunStatusReport
     happens_after:
@@ -141,8 +137,7 @@ events:
     recv:
       from: master
       type: RunStatusReport
-      data:
-        bind: $RunStatusReport.msg
+      data: $RunStatusReport.msg
 
   - id: request:LoadState
     happens_after:
@@ -150,8 +145,7 @@ events:
     recv:
       from: master
       type: LoadState
-      data:
-        bind: $LoadState.request
+      data: $LoadState.request
 
   - id: response:LoadState
     happens_after:
@@ -170,10 +164,9 @@ events:
       from: master
       type: StartWorker
       data:
-        bind:
-          - master_sdk
-          - StartWorker
-          - $StartWorker.msg
+        - master_sdk
+        - StartWorker
+        - $StartWorker.msg
 
   - id: bind:StartWorker
     require: reached
@@ -204,10 +197,9 @@ events:
       to: conn
       type: OpenConnection
       data:
-        bind:
-          - master_sdk
-          - OpenConnection
-          - $OpenConnection[1].msg
+        - master_sdk
+        - OpenConnection
+        - $OpenConnection[1].msg
 
   - id: msg:OpenConnection[2]
     happens_after:
@@ -217,10 +209,9 @@ events:
       to: conn
       type: OpenConnection
       data:
-        bind:
-          - master_sdk
-          - OpenConnection
-          - $OpenConnection[2].msg
+        - master_sdk
+        - OpenConnection
+        - $OpenConnection[2].msg
 
   - id: bind:OpenConnection[1]
     require: reached
@@ -276,10 +267,9 @@ events:
       to: conn
       type: Poll
       data:
-        bind:
-          - master_sdk
-          - Poll
-          - $Poll.msg
+        - master_sdk
+        - Poll
+        - $Poll.msg
 
   - id: bind:Poll
     happens_after:
@@ -431,9 +421,8 @@ events:
       from: master
       type: DataAdjustment
       data:
-        bind:
-          - real
-          - DataAdjustment
-          - account_id: $ACCOUNT_ID
-            user_id: 108
-            amount_total: "4.0"
+        - real
+        - DataAdjustment
+        - account_id: $ACCOUNT_ID
+          user_id: 108
+          amount_total: "4.0"

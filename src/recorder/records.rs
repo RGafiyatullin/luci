@@ -6,7 +6,7 @@ use serde_json::Value;
 use crate::{
     execution::{runner::ReadyEventKey, EventKey, KeyBind, KeyRecv, KeyRespond, KeyScope, KeySend},
     names::ActorName,
-    scenario::Msg,
+    scenario::{DstPattern, SrcMsg},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,7 +36,7 @@ pub(crate) struct ProcessBindKey(pub KeyBind);
 pub(crate) struct BindSrcScope(pub KeyScope);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct UsingMsg(pub Msg);
+pub(crate) struct UsingMsg(pub SrcMsg);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct BindValue(pub Value);
@@ -54,7 +54,7 @@ pub(crate) struct ResolveActorName(pub ActorName, pub Addr);
 pub(crate) struct BindOutcome(pub bool);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct BindToPattern(pub Msg);
+pub(crate) struct BindToPattern(pub DstPattern);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ProcessSend(pub KeySend);

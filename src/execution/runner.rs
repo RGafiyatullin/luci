@@ -18,7 +18,7 @@ use crate::{
     },
     marshalling,
     names::{ActorName, EventName},
-    scenario::Msg,
+    scenario::SrcMsg,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -358,11 +358,11 @@ impl<'a> Runner<'a> {
 
             recorder_src.write(records::UsingMsg(src.clone()));
             let value = match src {
-                Msg::Literal(value) => value.clone(),
-                Msg::Bind(template) => {
+                SrcMsg::Literal(value) => value.clone(),
+                SrcMsg::Bind(template) => {
                     bindings::render(template.clone(), src_scope).map_err(RunError::BindError)?
                 }
-                Msg::Inject(key) => {
+                SrcMsg::Inject(key) => {
                     let m = marshalling.value(key).ok_or(RunError::Marshalling(
                         format!("no such key: {:?}", key).into(),
                     ))?;
@@ -404,7 +404,7 @@ impl<'a> Runner<'a> {
             }
 
             // TODO: pass the recorder_dst inside
-            recorder.write(records::BindToPattern(Msg::Bind(dst.clone())));
+            recorder.write(records::BindToPattern(dst.clone()));
             if !bindings::bind_to_pattern(value, dst, &mut dst_scope_txn) {
                 recorder.write(records::BindOutcome(false));
                 trace!("could not bind {:?}", bind_key);

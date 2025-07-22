@@ -23,8 +23,7 @@ events:
       from: client
       to: server
       type: R
-      data:
-        bind: $PAYLOAD
+      data: $PAYLOAD
   
   - id: server-responds-to-R
     require: reached

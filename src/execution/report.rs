@@ -143,7 +143,7 @@ mod display {
     use crate::recorder::Record;
     use crate::recorder::RecordKind;
     use crate::recorder::RecordLog;
-    use crate::scenario::Msg;
+    use crate::scenario::SrcMsg;
 
     pub(super) struct DisplayRecord<'a> {
         pub(super) record: &'a Record,
@@ -230,11 +230,11 @@ mod display {
                 BindSrcScope(r::BindSrcScope(k)) => write!(f, "src scope {:?}", k),
                 BindDstScope(r::BindDstScope(k)) => write!(f, "dst scope {:?}", k),
 
-                UsingMsg(r::UsingMsg(Msg::Inject(name))) => write!(f, "msg.inj {:?}", name),
-                UsingMsg(r::UsingMsg(Msg::Literal(json))) => {
+                UsingMsg(r::UsingMsg(SrcMsg::Inject(name))) => write!(f, "msg.inj {:?}", name),
+                UsingMsg(r::UsingMsg(SrcMsg::Literal(json))) => {
                     write!(f, "msg.lit: {}", serde_json::to_string(&json).unwrap())
                 }
-                UsingMsg(r::UsingMsg(Msg::Bind(bind))) => {
+                UsingMsg(r::UsingMsg(SrcMsg::Bind(bind))) => {
                     write!(f, "msg.bind: {}", serde_json::to_string(&bind).unwrap())
                 }
 

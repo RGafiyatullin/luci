@@ -27,8 +27,7 @@ events:
       from: actor
       to: dummy
       type: Hi
-      data:
-        literal: ~
+      data: ~
   
   - id: actor-says-bye
     require: reached
@@ -36,5 +35,4 @@ events:
       from: actor
       to: dummy
       type: Bye
-      data:
-        literal: ~
+      data: ~

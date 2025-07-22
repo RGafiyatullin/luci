@@ -31,8 +31,7 @@ events:
     recv:
       from: guest
       type: MayI
-      data:
-        literal: ~
+      data: ~
   
   - id: guest-is-welcome
     after:
@@ -60,8 +59,7 @@ events:
       to: host
       from: guest
       type: Gulp
-      data:
-        literal: ~
+      data: ~
   
   - id: guest-leaves-the-party-willingly
     after:
@@ -70,6 +68,5 @@ events:
     recv:
       from: guest
       type: SeeYou
-      data:
-        literal: ~
+      data: ~
 

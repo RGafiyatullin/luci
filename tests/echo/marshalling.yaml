@@ -28,11 +28,11 @@ events:
         bind: $PAYLOAD
   
   - id: recv
+    require: reached
     after:
       - send
     recv:
       to: dummy
       type: V
-      data:
-        bind: $PAYLOAD
+      data: $PAYLOAD
   

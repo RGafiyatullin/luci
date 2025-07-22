@@ -6,6 +6,7 @@ use elfo::Addr;
 use serde_json::Value;
 use tracing::info;
 
+use crate::scenario::DstPattern;
 use crate::{bindings, names::ActorName};
 
 #[derive(Debug, thiserror::Error)]
@@ -121,33 +122,35 @@ impl<'a> Txn<'a> {
 
 /// Binds luci variables from `value` according to `pattern` and adds the result
 /// to `bindings`.
-pub(crate) fn bind_to_pattern(value: Value, pattern: &Value, bindings: &mut Txn) -> bool {
-    match (value, pattern) {
-        (_, Value::String(wildcard)) if wildcard == "$_" => true,
+pub(crate) fn bind_to_pattern(value: Value, pattern: &DstPattern, bindings: &mut Txn) -> bool {
+    fn inner(value: Value, pattern: &Value, bindings: &mut Txn) -> bool {
+        match (value, pattern) {
+            (_, Value::String(wildcard)) if wildcard == "$_" => true,
 
-        (value, Value::String(var_name)) if var_name.starts_with('$') => {
-            bindings.bind_value(&var_name, &value)
+            (value, Value::String(var_name)) if var_name.starts_with('$') => {
+                bindings.bind_value(&var_name, &value)
+            }
+
+            (Value::Null, Value::Null) => true,
+            (Value::Bool(v), Value::Bool(p)) => v == *p,
+            (Value::String(v), Value::String(p)) => v == *p,
+            (Value::Number(v), Value::Number(p)) => v == *p,
+            (Value::Array(values), Value::Array(patterns)) => {
+                values.len() == patterns.len()
+                    && values
+                        .into_iter()
+                        .zip(patterns)
+                        .all(|(v, p)| inner(v, p, bindings))
+            }
+
+            (Value::Object(mut v), Value::Object(p)) => p
+                .iter()
+                .all(|(pk, pv)| v.remove(pk).is_some_and(|vv| inner(vv, pv, bindings))),
+
+            (_, _) => false,
         }
-
-        (Value::Null, Value::Null) => true,
-        (Value::Bool(v), Value::Bool(p)) => v == *p,
-        (Value::String(v), Value::String(p)) => v == *p,
-        (Value::Number(v), Value::Number(p)) => v == *p,
-        (Value::Array(values), Value::Array(patterns)) => {
-            values.len() == patterns.len()
-                && values
-                    .into_iter()
-                    .zip(patterns)
-                    .all(|(v, p)| bind_to_pattern(v, p, bindings))
-        }
-
-        (Value::Object(mut v), Value::Object(p)) => p.iter().all(|(pk, pv)| {
-            v.remove(pk)
-                .is_some_and(|vv| bind_to_pattern(vv, pv, bindings))
-        }),
-
-        (_, _) => false,
     }
+    inner(value, &pattern.0, bindings)
 }
 
 /// Renders luci variables in `template` with values from `bindings`.

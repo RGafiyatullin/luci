@@ -5,13 +5,12 @@ use std::{
 };
 
 use bimap::BiHashMap;
-use serde_json::Value;
 use slotmap::SlotMap;
 
 use crate::{
     marshalling::MarshallingRegistry,
     names::{ActorName, EventName, SubroutineName},
-    scenario::{Msg, RequiredToBe},
+    scenario::{DstPattern, RequiredToBe, SrcMsg},
 };
 
 mod keys;
@@ -81,7 +80,7 @@ struct EventSend {
     from: ActorName,
     to: Option<ActorName>,
     fqn: Arc<str>,
-    payload: Msg,
+    payload: SrcMsg,
 }
 
 #[derive(Debug)]
@@ -92,7 +91,7 @@ struct EventRecv {
     to: Option<ActorName>,
     fqn: Arc<str>,
     timeout: Option<Duration>,
-    payload_matchers: Vec<Msg>,
+    payload_matchers: Vec<DstPattern>,
 }
 
 #[derive(Debug)]
@@ -102,7 +101,7 @@ struct EventRespond {
     respond_to: KeyRecv,
     request_type: Arc<str>,
     respond_from: Option<ActorName>,
-    payload: Msg,
+    payload: SrcMsg,
 }
 
 #[derive(Debug)]
@@ -113,8 +112,8 @@ struct EventDelay {
 
 #[derive(Debug)]
 struct EventBind {
-    dst: Value,
-    src: Msg,
+    dst: DstPattern,
+    src: SrcMsg,
 
     scope: BindScope,
 }
