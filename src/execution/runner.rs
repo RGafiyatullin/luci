@@ -480,9 +480,17 @@ impl<'a> Runner<'a> {
                 trace!("  to:   {:?}", sent_to_opt);
                 trace!("  msg-name: {}", envelope.message().name());
 
+                let mut recorder = recorder.write(records::EnvelopeReceived {
+                    message_name: envelope_message_name,
+                    from: sent_from,
+                    to_opt: sent_to_opt,
+                });
+
                 let mut envelope_unused = true;
 
                 for recv_key in ready_recv_keys.iter().copied() {
+                    let mut recorder = recorder.write(records::MatchingRecv(recv_key));
+
                     trace!(
                         "   matching against {:?} [{:?}]",
                         recv_key,
@@ -503,12 +511,16 @@ impl<'a> Runner<'a> {
 
                     if let Some(from_name) = match_from {
                         trace!("expecting source: {:?}", from_name);
-                        if !scope_txn.bind_actor(from_name, sent_from) {
+                        let bound = scope_txn.bind_actor(from_name, sent_from);
+                        recorder.write(records::BindActorName(from_name.clone(), sent_from, bound));
+
+                        if !bound {
                             trace!(
                                 "could not bind source [name: {}; addr: {}]",
                                 from_name,
                                 sent_from
                             );
+
                             continue;
                         }
                     }
@@ -520,7 +532,14 @@ impl<'a> Runner<'a> {
                                 bind_to_name,
                                 sent_to_address
                             );
-                            if !scope_txn.bind_actor(bind_to_name, sent_to_address) {
+                            let bound = scope_txn.bind_actor(bind_to_name, sent_to_address);
+                            recorder.write(records::BindActorName(
+                                bind_to_name.clone(),
+                                sent_to_address,
+                                bound,
+                            ));
+
+                            if !bound {
                                 trace!(
                                     "could not bind destination [name: {}; addr: {}]",
                                     bind_to_name,
@@ -535,12 +554,17 @@ impl<'a> Runner<'a> {
                                 "   expected directed to {:?}, got routed message",
                                 bind_to_name
                             );
+                            recorder
+                                .write(records::ExpectedDirectedGotRouted(bind_to_name.clone()));
                             continue;
                         }
                         (_, _) => (),
                     }
 
-                    if !marshaller.match_inbound_message(&envelope, match_message, &mut scope_txn) {
+                    let bound =
+                        marshaller.match_inbound_message(&envelope, match_message, &mut scope_txn);
+                    recorder.write(records::BindOutcome(bound));
+                    if !bound {
                         trace!("   marshaller couldn't bind");
                         continue;
                     };

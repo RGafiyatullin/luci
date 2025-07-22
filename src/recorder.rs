@@ -65,6 +65,9 @@ pub(crate) enum RecordKind {
     UsingMsg(records::UsingMsg),
     SendTo(records::SendTo),
     ProcessRespond(records::ProcessRespond),
+    EnvelopeReceived(records::EnvelopeReceived),
+    MatchingRecv(records::MatchingRecv),
+    ExpectedDirectedGotRouted(records::ExpectedDirectedGotRouted),
 }
 
 impl RecordLog {

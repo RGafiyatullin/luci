@@ -264,6 +264,27 @@ mod display {
                 BindOutcome(r::BindOutcome(true)) => write!(f, "BOUND"),
                 BindOutcome(r::BindOutcome(false)) => write!(f, "NOT BOUND"),
 
+                EnvelopeReceived(r::EnvelopeReceived {
+                    message_name,
+                    from,
+                    to_opt,
+                }) => {
+                    if let Some(to) = to_opt {
+                        write!(f, "received {} from {} to {}", message_name, from, to)
+                    } else {
+                        write!(f, "received {} from {} routed", message_name, from)
+                    }
+                }
+
+                MatchingRecv(r::MatchingRecv(k)) => {
+                    let (scope, event) = self.executable.event_name((*k).into()).unwrap();
+                    write!(f, "matching RECV: {} (@{:?})", event, scope)
+                }
+
+                ExpectedDirectedGotRouted(r::ExpectedDirectedGotRouted(name)) => {
+                    write!(f, "expected directed to {}, got routed", name)
+                }
+
                 Root => write!(f, "ROOT"),
                 Error(r::Error { reason }) => write!(f, "{}", reason),
             }

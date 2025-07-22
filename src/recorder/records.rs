@@ -64,3 +64,16 @@ pub(crate) struct SendTo(pub Option<Addr>);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ProcessRespond(pub KeyRespond);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct EnvelopeReceived {
+    pub message_name: &'static str,
+    pub from: Addr,
+    pub to_opt: Option<Addr>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MatchingRecv(pub KeyRecv);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ExpectedDirectedGotRouted(pub ActorName);
