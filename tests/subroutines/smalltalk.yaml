@@ -16,7 +16,7 @@ events:
       data:
         topic: $TOPIC
   - id: ROBERT-greets
-    after:
+    happens_after:
       - ALICE-arrives
     respond:
       to_request: ALICE-arrives
@@ -26,7 +26,7 @@ events:
           subs_id: 13
 
   - id: ROBERT-remembers-a-thing-1
-    after:
+    happens_after:
       - ROBERT-greets
     send:
       to: ALICE
@@ -37,14 +37,14 @@ events:
           subs_id: 13
 
   - id: delay-1
-    after:
+    happens_after:
       - ROBERT-remembers-a-thing-1
     delay:
       for: 1s
       step: 1s
   
   - id: ROBERT-remembers-a-thing-2
-    after:
+    happens_after:
       - delay-1
     send:
       to: ALICE
@@ -55,14 +55,14 @@ events:
           subs_id: 13
   
   - id: delay-2
-    after:
+    happens_after:
       - ROBERT-remembers-a-thing-2
     delay:
       for: 1s
       step: 1s
   
   - id: ROBERT-remembers-a-thing-3
-    after:
+    happens_after:
       - delay-2
     send:
       to: ALICE
@@ -73,14 +73,14 @@ events:
           subs_id: 13
     
   - id: delay-3
-    after:
+    happens_after:
       - ROBERT-remembers-a-thing-2
     delay:
       for: 1s
       step: 1s
 
   - id: ROBERT-remembers-a-thing-4
-    after:
+    happens_after:
       - delay-3
     send:
       to: ALICE

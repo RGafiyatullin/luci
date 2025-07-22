@@ -1,4 +1,4 @@
-subs:
+subroutines:
   - load: a.yaml
     as: a
 cast: []

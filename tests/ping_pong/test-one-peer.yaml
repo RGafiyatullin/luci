@@ -26,17 +26,17 @@ events:
       data: ~
   
   - id: p1-bro-back-to-p0
-    after:
+    happens_after:
       - initial-bro
     send:
       from: p1
       to: p0
       type: Bro
       data:
-        exact: ~
+        literal: ~
 
   - id: p0-pings-p1
-    after:
+    happens_after:
       - p1-bro-back-to-p0
     recv:
       from: p0
@@ -46,7 +46,7 @@ events:
         req_id: $REQ_ID[0:1][1]
       
   - id: p1-pongs-p0
-    after:
+    happens_after:
       - p0-pings-p1
     send:
       from: p1
@@ -57,7 +57,7 @@ events:
           req_id: $REQ_ID[0:1][1]
   
   - id: p0-pings-p1-again
-    after:
+    happens_after:
       - p1-pongs-p0
     recv:
       from: p0
@@ -68,7 +68,7 @@ events:
   
   - id: p0-byes-p1
     require: reached
-    after:
+    happens_after:
       - p0-pings-p1-again
     recv:
       from: p0
@@ -78,7 +78,7 @@ events:
 
   - id: no-more-pings-from-p0-to-p1
     require: unreached
-    after:
+    happens_after:
       - p0-byes-p1
     recv:
       from: p0

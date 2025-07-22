@@ -17,7 +17,7 @@ events:
         literal: ~
 
   - id: client-requests-an-R
-    after:
+    happens_after:
       - server-announces-itself
     recv:
       from: client
@@ -27,7 +27,7 @@ events:
   
   - id: server-responds-to-R
     require: reached
-    after:
+    happens_after:
       - client-requests-an-R
     respond:
       to_request: client-requests-an-R

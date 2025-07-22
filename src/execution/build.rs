@@ -379,6 +379,7 @@ impl Builder {
                     let DefEventRecv {
                         message_type,
                         message_data,
+                        also_match_data,
                         from,
                         to,
                         timeout,
@@ -400,7 +401,10 @@ impl Builder {
                         from: from.clone(),
                         to: to.clone(),
                         fqn: type_fqn,
-                        payload_matchers: vec![message_data.clone()],
+                        payload_matchers: [message_data.clone()]
+                            .into_iter()
+                            .chain(also_match_data.into_iter().cloned())
+                            .collect(),
                         timeout: *timeout,
                         scope_key: this_scope_key,
                     });

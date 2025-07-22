@@ -1,4 +1,4 @@
-subs:
+subroutines:
   - load: b-left.yaml
     as: b-left
   - load: b-right.yaml

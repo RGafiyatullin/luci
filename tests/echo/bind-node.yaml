@@ -11,11 +11,11 @@ events:
       from: dummy
       type: V
       data:
-        exact:
+        literal:
           one: vienas
           two: du
   - id: recv
-    after:
+    happens_after:
       - send
     recv:
       to: dummy
@@ -24,7 +24,7 @@ events:
   
   - id: bind-payload-one
     require: reached
-    after:
+    happens_after:
       - recv
     bind:
       dst:
@@ -34,7 +34,7 @@ events:
 
   - id: bind-payload-two
     require: reached
-    after:
+    happens_after:
       - recv
     bind:
       dst:
@@ -44,7 +44,7 @@ events:
 
   - id: bind-payload-three
     require: unreached
-    after:
+    happens_after:
       - recv
     bind:
       dst:
@@ -54,7 +54,7 @@ events:
 
   - id: bind-invalid
     require: unreached
-    after:
+    happens_after:
       - recv
     bind:
       dst:
@@ -64,7 +64,7 @@ events:
 
   - id: put-it-back
     require: reached
-    after:
+    happens_after:
       - bind-payload-one
       - bind-payload-two
     bind:

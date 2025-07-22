@@ -19,7 +19,7 @@ events:
           three: trys
   
   - id: send
-    after:
+    happens_after:
       - bind
     send:
       from: dummy
@@ -29,7 +29,7 @@ events:
   
   - id: recv
     require: reached
-    after:
+    happens_after:
       - send
     recv:
       to: dummy
