@@ -238,6 +238,9 @@ mod display {
                     write!(f, "msg.bind: {}", serde_json::to_string(&bind).unwrap())
                 }
 
+                BindToPattern(r::BindToPattern(pattern)) => {
+                    write!(f, "pattern: {}", serde_json::to_string(pattern).unwrap())
+                }
                 BindValue(r::BindValue(json)) => {
                     write!(f, "value: {}", serde_json::to_string(json).unwrap())
                 }

@@ -56,6 +56,7 @@ pub(crate) enum RecordKind {
     ProcessBindKey(records::ProcessBindKey),
     BindSrcScope(records::BindSrcScope),
     BindValue(records::BindValue),
+    BindToPattern(records::BindToPattern),
     BindDstScope(records::BindDstScope),
     BindOutcome(records::BindOutcome),
     ProcessSend(records::ProcessSend),

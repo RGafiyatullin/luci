@@ -396,7 +396,7 @@ impl Builder {
                         from: from.clone(),
                         to: to.clone(),
                         fqn: type_fqn,
-                        payload: message_data.clone(),
+                        payload_matchers: vec![message_data.clone()],
                         timeout: *timeout,
                         scope_key: this_scope_key,
                     });

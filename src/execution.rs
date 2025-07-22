@@ -92,7 +92,7 @@ struct EventRecv {
     to: Option<ActorName>,
     fqn: Arc<str>,
     timeout: Option<Duration>,
-    payload: Msg,
+    payload_matchers: Vec<Msg>,
 }
 
 #[derive(Debug)]

@@ -54,6 +54,9 @@ pub(crate) struct ResolveActorName(pub ActorName, pub Addr);
 pub(crate) struct BindOutcome(pub bool);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct BindToPattern(pub Msg);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ProcessSend(pub KeySend);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
