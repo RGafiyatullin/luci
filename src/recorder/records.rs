@@ -42,6 +42,9 @@ pub(crate) struct UsingMsg(pub SrcMsg);
 pub(crate) struct BindValue(pub Value);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct NewBinding(pub String, pub Value);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct BindDstScope(pub KeyScope);
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -295,6 +295,9 @@ mod display {
                 BindValue(r::BindValue(json)) => {
                     write!(f, "value: {}", serde_json::to_string(json).unwrap())
                 }
+                NewBinding(r::NewBinding(key, value)) => {
+                    write!(f, "SET {} = {}", key, serde_json::to_string(value).unwrap())
+                }
 
                 EventFired(r::EventFired(k)) => {
                     let (scope, event) = self.executable.event_name(*k).unwrap();

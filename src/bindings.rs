@@ -6,6 +6,7 @@ use elfo::Addr;
 use serde_json::Value;
 use tracing::info;
 
+use crate::recorder::{records, Recorder};
 use crate::scenario::DstPattern;
 use crate::{bindings, names::ActorName};
 
@@ -106,12 +107,12 @@ impl<'a> Txn<'a> {
     }
 
     /// Commits transaction to the [Scope].
-    pub(crate) fn commit(self) {
-        self.values_committed.extend(
-            self.values_added
-                .into_iter()
-                .inspect(|(k, v)| info!("SET VALUE {:?} <- {:?}", k, v)),
-        );
+    pub(crate) fn commit(self, recorder: &mut Recorder<'_>) {
+        self.values_committed
+            .extend(self.values_added.into_iter().inspect(|(k, v)| {
+                recorder.write(records::NewBinding(k.clone(), v.clone()));
+                info!("SET VALUE {:?} <- {:?}", k, v);
+            }));
         self.actors_committed.extend(
             self.actors_added
                 .into_iter()
@@ -184,6 +185,8 @@ pub(crate) fn render(template: Value, bindings: &bindings::Scope) -> Result<Valu
 mod tests {
     use serde_json::json;
 
+    use crate::recorder::RecordLog;
+
     use super::*;
 
     impl Scope {
@@ -194,6 +197,8 @@ mod tests {
 
     #[test]
     fn test_01() {
+        let mut record_log = RecordLog::new();
+        let mut recorder = record_log.recorder();
         let mut scope = Scope::new();
         assert!(scope.value_of("a").is_none());
         assert!(scope.value_of("b").is_none());
@@ -216,7 +221,7 @@ mod tests {
             assert!(txn.bind_value("a", &json!("a")));
             assert!(!txn.bind_value("a", &json!("b")));
 
-            txn.commit();
+            txn.commit(&mut recorder);
         }
 
         assert_eq!(scope.value_of("a").cloned(), Some(json!("a")));

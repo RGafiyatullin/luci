@@ -411,8 +411,8 @@ impl<'a> Runner<'a> {
                 continue;
             }
 
+            dst_scope_txn.commit(&mut recorder);
             recorder.write(records::BindOutcome(true));
-            dst_scope_txn.commit();
 
             recorder.write(records::EventFired(bind_key.into()));
             actually_fired_events.push(EventKey::Bind(bind_key));
@@ -573,7 +573,7 @@ impl<'a> Runner<'a> {
                         continue;
                     };
 
-                    scope_txn.commit();
+                    scope_txn.commit(&mut recorder);
                     self.envelopes.insert(recv_key, envelope);
                     self.ready_events.remove(&EventKey::Recv(recv_key));
                     self.receives.remove_by_key(recv_key);
@@ -685,7 +685,7 @@ impl<'a> Runner<'a> {
                 txn.bind_actor(send_from, new_addr),
                 "this name has just been unbound!"
             );
-            txn.commit();
+            txn.commit(recorder);
             recorder.write(records::BindActorName(send_from.clone(), new_addr, true));
 
             let proxy_key = self.proxies.insert(new_proxy);
@@ -767,7 +767,7 @@ impl<'a> Runner<'a> {
                     txn.bind_actor(respond_from, new_addr),
                     "this name has just been unbound!"
                 );
-                txn.commit();
+                txn.commit(recorder);
 
                 let proxy_key = self.proxies.insert(new_proxy);
                 proxy_key
