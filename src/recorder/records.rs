@@ -3,13 +3,11 @@ use std::sync::Arc;
 use elfo::Addr;
 use serde_json::Value;
 
-use crate::{
-    execution::{
-        runner::ReadyEventKey, EventKey, KeyActor, KeyBind, KeyDummy, KeyRecv, KeyRespond,
-        KeyScope, KeySend,
-    },
-    scenario::{DstPattern, SrcMsg},
+use crate::execution::runner::ReadyEventKey;
+use crate::execution::{
+    EventKey, KeyActor, KeyBind, KeyDummy, KeyRecv, KeyRespond, KeyScope, KeySend,
 };
+use crate::scenario::{DstPattern, SrcMsg};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Error {
@@ -82,8 +80,8 @@ pub(crate) struct ProcessRespond(pub KeyRespond);
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct EnvelopeReceived {
     pub message_name: &'static str,
-    pub from: Addr,
-    pub to_opt: Option<Addr>,
+    pub from:         Addr,
+    pub to_opt:       Option<Addr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

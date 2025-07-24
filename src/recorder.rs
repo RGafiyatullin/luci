@@ -1,13 +1,15 @@
-//! This module is responsible for recording the events that happened during a test run.
+//! This module is responsible for recording the events that happened during a
+//! test run.
 //!
-//! A pair of two "timestamps" is used here — one for the wall-clock ([`std::time::Instant`]),
-//! the other — for the simulated time ([`tokio::time::Instant`]).
+//! A pair of two "timestamps" is used here — one for the wall-clock
+//! ([`std::time::Instant`]), the other — for the simulated time
+//! ([`tokio::time::Instant`]).
 //!
 //! [`RecordLog`] — carries the `t_0` timestamp, and the sequence of all logs
-//!
+
+use std::time::Instant as StdInstant;
 
 use slotmap::{new_key_type, SlotMap};
-use std::time::Instant as StdInstant;
 use tokio::time::Instant as RtInstant;
 
 pub(crate) mod records;
@@ -18,27 +20,27 @@ new_key_type! {
 
 #[derive(Debug, Clone)]
 pub struct RecordLog {
-    pub(crate) t_zero: (StdInstant, RtInstant),
-    pub(crate) roots: Vec<KeyRecord>,
+    pub(crate) t_zero:  (StdInstant, RtInstant),
+    pub(crate) roots:   Vec<KeyRecord>,
     pub(crate) records: SlotMap<KeyRecord, Record>,
 }
 
 #[derive(Debug)]
 pub(crate) struct Recorder<'a> {
-    log: &'a mut RecordLog,
+    log:    &'a mut RecordLog,
     parent: Option<KeyRecord>,
-    last: Option<KeyRecord>,
+    last:   Option<KeyRecord>,
 }
 
 #[derive(derive_more::Debug, Clone)]
 pub(crate) struct Record {
-    pub(crate) at: (StdInstant, RtInstant),
+    pub(crate) at:       (StdInstant, RtInstant),
     #[allow(dead_code)]
-    pub(crate) parent: Option<KeyRecord>,
+    pub(crate) parent:   Option<KeyRecord>,
     pub(crate) children: Vec<KeyRecord>,
     #[allow(dead_code)]
     pub(crate) previous: Option<KeyRecord>,
-    pub(crate) kind: RecordKind,
+    pub(crate) kind:     RecordKind,
 
     #[debug(skip)]
     _no_pub_constructor: NoPubConstructor,
@@ -104,9 +106,9 @@ impl RecordLog {
         let root_key = self.records.insert(root_record);
         self.roots.push(root_key);
         Recorder {
-            log: self,
+            log:    self,
             parent: Some(root_key),
-            last: Some(root_key),
+            last:   Some(root_key),
         }
     }
 }
@@ -134,9 +136,9 @@ impl<'a> Recorder<'a> {
         }
         self.last = Some(key);
         Recorder {
-            log: self.log,
+            log:    self.log,
             parent: Some(key),
-            last: None,
+            last:   None,
         }
     }
 

@@ -1,8 +1,5 @@
-use luci::execution::Executable;
-use luci::execution::SourceCodeLoader;
-use luci::marshalling::MarshallingRegistry;
-use luci::marshalling::Regular;
-use luci::marshalling::Request;
+use luci::execution::{Executable, SourceCodeLoader};
+use luci::marshalling::{MarshallingRegistry, Regular, Request};
 use serde_json::json;
 use test_case::test_case;
 
@@ -79,7 +76,7 @@ mod socialite {
             msg!(match envelope {
                 proto::partying::Chug => {
                     let _ = ctx.send_to(sender, proto::partying::Gulp).await;
-                }
+                },
                 proto::smalltalk::OhByTheWay { subs_id } => {
                     let _ = ctx
                         .send_to(sender, proto::smalltalk::NoWay { subs_id })
@@ -88,7 +85,7 @@ mod socialite {
                         break;
                     };
                     updates_left = u;
-                }
+                },
             })
         }
 

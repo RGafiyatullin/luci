@@ -1,34 +1,25 @@
 //! This module is responsible for building an [`Executable`] from [`Sources`].
-//!
 
-use std::{
-    collections::{BTreeSet, HashMap, HashSet},
-    hash::Hash,
-    sync::Arc,
-};
+use std::collections::{BTreeSet, HashMap, HashSet};
+use std::hash::Hash;
+use std::sync::Arc;
 
 use bimap::BiHashMap;
 use serde_json::json;
 use slotmap::{SecondaryMap, SlotMap};
 use tracing::{debug, trace};
 
-use crate::{
-    execution::{
-        ActorInfo, BindScope, DummyInfo, EventBind, EventKey, KeyActor, KeyBind, KeyDelay,
-        KeyDummy, KeyRecv, KeyRespond, KeyScenario, KeyScope, KeySend, ScopeInfo, SourceCode,
-    },
-    marshalling,
-    names::{DummyName, SubroutineName},
-    scenario::{
-        DefEventBind, DefEventDelay, DefEventRecv, DefEventRespond, DefEventSend, DstPattern,
-        RequiredToBe, SrcMsg,
-    },
+use crate::execution::{
+    ActorInfo, BindScope, DummyInfo, EventBind, EventDelay, EventKey, EventRecv, EventRespond,
+    EventSend, Events, Executable, KeyActor, KeyBind, KeyDelay, KeyDummy, KeyRecv, KeyRespond,
+    KeyScenario, KeyScope, KeySend, ScopeInfo, SourceCode,
 };
-use crate::{
-    execution::{EventDelay, EventRecv, EventRespond, EventSend, Events, Executable},
-    marshalling::MarshallingRegistry,
-    names::{ActorName, EventName, MessageName},
-    scenario::{DefEvent, DefEventKind, DefTypeAlias},
+use crate::marshalling;
+use crate::marshalling::MarshallingRegistry;
+use crate::names::{ActorName, DummyName, EventName, MessageName, SubroutineName};
+use crate::scenario::{
+    DefEvent, DefEventBind, DefEventDelay, DefEventKind, DefEventRecv, DefEventRespond,
+    DefEventSend, DefTypeAlias, DstPattern, RequiredToBe, SrcMsg,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -76,7 +67,6 @@ impl Executable {
     /// - [`MarshallingRegistry`] with all the used messages registered;
     /// - [`Sources`] with the loaded scenarios;
     /// - [`KeySource`] specifying the entry point in the sources.
-    ///
     pub fn build(
         marshalling: MarshallingRegistry,
         source_code: &SourceCode,
@@ -195,18 +185,18 @@ fn resolve_event_ids<'a>(
 
 #[derive(Debug, Default)]
 struct Builder {
-    scopes: SlotMap<KeyScope, ScopeInfo>,
-    actors: SlotMap<KeyActor, ActorInfo>,
+    scopes:  SlotMap<KeyScope, ScopeInfo>,
+    actors:  SlotMap<KeyActor, ActorInfo>,
     dummies: SlotMap<KeyDummy, DummyInfo>,
 
     event_names: HashMap<EventKey, (KeyScope, EventName)>,
 
     definition_order: Vec<EventKey>,
 
-    events_delay: SlotMap<KeyDelay, EventDelay>,
-    events_bind: SlotMap<KeyBind, EventBind>,
-    events_recv: SlotMap<KeyRecv, EventRecv>,
-    events_send: SlotMap<KeySend, EventSend>,
+    events_delay:   SlotMap<KeyDelay, EventDelay>,
+    events_bind:    SlotMap<KeyBind, EventBind>,
+    events_recv:    SlotMap<KeyRecv, EventRecv>,
+    events_send:    SlotMap<KeySend, EventSend>,
     events_respond: SlotMap<KeyRespond, EventRespond>,
 
     key_unblocks_values: HashMap<EventKey, BTreeSet<EventKey>>,
@@ -214,9 +204,9 @@ struct Builder {
 
 #[derive(Debug)]
 struct SubgraphAdded {
-    scope_key: KeyScope,
+    scope_key:    KeyScope,
     entry_points: BTreeSet<EventKey>,
-    require: HashMap<EventKey, RequiredToBe>,
+    require:      HashMap<EventKey, RequiredToBe>,
 }
 
 impl Builder {
@@ -241,9 +231,6 @@ impl Builder {
             source_key,
             invoked_as,
         });
-
-        debug!("checking actor-names...");
-        // let actors = ensure_uniqueness(&this_source.scenario.cast, BuildError::DuplicateActorName)?;
 
         let actor_names =
             ensure_uniqueness(&this_source.scenario.actors, BuildError::DuplicateActorName)?;
@@ -353,11 +340,14 @@ impl Builder {
                     )?;
 
                     // create two bind nodes:
-                    // - one for input (bind from `scope_key` to `sub_scope_key`, choose the nodes using `entrypoints`)
-                    // - one for output (bind from `sub_scope_key` to `scope_key`, choose the nodes using `required`)
+                    // - one for input (bind from `scope_key` to `sub_scope_key`, choose the nodes
+                    //   using `entrypoints`)
+                    // - one for output (bind from `sub_scope_key` to `scope_key`, choose the nodes
+                    //   using `required`)
                     //
-                    // the latter bind will be referred to by `this_key`, so that it can be depended on
-                    // (the events that want to happen after this call — should take place after the output-bind).
+                    // the latter bind will be referred to by `this_key`, so that it can be depended
+                    // on (the events that want to happen after this call —
+                    // should take place after the output-bind).
 
                     let event_bind_in = {
                         let (dst, src) = if let Some(def_bind_in) = def_call.input.as_ref() {
@@ -426,7 +416,7 @@ impl Builder {
                     }
 
                     (ek_bind_in, ek_bind_out)
-                }
+                },
                 DefEventKind::Delay(def_delay) => {
                     let DefEventDelay {
                         delay_for,
@@ -442,7 +432,7 @@ impl Builder {
                     });
                     let ek_delay = EventKey::Delay(key);
                     (ek_delay, ek_delay)
-                }
+                },
                 DefEventKind::Bind(def_bind) => {
                     let DefEventBind {
                         dst,
@@ -459,7 +449,7 @@ impl Builder {
 
                     let ek_bind = EventKey::Bind(key);
                     (ek_bind, ek_bind)
-                }
+                },
                 DefEventKind::Recv(def_recv) => {
                     let DefEventRecv {
                         message_type,
@@ -477,19 +467,27 @@ impl Builder {
                         .ok_or(BuildError::UnknownAlias(message_type.clone()))?;
 
                     let key = self.events_recv.insert(EventRecv {
-                        from: resolve_name_opt(&actors, from.as_ref(), BuildError::UnknownActor)?,
-                        to: resolve_name_opt(&dummies, to.as_ref(), BuildError::UnknownDummy)?,
-                        fqn: type_fqn,
+                        from:             resolve_name_opt(
+                            &actors,
+                            from.as_ref(),
+                            BuildError::UnknownActor,
+                        )?,
+                        to:               resolve_name_opt(
+                            &dummies,
+                            to.as_ref(),
+                            BuildError::UnknownDummy,
+                        )?,
+                        fqn:              type_fqn,
                         payload_matchers: [message_data.clone()]
                             .into_iter()
                             .chain(also_match_data.into_iter().cloned())
                             .collect(),
-                        timeout: *timeout,
-                        scope_key: this_scope_key,
+                        timeout:          *timeout,
+                        scope_key:        this_scope_key,
                     });
                     let ek_recv = EventKey::Recv(key);
                     (ek_recv, ek_recv)
-                }
+                },
                 DefEventKind::Respond(def_respond) => {
                     let DefEventRespond {
                         from,
@@ -504,9 +502,15 @@ impl Builder {
                     let EventKey::Recv(recv_key) = causing_event_key else {
                         return Err(BuildError::NotARequest(to.clone()));
                     };
-                    let request_fqn = self.events_recv.get(*recv_key)
-                        .expect("we do not delete items from `recv`; neither we store keys that are unrelated to our collections")
-                        .fqn.clone();
+                    let request_fqn = self
+                        .events_recv
+                        .get(*recv_key)
+                        .expect(
+                            "we do not delete items from `recv`; neither we store keys that are \
+                             unrelated to our collections",
+                        )
+                        .fqn
+                        .clone();
 
                     if marshalling
                         .resolve(&request_fqn)
@@ -516,19 +520,19 @@ impl Builder {
                     }
 
                     let key = self.events_respond.insert(EventRespond {
-                        respond_to: *recv_key,
+                        respond_to:   *recv_key,
                         request_type: request_fqn,
                         respond_from: resolve_name_opt(
                             &dummies,
                             from.as_ref(),
                             BuildError::UnknownDummy,
                         )?,
-                        payload: data.clone(),
-                        scope_key: this_scope_key,
+                        payload:      data.clone(),
+                        scope_key:    this_scope_key,
                     });
                     let ek_respond = EventKey::Respond(key);
                     (ek_respond, ek_respond)
-                }
+                },
                 DefEventKind::Send(def_send) => {
                     let DefEventSend {
                         from,
@@ -553,16 +557,24 @@ impl Builder {
                     }
 
                     let key = self.events_send.insert(EventSend {
-                        from: resolve_name_opt(&dummies, Some(from), BuildError::UnknownDummy)?
-                            .unwrap(),
-                        to: resolve_name_opt(&actors, to.as_ref(), BuildError::UnknownActor)?,
-                        fqn: type_fqn,
-                        payload: message_data.clone(),
+                        from:      resolve_name_opt(
+                            &dummies,
+                            Some(from),
+                            BuildError::UnknownDummy,
+                        )?
+                        .unwrap(),
+                        to:        resolve_name_opt(
+                            &actors,
+                            to.as_ref(),
+                            BuildError::UnknownActor,
+                        )?,
+                        fqn:       type_fqn,
+                        payload:   message_data.clone(),
                         scope_key: this_scope_key,
                     });
                     let ek_send = EventKey::Send(key);
                     (ek_send, ek_send)
-                }
+                },
             };
 
             if let Some(r) = this_event_required_to_be {
@@ -606,9 +618,9 @@ impl Builder {
         }
 
         Ok(SubgraphAdded {
-            scope_key: this_scope_key,
+            scope_key:    this_scope_key,
             entry_points: this_scope_entry_points,
-            require: this_scope_requires,
+            require:      this_scope_requires,
         })
     }
 }

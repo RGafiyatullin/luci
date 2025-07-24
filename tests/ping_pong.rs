@@ -1,26 +1,26 @@
-use luci::{
-    execution::{Executable, SourceCodeLoader},
-    marshalling::{MarshallingRegistry, Regular},
-};
+use luci::execution::{Executable, SourceCodeLoader};
+use luci::marshalling::{MarshallingRegistry, Regular};
 use serde_json::json;
 
 pub mod proto {
     //! An actor sends a [`Bro`] via the routing upon its start.
     //!
     //! Whoever receives a [`Bro`], replies with a directed [`Bro`] to
-    //! the sender of the received message, unless the sender is in the list of known-peers.
+    //! the sender of the received message, unless the sender is in the list of
+    //! known-peers.
     //!
-    //! After sending a directed [`Bro`] the destination address is put into the list of known-peers.
+    //! After sending a directed [`Bro`] the destination address is put into the
+    //! list of known-peers.
     //!
-    //! Once every [`TIMEOUT`] an actor sends a [`Ping`] to each of the known-peers,
-    //! and marks them as a removal-candidate.
+    //! Once every [`TIMEOUT`] an actor sends a [`Ping`] to each of the
+    //! known-peers, and marks them as a removal-candidate.
     //!
     //! If an actor receives a [`Pong`] from a known peer,
     //! that peer is no longer considered a removal-candidate.
     //!
-    //! Once every [`TIMEOUT`] an actor forgets all the peers known as removal-candidates,
-    //! those peers are no longer in the list of known-peers.
-    //!
+    //! Once every [`TIMEOUT`] an actor forgets all the peers known as
+    //! removal-candidates, those peers are no longer in the list of
+    //! known-peers.
 
     use std::time::Duration;
 
@@ -60,13 +60,15 @@ pub mod pinger {
         info!("ping client started");
 
         ctx.send(proto::Bro).await.expect("send-hello");
-        ctx.attach(elfo::stream::Stream::generate(|mut emitter| async move {
-            loop {
-                info!("TICK: before sleep");
-                tokio::time::sleep(proto::TIMEOUT).await;
-                info!("TICK: after sleep, before emit");
-                emitter.emit(proto::Tick).await;
-                info!("TICK: after emit");
+        ctx.attach(elfo::stream::Stream::generate(|mut emitter| {
+            async move {
+                loop {
+                    info!("TICK: before sleep");
+                    tokio::time::sleep(proto::TIMEOUT).await;
+                    info!("TICK: after sleep, before emit");
+                    emitter.emit(proto::Tick).await;
+                    info!("TICK: after emit");
+                }
             }
         }));
 
@@ -88,7 +90,7 @@ pub mod pinger {
                         let _ = ctx.send_to(survivor, proto::Ping { req_id }).await;
                         req_id = req_id.wrapping_add(1);
                     }
-                }
+                },
                 proto::Bro => {
                     if peers.insert(sender) {
                         info!("BRO! {}", sender);
@@ -96,15 +98,15 @@ pub mod pinger {
                             warn!("error while bro-eing back {}: {}", sender, reason);
                         }
                     }
-                }
+                },
                 proto::Ping { req_id } => {
                     info!("replying to a ping #{} from {}", req_id, sender);
                     let _ = ctx.send_to(sender, proto::Pong { req_id });
-                }
+                },
                 proto::Pong => {
                     info!("received a pong");
                     eviction_candidates.remove(&sender);
-                }
+                },
             })
         }
 

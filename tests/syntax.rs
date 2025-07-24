@@ -1,9 +1,7 @@
 use insta::{assert_debug_snapshot, assert_yaml_snapshot};
-use luci::{
-    execution::{Executable, SourceCodeLoader},
-    marshalling::{MarshallingRegistry, Mock},
-    scenario::Scenario,
-};
+use luci::execution::{Executable, SourceCodeLoader};
+use luci::marshalling::{MarshallingRegistry, Mock};
+use luci::scenario::Scenario;
 use test_case::test_case;
 
 #[test_case("01-minimal", Some(vec![]))]

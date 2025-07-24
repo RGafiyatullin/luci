@@ -3,10 +3,8 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{
-    names::*,
-    scenario::subs::{DefCallSub, DefDeclareSub},
-};
+use crate::names::*;
+use crate::scenario::subs::{DefCallSub, DefDeclareSub};
 
 mod no_extra;
 use no_extra::NoExtra;
@@ -25,7 +23,7 @@ pub struct Scenario {
 
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub actors: Vec<ActorName>,
+    pub actors:  Vec<ActorName>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub dummies: Vec<DummyName>,
@@ -39,7 +37,7 @@ pub struct Scenario {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DefTypeAlias {
     #[serde(rename = "use")]
-    pub type_name: String,
+    pub type_name:  String,
     #[serde(rename = "as")]
     pub type_alias: MessageName,
 
@@ -152,9 +150,9 @@ pub struct DefEventSend {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DefEventRespond {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub from: Option<DummyName>,
+    pub from:       Option<DummyName>,
     pub to_request: EventName,
-    pub data: SrcMsg,
+    pub data:       SrcMsg,
 
     #[serde(flatten)]
     pub no_extra: NoExtra,

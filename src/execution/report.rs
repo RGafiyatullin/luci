@@ -1,16 +1,15 @@
-use std::{collections::HashMap, io};
+use std::collections::HashMap;
+use std::io;
 
-use crate::{
-    execution::{Executable, SourceCode},
-    names::EventName,
-    recorder::{KeyRecord, RecordKind, RecordLog},
-    scenario::RequiredToBe,
-};
+use crate::execution::{Executable, SourceCode};
+use crate::names::EventName;
+use crate::recorder::{KeyRecord, RecordKind, RecordLog};
+use crate::scenario::RequiredToBe;
 
 #[derive(Debug, Clone)]
 pub struct Report {
-    pub reached: HashMap<EventName, RequiredToBe>,
-    pub unreached: HashMap<EventName, RequiredToBe>,
+    pub reached:    HashMap<EventName, RequiredToBe>,
+    pub unreached:  HashMap<EventName, RequiredToBe>,
     pub record_log: RecordLog,
 }
 
@@ -24,6 +23,7 @@ impl Report {
                 .iter()
                 .all(|(_, r)| matches!(r, RequiredToBe::Unreached))
     }
+
     pub fn message(&self) -> String {
         let r_r = self
             .reached
@@ -149,19 +149,14 @@ mod display {
     use std::fmt;
 
     use crate::execution::runner::ReadyEventKey;
-    use crate::execution::Executable;
-    use crate::execution::KeyScope;
-    use crate::execution::SourceCode;
-    use crate::recorder::records as r;
-    use crate::recorder::Record;
-    use crate::recorder::RecordKind;
-    use crate::recorder::RecordLog;
+    use crate::execution::{Executable, KeyScope, SourceCode};
+    use crate::recorder::{records as r, Record, RecordKind, RecordLog};
     use crate::scenario::SrcMsg;
 
     pub(super) struct DisplayRecord<'a> {
-        pub(super) record: &'a Record,
-        pub(super) log: &'a RecordLog,
-        pub(super) executable: &'a Executable,
+        pub(super) record:      &'a Record,
+        pub(super) log:         &'a RecordLog,
+        pub(super) executable:  &'a Executable,
         pub(super) source_code: &'a SourceCode,
     }
 
@@ -194,14 +189,14 @@ mod display {
     }
 
     pub(super) struct DisplayRecordKind<'a> {
-        kind: &'a RecordKind,
-        executable: &'a Executable,
+        kind:        &'a RecordKind,
+        executable:  &'a Executable,
         source_code: &'a SourceCode,
     }
 
     struct DisplayScope<'a> {
-        scope: KeyScope,
-        executable: &'a Executable,
+        scope:       KeyScope,
+        executable:  &'a Executable,
         source_code: &'a SourceCode,
     }
 
@@ -237,18 +232,18 @@ mod display {
             match self.kind {
                 ProcessEventClass(r::ProcessEventClass(ReadyEventKey::Bind)) => {
                     write!(f, "requested BIND")
-                }
+                },
                 ProcessEventClass(r::ProcessEventClass(ReadyEventKey::RecvOrDelay)) => {
                     write!(f, "requested RECV or DELAY")
-                }
+                },
                 ProcessEventClass(r::ProcessEventClass(ReadyEventKey::Send(k))) => {
                     let (scope, event) = self.executable.event_name((*k).into()).unwrap();
                     write!(f, "requested SEND: {} ({})", event, self.scope(scope))
-                }
+                },
                 ProcessEventClass(r::ProcessEventClass(ReadyEventKey::Respond(k))) => {
                     let (scope, event) = self.executable.event_name((*k).into()).unwrap();
                     write!(f, "requested RESP: {} ({})", event, self.scope(scope))
-                }
+                },
 
                 ReadyBindKeys(r::ReadyBindKeys(ks)) => {
                     write!(f, "ready binds: [")?;
@@ -257,7 +252,7 @@ mod display {
                         write!(f, " {}({}) ", event, self.scope(scope))?;
                     }
                     write!(f, "]")
-                }
+                },
                 ReadyRecvKeys(r::ReadyRecvKeys(ks)) => {
                     write!(f, "ready recvs: [")?;
                     for k in ks {
@@ -265,16 +260,16 @@ mod display {
                         write!(f, " {}({}) ", event, self.scope(scope))?;
                     }
                     write!(f, "]")
-                }
+                },
                 TimedOutRecvKey(r::TimedOutRecvKey(k)) => {
                     let (scope, event) = self.executable.event_name((*k).into()).unwrap();
                     write!(f, "timed out RECV: {} ({})", event, self.scope(scope))
-                }
+                },
 
                 ProcessBindKey(r::ProcessBindKey(k)) => {
                     let (scope, event) = self.executable.event_name((*k).into()).unwrap();
                     write!(f, "process bind {} ({})", event, self.scope(scope))
-                }
+                },
                 ProcessSend(r::ProcessSend(k)) => write!(f, "process send {:?}", k),
                 ProcessRespond(r::ProcessRespond(k)) => write!(f, "process resp {:?}", k),
 
@@ -290,7 +285,7 @@ mod display {
                         actor_name,
                         self.scope(*ks)
                     )
-                }
+                },
                 MatchActorAddress(r::MatchActorAddress(ka, ks, exp, act)) => {
                     let actor_name = &self.executable.actors[*ka].known_as[*ks];
                     write!(
@@ -301,7 +296,7 @@ mod display {
                         actor_name,
                         self.scope(*ks)
                     )
-                }
+                },
                 StoreActorAddress(r::StoreActorAddress(ka, ks, addr)) => {
                     let actor_name = &self.executable.actors[*ka].known_as[*ks];
                     write!(
@@ -311,7 +306,7 @@ mod display {
                         actor_name,
                         self.scope(*ks)
                     )
-                }
+                },
                 ResolveActorName(r::ResolveActorName(ka, ks, addr)) => {
                     let actor_name = &self.executable.actors[*ka].known_as[*ks];
                     write!(
@@ -321,7 +316,7 @@ mod display {
                         actor_name,
                         self.scope(*ks)
                     )
-                }
+                },
 
                 MatchDummyAddress(r::MatchDummyAddress(kd, ks, exp, act)) if exp == act => {
                     let dummy_name = &self.executable.dummies[*kd].known_as[*ks];
@@ -332,7 +327,7 @@ mod display {
                         dummy_name,
                         self.scope(*ks)
                     )
-                }
+                },
                 MatchDummyAddress(r::MatchDummyAddress(kd, ks, exp, act)) => {
                     let dummy_name = &self.executable.dummies[*kd].known_as[*ks];
                     write!(
@@ -343,30 +338,30 @@ mod display {
                         dummy_name,
                         self.scope(*ks)
                     )
-                }
+                },
 
                 UsingMsg(r::UsingMsg(SrcMsg::Inject(name))) => write!(f, "msg.inj {:?}", name),
                 UsingMsg(r::UsingMsg(SrcMsg::Literal(json))) => {
                     write!(f, "msg.lit: {}", serde_json::to_string(&json).unwrap())
-                }
+                },
                 UsingMsg(r::UsingMsg(SrcMsg::Bind(bind))) => {
                     write!(f, "msg.bind: {}", serde_json::to_string(&bind).unwrap())
-                }
+                },
 
                 BindToPattern(r::BindToPattern(pattern)) => {
                     write!(f, "pattern: {}", serde_json::to_string(pattern).unwrap())
-                }
+                },
                 UsingValue(r::UsingValue(json)) => {
                     write!(f, "value: {}", serde_json::to_string(json).unwrap())
-                }
+                },
                 NewBinding(r::NewBinding(key, value)) => {
                     write!(f, "SET {} = {}", key, serde_json::to_string(value).unwrap())
-                }
+                },
 
                 EventFired(r::EventFired(k)) => {
                     let (scope, event) = self.executable.event_name(*k).unwrap();
                     write!(f, "completed {} ({})", event, self.scope(scope))
-                }
+                },
 
                 SendMessageType(r::SendMessageType(fqn)) => write!(f, "send {}", fqn),
                 SendTo(r::SendTo(None)) => write!(f, "routed"),
@@ -385,16 +380,16 @@ mod display {
                     } else {
                         write!(f, "received {} from {} routed", message_name, from)
                     }
-                }
+                },
 
                 MatchingRecv(r::MatchingRecv(k)) => {
                     let (scope, event) = self.executable.event_name((*k).into()).unwrap();
                     write!(f, "matching RECV: {} ({})", event, self.scope(scope))
-                }
+                },
 
                 ExpectedDirectedGotRouted(r::ExpectedDirectedGotRouted(name)) => {
                     write!(f, "expected directed to {:?}, got routed", name)
-                }
+                },
 
                 Root => write!(f, "ROOT"),
                 Error(r::Error { reason }) => write!(f, "{}", reason),

@@ -4,10 +4,9 @@ use bimap::BiHashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{
-    names::{ActorName, DummyName, SubroutineName},
-    scenario::{no_extra::NoExtra, DstPattern},
-};
+use crate::names::{ActorName, DummyName, SubroutineName};
+use crate::scenario::no_extra::NoExtra;
+use crate::scenario::DstPattern;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DefDeclareSub {
@@ -36,7 +35,7 @@ pub struct DefCallSub {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<DefSubBind>,
 
-    pub actors: Option<BiHashMap<ActorName, ActorName>>,
+    pub actors:  Option<BiHashMap<ActorName, ActorName>>,
     pub dummies: Option<BiHashMap<DummyName, DummyName>>,
 
     #[serde(flatten)]

@@ -1,7 +1,5 @@
-use luci::{
-    execution::{Executable, SourceCodeLoader},
-    marshalling::{MarshallingRegistry, Regular},
-};
+use luci::execution::{Executable, SourceCodeLoader};
+use luci::marshalling::{MarshallingRegistry, Regular};
 use serde_json::json;
 
 pub mod proto {
@@ -17,8 +15,9 @@ pub mod proto {
 pub mod echo {
     use std::time::Duration;
 
-    use crate::proto;
     use elfo::{assert_msg, ActorGroup, Blueprint, Context};
+
+    use crate::proto;
 
     pub async fn actor(mut ctx: Context) {
         let envelope = ctx.recv().await.expect("where's my Hi");

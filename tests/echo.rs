@@ -1,7 +1,5 @@
-use luci::{
-    execution::{Executable, SourceCodeLoader},
-    marshalling::{MarshallingRegistry, Regular, Request},
-};
+use luci::execution::{Executable, SourceCodeLoader};
+use luci::marshalling::{MarshallingRegistry, Regular, Request};
 use serde_json::json;
 
 pub mod proto {
@@ -19,9 +17,10 @@ pub mod proto {
 }
 
 pub mod echo {
-    use crate::proto;
     use elfo::{msg, ActorGroup, Blueprint, Context};
     use serde_json::json;
+
+    use crate::proto;
 
     pub async fn actor(mut ctx: Context) {
         while let Some(envelope) = ctx.recv().await {
@@ -32,13 +31,13 @@ pub mod echo {
                         .resolve()
                         .await
                         .expect("oh :(");
-                }
+                },
                 v @ proto::V => {
                     let _ = ctx.send_to(sender, v).await;
-                }
+                },
                 (r @ proto::R, t) => {
                     let _ = ctx.respond(t, r.0);
-                }
+                },
             })
         }
     }

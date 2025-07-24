@@ -1,26 +1,21 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
-
-use elfo::Addr;
-use elfo::_priv::MessageKind;
-use elfo::{test::Proxy, Blueprint, Envelope, Message};
-use slotmap::{new_key_type, SecondaryMap, SlotMap};
 use std::time::Duration;
+
+use elfo::_priv::MessageKind;
+use elfo::test::Proxy;
+use elfo::{Addr, Blueprint, Envelope, Message};
+use slotmap::{new_key_type, SecondaryMap, SlotMap};
 use tokio::time::Instant;
 use tracing::{debug, info, trace, warn};
 
-use crate::execution::{BindScope, KeyActor, KeyDummy, KeyScope};
-use crate::recorder::records;
-use crate::recorder::{RecordLog, Recorder};
-use crate::{
-    bindings,
-    execution::{
-        EventBind, EventDelay, EventKey, EventRecv, EventRespond, EventSend, Executable, KeyDelay,
-        KeyRecv, KeyRespond, KeySend, Report,
-    },
-    marshalling,
-    names::{ActorName, EventName},
-    scenario::SrcMsg,
+use crate::execution::{
+    BindScope, EventBind, EventDelay, EventKey, EventRecv, EventRespond, EventSend, Executable,
+    KeyActor, KeyDelay, KeyDummy, KeyRecv, KeyRespond, KeyScope, KeySend, Report,
 };
+use crate::names::{ActorName, EventName};
+use crate::recorder::{records, RecordLog, Recorder};
+use crate::scenario::SrcMsg;
+use crate::{bindings, marshalling};
 
 #[derive(Debug, thiserror::Error)]
 pub enum RunError {
@@ -69,6 +64,7 @@ impl From<EventKey> for ReadyEventKey {
 }
 impl TryFrom<ReadyEventKey> for EventKey {
     type Error = ();
+
     fn try_from(e: ReadyEventKey) -> Result<Self, Self::Error> {
         match e {
             ReadyEventKey::Bind => Err(()),
@@ -81,19 +77,19 @@ impl TryFrom<ReadyEventKey> for EventKey {
 
 /// Runs the set up integration test.
 pub struct Runner<'a> {
-    executable: &'a Executable,
-    ready_events: BTreeSet<EventKey>,
+    executable:          &'a Executable,
+    ready_events:        BTreeSet<EventKey>,
     key_requires_values: HashMap<EventKey, HashSet<EventKey>>,
-    scopes: SecondaryMap<KeyScope, bindings::Scope>,
+    scopes:              SecondaryMap<KeyScope, bindings::Scope>,
 
     main_proxy_key: ProxyKey,
-    proxies: SlotMap<ProxyKey, Proxy>,
-    dummies: SecondaryMap<KeyDummy, ProxyKey>,
-    actors: SecondaryMap<KeyActor, Addr>,
+    proxies:        SlotMap<ProxyKey, Proxy>,
+    dummies:        SecondaryMap<KeyDummy, ProxyKey>,
+    actors:         SecondaryMap<KeyActor, Addr>,
 
     envelopes: HashMap<KeyRecv, Envelope>,
-    delays: Delays,
-    receives: Receives,
+    delays:    Delays,
+    receives:  Receives,
 }
 
 new_key_type! {
@@ -103,7 +99,7 @@ new_key_type! {
 #[derive(Default)]
 struct Delays {
     deadlines: BTreeSet<(Instant, KeyDelay, Duration)>,
-    steps: BTreeSet<(Duration, KeyDelay, Instant)>,
+    steps:     BTreeSet<(Duration, KeyDelay, Instant)>,
 }
 
 #[derive(Default)]
@@ -137,7 +133,8 @@ impl<'a> Runner<'a> {
         let mut reached = HashMap::new();
 
         while let Some(event_key) = {
-            // NOTE: if we do not introduce a variable `event_key_opt` here, the `self` would remain mutably borrowed.
+            // NOTE: if we do not introduce a variable `event_key_opt` here, the `self`
+            // would remain mutably borrowed.
             let event_key_opt = self.ready_events().next();
             event_key_opt
         } {
@@ -212,7 +209,8 @@ impl<'a> Runner<'a> {
             .map(ReadyEventKey::from)
             .take(1);
 
-        // this is just a predictable order of events, no significant scientific basis behind it.
+        // this is just a predictable order of events, no significant scientific basis
+        // behind it.
         binds.chain(send_and_respond).chain(recv_or_delay)
     }
 
@@ -301,10 +299,10 @@ impl<'a> Runner<'a> {
                         match dependent_key {
                             EventKey::Delay(k) => {
                                 self.delays.insert(Instant::now(), k, &events.delay[k])
-                            }
+                            },
                             EventKey::Recv(k) => {
                                 self.receives.insert(Instant::now(), k, &events.recv[k])
-                            }
+                            },
                             _ => (),
                         }
                     }
@@ -367,13 +365,13 @@ impl<'a> Runner<'a> {
                 SrcMsg::Literal(value) => value.clone(),
                 SrcMsg::Bind(template) => {
                     bindings::render(template.clone(), src_scope).map_err(RunError::BindError)?
-                }
+                },
                 SrcMsg::Inject(key) => {
                     let m = marshalling.value(key).ok_or(RunError::Marshalling(
                         format!("no such key: {:?}", key).into(),
                     ))?;
                     serde_json::to_value(m).expect("can't serialize a message?")
-                }
+                },
             };
             recorder_src.write(records::UsingValue(value.clone()));
 
@@ -463,8 +461,8 @@ impl<'a> Runner<'a> {
 
                 let mut recorder = recorder.write(records::EnvelopeReceived {
                     message_name: envelope_message_name,
-                    from: sent_from,
-                    to_opt: sent_to_opt,
+                    from:         sent_from,
+                    to_opt:       sent_to_opt,
                 });
 
                 let mut envelope_unused = true;
@@ -530,7 +528,7 @@ impl<'a> Runner<'a> {
                             if sent_to_address != expected_addr {
                                 continue;
                             }
-                        }
+                        },
 
                         (Some(dummy_key), None) => {
                             trace!(
@@ -539,8 +537,8 @@ impl<'a> Runner<'a> {
                             );
                             recorder.write(records::ExpectedDirectedGotRouted(*dummy_key));
                             continue;
-                        }
-                        (_, _) => (),
+                        },
+                        (..) => (),
                     }
 
                     let bound = payload_matchers.iter().all(|m| {
@@ -605,15 +603,15 @@ impl<'a> Runner<'a> {
                     if some_keys_expired || sleep_until == now {
                         break 'recv_or_delay;
                     }
-                }
+                },
                 (true, false) => {
                     trace!("no fired events, but some unhandled envelopes");
-                }
+                },
 
                 (false, _) => {
                     trace!("some events fired. Good!");
                     break 'recv_or_delay;
-                }
+                },
             }
         }
 
@@ -899,7 +897,7 @@ impl Delays {
         let smallest_step = self
             .steps
             .first()
-            .map_or(Duration::ZERO, |(step, _, _)| *step);
+            .map_or(Duration::ZERO, |(step, ..)| *step);
 
         let effective_deadline = now
             .checked_add(smallest_step)

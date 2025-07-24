@@ -1,10 +1,9 @@
-use crate::scenario::{DefEvent, Scenario};
-
-use std::{collections::HashSet, fmt::Display};
+use std::collections::HashSet;
+use std::fmt::Display;
 
 use dot_writer::{Attributes, DotWriter, Scope};
 
-use crate::scenario::DefEventKind;
+use crate::scenario::{DefEvent, DefEventKind, Scenario};
 
 pub fn draw_scenario(scenario: &Scenario, verbose: bool) -> String {
     let mut output_bytes = Vec::new();

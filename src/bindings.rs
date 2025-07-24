@@ -6,9 +6,10 @@ use elfo::Addr;
 use serde_json::Value;
 use tracing::info;
 
+use crate::bindings;
+use crate::names::ActorName;
 use crate::recorder::{records, Recorder};
 use crate::scenario::DstPattern;
-use crate::{bindings, names::ActorName};
 
 #[derive(Debug, thiserror::Error)]
 pub enum BindError {
@@ -33,10 +34,10 @@ pub(crate) struct Scope {
 #[derive(Debug)]
 pub(crate) struct Txn<'a> {
     values_committed: &'a mut HashMap<String, Value>,
-    values_added: HashMap<String, Value>,
+    values_added:     HashMap<String, Value>,
 
     actors_committed: &'a mut BiHashMap<ActorName, Addr>,
-    actors_added: BiHashMap<ActorName, Addr>,
+    actors_added:     BiHashMap<ActorName, Addr>,
 }
 
 impl Scope {
@@ -44,10 +45,10 @@ impl Scope {
     pub(crate) fn txn(&mut self) -> Txn {
         Txn {
             values_committed: &mut self.values,
-            values_added: Default::default(),
+            values_added:     Default::default(),
 
             actors_committed: &mut self.actors,
-            actors_added: Default::default(),
+            actors_added:     Default::default(),
         }
     }
 
@@ -69,7 +70,7 @@ impl<'a> Txn<'a> {
                 Vacant(v) => {
                     v.insert(value.to_owned());
                     true
-                }
+                },
             }
         }
     }
@@ -98,7 +99,7 @@ pub(crate) fn bind_to_pattern(value: Value, pattern: &DstPattern, bindings: &mut
 
             (value, Value::String(var_name)) if var_name.starts_with('$') => {
                 bindings.bind_value(&var_name, &value)
-            }
+            },
 
             (Value::Null, Value::Null) => true,
             (Value::Bool(v), Value::Bool(p)) => v == *p,
@@ -110,13 +111,14 @@ pub(crate) fn bind_to_pattern(value: Value, pattern: &DstPattern, bindings: &mut
                         .into_iter()
                         .zip(patterns)
                         .all(|(v, p)| inner(v, p, bindings))
-            }
+            },
 
-            (Value::Object(mut v), Value::Object(p)) => p
-                .iter()
-                .all(|(pk, pv)| v.remove(pk).is_some_and(|vv| inner(vv, pv, bindings))),
+            (Value::Object(mut v), Value::Object(p)) => {
+                p.iter()
+                    .all(|(pk, pv)| v.remove(pk).is_some_and(|vv| inner(vv, pv, bindings)))
+            },
 
-            (_, _) => false,
+            (..) => false,
         }
     }
     inner(value, &pattern.0, bindings)
@@ -130,21 +132,27 @@ pub(crate) fn bind_to_pattern(value: Value, pattern: &DstPattern, bindings: &mut
 pub(crate) fn render(template: Value, bindings: &bindings::Scope) -> Result<Value, BindError> {
     match template {
         Value::String(wildcard) if wildcard == "$_" => Err(BindError::UnboundValue(wildcard)),
-        Value::String(var_name) if var_name.starts_with('$') => bindings
-            .value_of(&var_name)
-            .cloned()
-            .ok_or_else(|| BindError::UnboundValue(var_name)),
-        Value::Array(items) => Ok(Value::Array(
-            items
-                .into_iter()
-                .map(|item| render(item, bindings))
-                .collect::<Result<_, _>>()?,
-        )),
-        Value::Object(kv) => Ok(Value::Object(
-            kv.into_iter()
-                .map(|(k, v)| render(v, bindings).map(move |v| (k, v)))
-                .collect::<Result<_, _>>()?,
-        )),
+        Value::String(var_name) if var_name.starts_with('$') => {
+            bindings
+                .value_of(&var_name)
+                .cloned()
+                .ok_or_else(|| BindError::UnboundValue(var_name))
+        },
+        Value::Array(items) => {
+            Ok(Value::Array(
+                items
+                    .into_iter()
+                    .map(|item| render(item, bindings))
+                    .collect::<Result<_, _>>()?,
+            ))
+        },
+        Value::Object(kv) => {
+            Ok(Value::Object(
+                kv.into_iter()
+                    .map(|(k, v)| render(v, bindings).map(move |v| (k, v)))
+                    .collect::<Result<_, _>>()?,
+            ))
+        },
         as_is => Ok(as_is),
     }
 }
@@ -153,9 +161,8 @@ pub(crate) fn render(template: Value, bindings: &bindings::Scope) -> Result<Valu
 mod tests {
     use serde_json::json;
 
-    use crate::recorder::RecordLog;
-
     use super::*;
+    use crate::recorder::RecordLog;
 
     impl Scope {
         pub(crate) fn new() -> Self {

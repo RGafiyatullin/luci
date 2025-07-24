@@ -1,10 +1,14 @@
-//! This module is responsible for recursively loading a scenario along with its dependencies.
+//! This module is responsible for recursively loading a scenario along with its
+//! dependencies.
 //!
-//! Use a [`SourceCodeLoader`] to load a scenario from the file to a [`SourceCode`].
+//! Use a [`SourceCodeLoader`] to load a scenario from the file to a
+//! [`SourceCode`].
 //!
-//! [`SourceCodeLoader`] as a concept of search-path — a list of paths that will be checked for when trying to resolve an included file.
+//! [`SourceCodeLoader`] as a concept of search-path — a list of paths that will
+//! be checked for when trying to resolve an included file.
 //!
-//! Scenarios from the preceding paths may "shadow" those having the same name, but from the paths coming later in the search-path list.
+//! Scenarios from the preceding paths may "shadow" those having the same name,
+//! but from the paths coming later in the search-path list.
 //!
 //! Example:
 //!
@@ -20,30 +24,32 @@
 //!     .expect("something went awry");
 //! ```
 //!
-//! An instance of [`SourceCode`] contains a list of [scenarios](`Scenario`) in it.
-//! It is guaranteed that the all the scenarios are syntactically correct,
-//! refer to only existing scenarios, and make no cycles in refering to other scenarios.
+//! An instance of [`SourceCode`] contains a list of [scenarios](`Scenario`) in
+//! it. It is guaranteed that the all the scenarios are syntactically correct,
+//! refer to only existing scenarios, and make no cycles in refering to other
+//! scenarios.
 //!
-//! [`SourceCode`] is essentially a map from some [`KeyScenario`] into a [`SingleScenarioSource`],
-//! and a lookup table from the path on the filesystem to a [`KeyScenario`].
+//! [`SourceCode`] is essentially a map from some [`KeyScenario`] into a
+//! [`SingleScenarioSource`], and a lookup table from the path on the filesystem
+//! to a [`KeyScenario`].
 //!
 //! Each [`SingleScenarioSource`] contains the parsed [`Scenario`],
 //! and the table of subroutines refered by this scenario as
-//! a map from [`SubroutineName`] to the [`KeyScenario`] corresponding to the subroutine's scenario.
-//!
+//! a map from [`SubroutineName`] to the [`KeyScenario`] corresponding to the
+//! subroutine's scenario.
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fmt, io,
-    ops::{Deref, DerefMut, Index},
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::collections::{BTreeMap, BTreeSet};
+use std::ops::{Deref, DerefMut, Index};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::{fmt, io};
 
 use slotmap::SlotMap;
 use tracing::trace;
 
-use crate::{execution::KeyScenario, names::SubroutineName, scenario::Scenario};
+use crate::execution::KeyScenario;
+use crate::names::SubroutineName;
+use crate::scenario::Scenario;
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
@@ -76,13 +82,13 @@ pub struct SourceCodeLoader {
 
 #[derive(Default)]
 pub struct SourceCode {
-    by_effective_path: BTreeMap<Arc<Path>, KeyScenario>,
+    by_effective_path:  BTreeMap<Arc<Path>, KeyScenario>,
     pub(crate) sources: SlotMap<KeyScenario, SingleScenarioSource>,
 }
 
 pub struct SingleScenarioSource {
     pub source_file: Arc<Path>,
-    pub scenario: Scenario,
+    pub scenario:    Scenario,
     pub subroutines: BTreeMap<SubroutineName, KeyScenario>,
 }
 
@@ -128,9 +134,9 @@ impl SourceCodeLoader {
         let mut sources: SourceCode = Default::default();
         let mut context = LoaderContext {
             search_path: &self.search_path,
-            this_dir: &Path::new("."),
-            this_file: &main,
-            sources: &mut sources,
+            this_dir:    &Path::new("."),
+            this_file:   &main,
+            sources:     &mut sources,
         };
         let root_source_key = context.load()?;
 
@@ -140,9 +146,9 @@ impl SourceCodeLoader {
 
 struct LoaderContext<'a> {
     search_path: &'a [PathBuf],
-    this_dir: &'a Path,
-    this_file: &'a Path,
-    sources: &'a mut SourceCode,
+    this_dir:    &'a Path,
+    this_file:   &'a Path,
+    sources:     &'a mut SourceCode,
 }
 
 impl Default for SourceCodeLoader {
@@ -158,6 +164,7 @@ impl<'a> LoaderContext<'a> {
         let mut parent_keys: Vec<KeyScenario> = vec![];
         self.load_inner(&mut parent_keys)
     }
+
     fn load_inner(&mut self, parent_keys: &mut Vec<KeyScenario>) -> Result<KeyScenario, LoadError> {
         let effective_path = self.choose_effective_path()?;
         let source_key = self.read_scenario(effective_path.as_ref())?;
@@ -173,9 +180,9 @@ impl<'a> LoaderContext<'a> {
             let parent_keys = &mut *PopOnDrop::new(parent_keys, source_key);
             let mut context = LoaderContext {
                 search_path: self.search_path,
-                this_dir: &base_dir,
-                this_file: &sanitize_path(&import.file_name)?,
-                sources: self.sources,
+                this_dir:    &base_dir,
+                this_file:   &sanitize_path(&import.file_name)?,
+                sources:     self.sources,
             };
             let sub_source_key = context.load_inner(parent_keys)?;
             if self.sources.sources[source_key]
@@ -244,10 +251,12 @@ impl<'a> LoaderContext<'a> {
 fn sanitize_path(p: &Path) -> Result<PathBuf, LoadError> {
     use std::path::Component::*;
     p.components()
-        .filter_map(|pc| match pc {
-            CurDir => None,
-            normal @ Normal(_) => Some(Ok(normal)),
-            _ => Some(Err(LoadError::InvalidPath(p.to_owned()))),
+        .filter_map(|pc| {
+            match pc {
+                CurDir => None,
+                normal @ Normal(_) => Some(Ok(normal)),
+                _ => Some(Err(LoadError::InvalidPath(p.to_owned()))),
+            }
         })
         .collect::<Result<PathBuf, LoadError>>()
 }
@@ -268,6 +277,7 @@ impl<'a, T> PopOnDrop<'a, T> {
 }
 impl<'a, T> Deref for PopOnDrop<'a, T> {
     type Target = Vec<T>;
+
     fn deref(&self) -> &Self::Target {
         self.0
     }

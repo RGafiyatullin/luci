@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
-use elfo::{test::Proxy, AnyMessage, AnyMessageRef, Envelope, Message, ResponseToken};
-use futures::{future::LocalBoxFuture, FutureExt};
+use elfo::test::Proxy;
+use elfo::{AnyMessage, AnyMessageRef, Envelope, Message, ResponseToken};
+use futures::future::LocalBoxFuture;
+use futures::FutureExt;
 use ghost::phantom;
 use serde_json::Value;
 use tracing::debug;
@@ -25,16 +27,16 @@ pub struct Response<Rq>;
 
 #[derive(derive_more::Debug)]
 pub struct Injected {
-    pub key: String,
+    pub key:   String,
     pub value: AnyMessage,
 }
 
-// This one is used in the tests, that do not require to actually run their scenarios,
-// but instead just check the how build works.
+// This one is used in the tests, that do not require to actually run their
+// scenarios, but instead just check the how build works.
 #[doc(hidden)]
 #[derive(derive_more::Debug)]
 pub struct Mock {
-    fqn: String,
+    fqn:        String,
     is_request: bool,
 }
 
@@ -135,9 +137,11 @@ impl Mock {
         let fqn = fqn.into();
         Self { fqn, is_request }
     }
+
     pub fn regular(fqn: impl Into<String>) -> Self {
         Self::new(fqn, false)
     }
+
     pub fn request(fqn: impl Into<String>) -> Self {
         Self::new(fqn, true)
     }
@@ -236,6 +240,7 @@ where
 
         bindings::bind_to_pattern(serialized, bind_to, bindings)
     }
+
     fn marshal_outbound_message(
         &self,
         marshalling: &MarshallingRegistry,
@@ -244,6 +249,7 @@ where
     ) -> Result<AnyMessage, AnError> {
         do_marshal_message::<M>(marshalling, bindings, msg)
     }
+
     fn response(&self) -> Option<&'static dyn DynRespond> {
         None
     }
@@ -268,6 +274,7 @@ where
 
         bindings::bind_to_pattern(serialized, bind_to, bindings)
     }
+
     fn marshal_outbound_message(
         &self,
         marshalling: &MarshallingRegistry,
@@ -276,6 +283,7 @@ where
     ) -> Result<AnyMessage, AnError> {
         do_marshal_message::<Rq::Wrapper>(marshalling, bindings, msg)
     }
+
     fn response(&self) -> Option<&'static dyn DynRespond> {
         Some(&Response::<Rq>)
     }
@@ -303,10 +311,10 @@ where
                         Ok(w) => {
                             proxy.respond(token, w.into());
                             Ok(())
-                        }
+                        },
                         Err(e) => Err(e.into()),
                     }
-                }
+                },
                 SrcMsg::Inject(name) => {
                     let a = marshalling
                         .values
@@ -319,17 +327,17 @@ where
                     } else {
                         Err("couldn't cast".into())
                     }
-                }
+                },
                 SrcMsg::Literal(value) => {
                     let de: Result<Rq::Wrapper, _> = serde_json::from_value(value);
                     match de {
                         Ok(w) => {
                             proxy.respond(token, w.into());
                             Ok(())
-                        }
+                        },
                         Err(e) => Err(e.into()),
                     }
-                }
+                },
             }
         }
         .boxed_local()
@@ -358,7 +366,7 @@ fn do_marshal_message<M: Message>(
             let m: M = serde_json::from_value(value)?;
             let a = AnyMessage::new(m);
             Ok(a)
-        }
+        },
         SrcMsg::Inject(name) => {
             let a = marshalling
                 .values
@@ -366,11 +374,11 @@ fn do_marshal_message<M: Message>(
                 .cloned()
                 .ok_or("no such value")?;
             Ok(a)
-        }
+        },
         SrcMsg::Literal(value) => {
             let m: M = serde_json::from_value(value)?;
             let a = AnyMessage::new(m);
             Ok(a)
-        }
+        },
     }
 }

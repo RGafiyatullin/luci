@@ -1,11 +1,10 @@
-use std::{
-    fs::{read_to_string, File},
-    io::{Read, Write},
-    path::PathBuf,
-};
+use std::fs::{read_to_string, File};
+use std::io::{Read, Write};
+use std::path::PathBuf;
 
 use clap::Parser;
-use luci::{scenario::Scenario, visualization::draw_scenario};
+use luci::scenario::Scenario;
+use luci::visualization::draw_scenario;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -16,14 +15,14 @@ struct Args {
     #[clap(long = "input", short = 'i', help = "Scenario file (default: stdin)")]
     scenario_file: Option<PathBuf>,
     #[clap(long = "output", short = 'o', help = "Graphviz file (default: stdout")]
-    output_file: Option<PathBuf>,
+    output_file:   Option<PathBuf>,
     #[clap(
         long = "verbose",
         short = 'v',
         default_value_t = false,
         help = "Add additional information to the graph"
     )]
-    verbose: bool,
+    verbose:       bool,
 }
 
 fn main() {
@@ -36,10 +35,10 @@ fn main() {
             let mut file = File::create(path).expect("Failed to create output file");
             file.write(result.as_bytes())
                 .expect("Failed to write to output file");
-        }
+        },
         None => {
             println!("{}", result);
-        }
+        },
     }
 }
 
@@ -73,8 +72,8 @@ mod test {
     fn output_snapshot() {
         let args = super::Args {
             scenario_file: Some("tests/luci_graph/sample.yml".into()),
-            output_file: None,
-            verbose: true,
+            output_file:   None,
+            verbose:       true,
         };
         let result = run(&args);
 

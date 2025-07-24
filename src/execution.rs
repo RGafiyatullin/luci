@@ -1,16 +1,12 @@
-use std::{
-    collections::{BTreeSet, HashMap},
-    sync::Arc,
-    time::Duration,
-};
+use std::collections::{BTreeSet, HashMap};
+use std::sync::Arc;
+use std::time::Duration;
 
 use slotmap::{SecondaryMap, SlotMap};
 
-use crate::{
-    marshalling::MarshallingRegistry,
-    names::{ActorName, DummyName, EventName, SubroutineName},
-    scenario::{DstPattern, RequiredToBe, SrcMsg},
-};
+use crate::marshalling::MarshallingRegistry;
+use crate::names::{ActorName, DummyName, EventName, SubroutineName};
+use crate::scenario::{DstPattern, RequiredToBe, SrcMsg};
 
 mod keys;
 pub use keys::*;
@@ -23,10 +19,8 @@ mod sources;
 
 pub use build::BuildError;
 pub use report::Report;
-pub use runner::RunError;
-pub use runner::Runner;
-pub use sources::SourceCode;
-pub use sources::SourceCodeLoader;
+pub use runner::{RunError, Runner};
+pub use sources::{SourceCode, SourceCodeLoader};
 
 /// A key corresponding to some event during test execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::From)]
@@ -40,12 +34,12 @@ pub enum EventKey {
 
 #[derive(Debug)]
 pub struct Executable {
-    marshalling: MarshallingRegistry,
-    pub(crate) actors: SlotMap<KeyActor, ActorInfo>,
+    marshalling:        MarshallingRegistry,
+    pub(crate) actors:  SlotMap<KeyActor, ActorInfo>,
     pub(crate) dummies: SlotMap<KeyDummy, DummyInfo>,
-    events: Events,
+    events:             Events,
 
-    root_scope_key: KeyScope,
+    root_scope_key:    KeyScope,
     pub(crate) scopes: SlotMap<KeyScope, ScopeInfo>,
 }
 
@@ -71,13 +65,13 @@ pub(crate) struct DummyInfo {
 struct Events {
     priority: HashMap<EventKey, usize>,
     required: HashMap<EventKey, RequiredToBe>,
-    names: HashMap<EventKey, (KeyScope, EventName)>,
+    names:    HashMap<EventKey, (KeyScope, EventName)>,
 
-    bind: SlotMap<KeyBind, EventBind>,
-    send: SlotMap<KeySend, EventSend>,
-    recv: SlotMap<KeyRecv, EventRecv>,
+    bind:    SlotMap<KeyBind, EventBind>,
+    send:    SlotMap<KeySend, EventSend>,
+    recv:    SlotMap<KeyRecv, EventRecv>,
     respond: SlotMap<KeyRespond, EventRespond>,
-    delay: SlotMap<KeyDelay, EventDelay>,
+    delay:   SlotMap<KeyDelay, EventDelay>,
 
     entry_points: BTreeSet<EventKey>,
 
@@ -88,9 +82,9 @@ struct Events {
 struct EventSend {
     scope_key: KeyScope,
 
-    from: KeyDummy,
-    to: Option<KeyActor>,
-    fqn: Arc<str>,
+    from:    KeyDummy,
+    to:      Option<KeyActor>,
+    fqn:     Arc<str>,
     payload: SrcMsg,
 }
 
@@ -98,10 +92,10 @@ struct EventSend {
 struct EventRecv {
     scope_key: KeyScope,
 
-    from: Option<KeyActor>,
-    to: Option<KeyDummy>,
-    fqn: Arc<str>,
-    timeout: Option<Duration>,
+    from:             Option<KeyActor>,
+    to:               Option<KeyDummy>,
+    fqn:              Arc<str>,
+    timeout:          Option<Duration>,
     payload_matchers: Vec<DstPattern>,
 }
 
@@ -109,15 +103,15 @@ struct EventRecv {
 struct EventRespond {
     scope_key: KeyScope,
 
-    respond_to: KeyRecv,
+    respond_to:   KeyRecv,
     request_type: Arc<str>,
     respond_from: Option<KeyDummy>,
-    payload: SrcMsg,
+    payload:      SrcMsg,
 }
 
 #[derive(Debug)]
 struct EventDelay {
-    delay_for: Duration,
+    delay_for:  Duration,
     delay_step: Duration,
 }
 
