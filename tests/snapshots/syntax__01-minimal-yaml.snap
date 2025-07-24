@@ -2,5 +2,4 @@
 source: tests/syntax.rs
 expression: scenario
 ---
-cast: []
 events: []

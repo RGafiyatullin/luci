@@ -1,7 +1,7 @@
 types:
   - use: A
     as:  A
-cast:
+dummies:
   - Pablo
 events:
   - id: the-respond

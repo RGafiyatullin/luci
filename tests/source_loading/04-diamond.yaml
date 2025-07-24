@@ -3,5 +3,6 @@ subroutines:
     as: b-left
   - load: b-right.yaml
     as: b-right
-cast: []
+actors: []
+dummies: []
 events: []

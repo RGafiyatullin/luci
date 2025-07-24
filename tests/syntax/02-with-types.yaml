@@ -3,5 +3,6 @@ types:
     as:  T1
   - use: Two
     as:  T2
-cast: []
+actors: []
+dummies: []
 events: []

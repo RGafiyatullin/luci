@@ -13,8 +13,9 @@ Scenario {
         },
     ],
     subroutines: [],
-    cast: [
-        ActorName(
+    actors: [],
+    dummies: [
+        DummyName(
             "Pablo",
         ),
     ],
@@ -28,7 +29,7 @@ Scenario {
             kind: Respond(
                 DefEventRespond {
                     from: Some(
-                        ActorName(
+                        DummyName(
                             "Pablo",
                         ),
                     ),

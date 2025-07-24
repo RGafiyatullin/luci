@@ -1,4 +1,5 @@
-cast: []
+actors: []
+dummies: []
 events:
   - id: the-bind
     bind:

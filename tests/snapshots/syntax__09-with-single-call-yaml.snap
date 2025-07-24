@@ -2,8 +2,9 @@
 source: tests/syntax.rs
 expression: scenario
 ---
-cast: []
 events:
   - id: the-call
     call:
       sub: the-sub
+      actors: ~
+      dummies: ~

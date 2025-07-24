@@ -1,5 +1,6 @@
 subroutines:
   - load: a.yaml
     as: a
-cast: []
+actors: []
+dummies: []
 events: []

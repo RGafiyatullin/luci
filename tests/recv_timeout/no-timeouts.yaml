@@ -4,8 +4,9 @@ types:
   - use: recv_timeout::proto::Bye
     as:  Bye
 
-cast:
+actors:
   - actor
+dummies:
   - dummy
 
 events:

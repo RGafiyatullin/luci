@@ -13,8 +13,9 @@ Scenario {
         },
     ],
     subroutines: [],
-    cast: [
-        ActorName(
+    actors: [],
+    dummies: [
+        DummyName(
             "Jorge",
         ),
     ],
@@ -27,7 +28,7 @@ Scenario {
             prerequisites: [],
             kind: Send(
                 DefEventSend {
-                    from: ActorName(
+                    from: DummyName(
                         "Jorge",
                     ),
                     to: None,

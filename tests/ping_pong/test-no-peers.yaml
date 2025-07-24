@@ -2,7 +2,7 @@ types:
   - use: ping_pong::proto::Bro
     as:  Bro
 
-cast:
+actors:
   - p0
 
 events:

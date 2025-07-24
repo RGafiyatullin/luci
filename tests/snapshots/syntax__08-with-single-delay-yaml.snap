@@ -2,7 +2,6 @@
 source: tests/syntax.rs
 expression: scenario
 ---
-cast: []
 events:
   - id: the-delay
     delay:

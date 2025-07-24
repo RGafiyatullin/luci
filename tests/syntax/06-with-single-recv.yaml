@@ -1,8 +1,9 @@
 types:
   - use: A
     as:  A
-cast:
+dummies:
   - Pedro
+actors:
   - Jorge
 events:
   - id: the-recv

@@ -5,11 +5,13 @@ expression: scenario
 Scenario {
     types: [],
     subroutines: [],
-    cast: [
+    actors: [
         ActorName(
             "Alicia",
         ),
-        ActorName(
+    ],
+    dummies: [
+        DummyName(
             "Roberto",
         ),
     ],

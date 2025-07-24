@@ -8,8 +8,9 @@ types:
   - use: ping_pong::proto::Bye
     as:  Bye
 
-cast:
+actors:
   - p0
+dummies:
   - p1
 
 events:

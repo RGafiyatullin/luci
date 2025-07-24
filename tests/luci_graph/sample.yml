@@ -30,8 +30,10 @@ types:
   - use: protocol::DataAdjustment
     as: DataAdjustment
 
-cast:
+actors:
   - master
+
+dummies:
   - conn
   - someone-else
 

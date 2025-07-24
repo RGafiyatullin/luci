@@ -5,8 +5,9 @@ types:
     as: OhByTheWay
   - use: subroutines::proto::smalltalk::NoWay
     as: NoWay
-cast:
+actors:
   - ALICE
+dummies:
   - ROBERT
 events:
   - id: ALICE-arrives

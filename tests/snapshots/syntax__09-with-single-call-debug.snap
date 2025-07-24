@@ -5,7 +5,8 @@ expression: scenario
 Scenario {
     types: [],
     subroutines: [],
-    cast: [],
+    actors: [],
+    dummies: [],
     events: [
         DefEvent {
             id: EventName(
@@ -20,7 +21,8 @@ Scenario {
                     ),
                     input: None,
                     output: None,
-                    cast: None,
+                    actors: None,
+                    dummies: None,
                     no_extra: NoExtra,
                 },
             ),

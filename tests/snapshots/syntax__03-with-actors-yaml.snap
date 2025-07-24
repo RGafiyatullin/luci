@@ -2,7 +2,8 @@
 source: tests/syntax.rs
 expression: scenario
 ---
-cast:
+actors:
   - Alicia
+dummies:
   - Roberto
 events: []

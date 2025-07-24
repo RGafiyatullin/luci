@@ -1,5 +1,6 @@
 subroutines:
   - load: 03-indirect-cyclic-inclusion.yaml
     as: a-sub
-cast: []
+actors: []
+dummies: []
 events: []

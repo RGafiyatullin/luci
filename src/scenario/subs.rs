@@ -35,11 +35,7 @@ pub struct DefCallSub {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<DefSubBind>,
-
-    // #[deprecated(note = "use either `actors` or `dummies`")]
-    // #[serde(default)]
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // pub cast: Option<BiHashMap<ActorName, ActorName>>,
+    
     pub actors: Option<BiHashMap<ActorName, ActorName>>,
     pub dummies: Option<BiHashMap<DummyName, DummyName>>,
 

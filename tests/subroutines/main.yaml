@@ -11,8 +11,9 @@ types:
 subroutines:
   - load: smalltalk.yaml
     as: smalltalk
-cast:
+actors:
   - guest
+dummies:
   - host
 events:
   - id: run for 1m
@@ -23,8 +24,9 @@ events:
   - id: smalltalk-with-the-host
     call:
       sub: smalltalk
-      cast:
+      actors:
         guest: ALICE
+      dummies:
         host: ROBERT
 
   - id: guest-arrives-to-the-party

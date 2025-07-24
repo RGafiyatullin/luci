@@ -20,7 +20,8 @@ Scenario {
         },
     ],
     subroutines: [],
-    cast: [],
+    actors: [],
+    dummies: [],
     events: [],
     no_extra: NoExtra,
 }
