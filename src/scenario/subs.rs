@@ -35,7 +35,7 @@ pub struct DefCallSub {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<DefSubBind>,
-    
+
     pub actors: Option<BiHashMap<ActorName, ActorName>>,
     pub dummies: Option<BiHashMap<DummyName, DummyName>>,
 

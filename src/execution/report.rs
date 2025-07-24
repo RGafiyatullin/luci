@@ -281,6 +281,70 @@ mod display {
                 BindSrcScope(r::BindSrcScope(k)) => write!(f, "src scope {}", self.scope(*k)),
                 BindDstScope(r::BindDstScope(k)) => write!(f, "dst scope {}", self.scope(*k)),
 
+                MatchActorAddress(r::MatchActorAddress(ka, ks, exp, act)) if exp == act => {
+                    let actor_name = &self.executable.actors[*ka].known_as[*ks];
+                    write!(
+                        f,
+                        "MATCH ACTOR {} = {} {}",
+                        exp,
+                        actor_name,
+                        self.scope(*ks)
+                    )
+                }
+                MatchActorAddress(r::MatchActorAddress(ka, ks, exp, act)) => {
+                    let actor_name = &self.executable.actors[*ka].known_as[*ks];
+                    write!(
+                        f,
+                        "MISMATCH ACTOR exp={}, act={}; {} {}",
+                        exp,
+                        act,
+                        actor_name,
+                        self.scope(*ks)
+                    )
+                }
+                StoreActorAddress(r::StoreActorAddress(ka, ks, addr)) => {
+                    let actor_name = &self.executable.actors[*ka].known_as[*ks];
+                    write!(
+                        f,
+                        "SET actor name {} = {} {}",
+                        addr,
+                        actor_name,
+                        self.scope(*ks)
+                    )
+                }
+                ResolveActorName(r::ResolveActorName(ka, ks, addr)) => {
+                    let actor_name = &self.executable.actors[*ka].known_as[*ks];
+                    write!(
+                        f,
+                        "resolve actor {} = {} {}",
+                        addr,
+                        actor_name,
+                        self.scope(*ks)
+                    )
+                }
+
+                MatchDummyAddress(r::MatchDummyAddress(kd, ks, exp, act)) if exp == act => {
+                    let dummy_name = &self.executable.dummies[*kd].known_as[*ks];
+                    write!(
+                        f,
+                        "MATCH DUMMY {} = {} {}",
+                        exp,
+                        dummy_name,
+                        self.scope(*ks)
+                    )
+                }
+                MatchDummyAddress(r::MatchDummyAddress(kd, ks, exp, act)) => {
+                    let dummy_name = &self.executable.dummies[*kd].known_as[*ks];
+                    write!(
+                        f,
+                        "MISMATCH DUMMY exp={}, act={}; {} {}",
+                        exp,
+                        act,
+                        dummy_name,
+                        self.scope(*ks)
+                    )
+                }
+
                 UsingMsg(r::UsingMsg(SrcMsg::Inject(name))) => write!(f, "msg.inj {:?}", name),
                 UsingMsg(r::UsingMsg(SrcMsg::Literal(json))) => {
                     write!(f, "msg.lit: {}", serde_json::to_string(&json).unwrap())
@@ -292,7 +356,7 @@ mod display {
                 BindToPattern(r::BindToPattern(pattern)) => {
                     write!(f, "pattern: {}", serde_json::to_string(pattern).unwrap())
                 }
-                BindValue(r::BindValue(json)) => {
+                UsingValue(r::UsingValue(json)) => {
                     write!(f, "value: {}", serde_json::to_string(json).unwrap())
                 }
                 NewBinding(r::NewBinding(key, value)) => {
@@ -334,8 +398,7 @@ mod display {
 
                 Root => write!(f, "ROOT"),
                 Error(r::Error { reason }) => write!(f, "{}", reason),
-
-                _fix_me => write!(f, "TODO"),
+                // _fix_me => write!(f, "TODO"),
             }
         }
     }

@@ -150,7 +150,7 @@ impl<'a> Runner<'a> {
                 if let Some((scope_id, en)) = self.event_name(*ek) {
                     info!("fired event: {} ({:?}@{:?})", en, ek, scope_id);
                 } else {
-                    info!("fired unnabled event: {:?}", ek)
+                    info!("fired unnamed event: {:?}", ek)
                 }
             }
 
@@ -170,11 +170,13 @@ impl<'a> Runner<'a> {
         let reached = reached
             .into_iter()
             // XXX: are we expecting only the root-scope's names here?
+            // FIXME: no we are not, names can come from different places.
             .map(|(k, v)| (self.event_name(k).expect("bad event-key").1.clone(), v))
             .collect();
         let unreached = unreached
             .into_iter()
             // XXX: are we expecting only the root-scope's names here?
+            // FIXME: no we are not, names can come from different places.
             .map(|(k, v)| (self.event_name(k).expect("bad event-key").1.clone(), v))
             .collect();
 
@@ -373,12 +375,11 @@ impl<'a> Runner<'a> {
                     serde_json::to_value(m).expect("can't serialize a message?")
                 }
             };
-            recorder_src.write(records::BindValue(value.clone()));
+            recorder_src.write(records::UsingValue(value.clone()));
 
             let mut recorder_dst = recorder.write(records::BindDstScope(dst_scope_key));
             let mut dst_scope_txn = self.scopes[dst_scope_key].txn();
 
-            // TODO: pass the recorder_dst inside
             recorder_dst.write(records::BindToPattern(dst.clone()));
             if !bindings::bind_to_pattern(value, dst, &mut dst_scope_txn) {
                 recorder.write(records::BindOutcome(false));
@@ -494,6 +495,7 @@ impl<'a> Runner<'a> {
                             if expected_addr != sent_from {
                                 recorder.write(records::MatchActorAddress(
                                     *from_key,
+                                    *scope_key,
                                     expected_addr,
                                     sent_from,
                                 ));
@@ -520,6 +522,7 @@ impl<'a> Runner<'a> {
 
                             recorder.write(records::MatchDummyAddress(
                                 *dummy_key,
+                                *scope_key,
                                 expected_addr,
                                 sent_to_address,
                             ));
@@ -552,7 +555,9 @@ impl<'a> Runner<'a> {
                     };
 
                     if let Some((actor_key, actor_addr)) = actor_address_to_store {
-                        recorder.write(records::StoreActorAddress(actor_key, actor_addr));
+                        recorder.write(records::StoreActorAddress(
+                            actor_key, *scope_key, actor_addr,
+                        ));
                         let should_be_none = self.actors.insert(actor_key, actor_addr);
                         assert!(
                             should_be_none.is_none(),
@@ -646,7 +651,7 @@ impl<'a> Runner<'a> {
                     .get(*actor_key)
                     .copied()
                     .ok_or(RunError::UnboundName(*actor_key))?;
-                recorder.write(records::ResolveActorName(*actor_key, addr));
+                recorder.write(records::ResolveActorName(*actor_key, *scope_key, addr));
 
                 Ok(addr)
             })
@@ -663,11 +668,13 @@ impl<'a> Runner<'a> {
             .resolve(&message_type)
             .expect("invalid FQN");
 
-        // TODO: pass the recorder inside of marshaller to record the actually rendered message
         let any_message = marshaller
             .marshal_outbound_message(&marshalling, &self.scopes[*scope_key], message_data.clone())
             .map_err(RunError::Marshalling)?;
-
+        // TODO: maybe print only the third element of the triple?
+        recorder.write(records::UsingValue(
+            serde_json::to_value(&any_message).unwrap(),
+        ));
         recorder.write(records::SendTo(send_to_addr_opt));
 
         let proxy = &mut self.proxies[send_from_proxy_key];

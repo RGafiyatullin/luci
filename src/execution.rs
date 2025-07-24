@@ -41,8 +41,8 @@ pub enum EventKey {
 #[derive(Debug)]
 pub struct Executable {
     marshalling: MarshallingRegistry,
-    actors: SlotMap<KeyActor, ActorInfo>,
-    dummies: SlotMap<KeyDummy, DummyInfo>,
+    pub(crate) actors: SlotMap<KeyActor, ActorInfo>,
+    pub(crate) dummies: SlotMap<KeyDummy, DummyInfo>,
     events: Events,
 
     root_scope_key: KeyScope,

@@ -1,5 +1,3 @@
-#![allow(dead_code)] //TODO: remove it once some report is rendered
-
 //! This module is responsible for recording the events that happened during a test run.
 //!
 //! A pair of two "timestamps" is used here — one for the wall-clock ([`std::time::Instant`]),
@@ -35,8 +33,10 @@ pub(crate) struct Recorder<'a> {
 #[derive(derive_more::Debug, Clone)]
 pub(crate) struct Record {
     pub(crate) at: (StdInstant, RtInstant),
+    #[allow(dead_code)]
     pub(crate) parent: Option<KeyRecord>,
     pub(crate) children: Vec<KeyRecord>,
+    #[allow(dead_code)]
     pub(crate) previous: Option<KeyRecord>,
     pub(crate) kind: RecordKind,
 
@@ -55,7 +55,7 @@ pub(crate) enum RecordKind {
     TimedOutRecvKey(records::TimedOutRecvKey),
     ProcessBindKey(records::ProcessBindKey),
     BindSrcScope(records::BindSrcScope),
-    BindValue(records::BindValue),
+    UsingValue(records::UsingValue),
     NewBinding(records::NewBinding),
     BindToPattern(records::BindToPattern),
     BindDstScope(records::BindDstScope),
@@ -141,6 +141,7 @@ impl<'a> Recorder<'a> {
     }
 
     #[deprecated(note = "let's see whether we can do without it")]
+    #[allow(dead_code)]
     pub(crate) fn on_error<E>(&mut self) -> impl for<'e> FnOnce(&'e E) + use<'_, 'a, E>
     where
         E: ToString,
