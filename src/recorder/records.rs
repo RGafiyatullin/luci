@@ -4,8 +4,10 @@ use elfo::Addr;
 use serde_json::Value;
 
 use crate::{
-    execution::{runner::ReadyEventKey, EventKey, KeyBind, KeyRecv, KeyRespond, KeyScope, KeySend},
-    names::ActorName,
+    execution::{
+        runner::ReadyEventKey, EventKey, KeyActor, KeyBind, KeyDummy, KeyRecv, KeyRespond,
+        KeyScope, KeySend,
+    },
     scenario::{DstPattern, SrcMsg},
 };
 
@@ -47,11 +49,21 @@ pub(crate) struct NewBinding(pub String, pub Value);
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct BindDstScope(pub KeyScope);
 
+#[deprecated(note = "use something else instead")]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct BindActorName(pub ActorName, pub Addr, pub bool);
+pub(crate) struct BindActorName(pub KeyActor, pub Addr, pub bool);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ResolveActorName(pub ActorName, pub Addr);
+pub(crate) struct MatchActorAddress(pub KeyActor, pub Addr, pub Addr);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MatchDummyAddress(pub KeyDummy, pub Addr, pub Addr);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct StoreActorAddress(pub KeyActor, pub Addr);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ResolveActorName(pub KeyActor, pub Addr);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct BindOutcome(pub bool);
@@ -82,4 +94,4 @@ pub(crate) struct EnvelopeReceived {
 pub(crate) struct MatchingRecv(pub KeyRecv);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ExpectedDirectedGotRouted(pub ActorName);
+pub(crate) struct ExpectedDirectedGotRouted(pub KeyDummy);

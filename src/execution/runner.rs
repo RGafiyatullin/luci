@@ -1,5 +1,6 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
+use elfo::Addr;
 use elfo::_priv::MessageKind;
 use elfo::{test::Proxy, Blueprint, Envelope, Message};
 use slotmap::{new_key_type, SecondaryMap, SlotMap};
@@ -7,7 +8,7 @@ use std::time::Duration;
 use tokio::time::Instant;
 use tracing::{debug, info, trace, warn};
 
-use crate::execution::{BindScope, KeyScope};
+use crate::execution::{BindScope, KeyActor, KeyDummy, KeyScope};
 use crate::recorder::records;
 use crate::recorder::{RecordLog, Recorder};
 use crate::{
@@ -32,8 +33,8 @@ pub enum RunError {
     #[error("name already taken by an actor: {}", _0)]
     ActorName(ActorName),
 
-    #[error("name has not yet been bound to an address: {}", _0)]
-    UnboundName(ActorName),
+    #[error("name has not yet been bound to an address: {:?}", _0)]
+    UnboundName(KeyActor),
 
     #[error("no request envelope found")]
     NoRequest,
@@ -87,6 +88,9 @@ pub struct Runner<'a> {
 
     main_proxy_key: ProxyKey,
     proxies: SlotMap<ProxyKey, Proxy>,
+    dummies: SecondaryMap<KeyDummy, ProxyKey>,
+    actors: SecondaryMap<KeyActor, Addr>,
+
     envelopes: HashMap<KeyRecv, Envelope>,
     delays: Delays,
     receives: Receives,
@@ -371,48 +375,19 @@ impl<'a> Runner<'a> {
             };
             recorder_src.write(records::BindValue(value.clone()));
 
-            let mut dst_actor_names = vec![];
-            if let BindScope::Two { actors, .. } = bind_scope {
-                dst_actor_names.extend(actors.into_iter().filter_map(|(src_name, dst_name)| {
-                    src_scope
-                        .address_of(src_name)
-                        .zip(Some((src_name, dst_name)))
-                }));
-            }
-
             let mut recorder_dst = recorder.write(records::BindDstScope(dst_scope_key));
             let mut dst_scope_txn = self.scopes[dst_scope_key].txn();
 
-            if !dst_actor_names
-                .into_iter()
-                .all(|(addr, (src_name, dst_name))| {
-                    let bound = dst_scope_txn.bind_actor(dst_name, addr);
-                    recorder_dst.write(records::BindActorName(dst_name.clone(), addr, bound));
-                    trace!(
-                        "  binding {:?}->{:?} {} [bound: {}]",
-                        src_name,
-                        dst_name,
-                        addr,
-                        bound
-                    );
-                    bound
-                })
-            {
-                recorder.write(records::BindOutcome(false));
-                trace!("could not bind actor-names");
-                continue;
-            }
-
             // TODO: pass the recorder_dst inside
-            recorder.write(records::BindToPattern(dst.clone()));
+            recorder_dst.write(records::BindToPattern(dst.clone()));
             if !bindings::bind_to_pattern(value, dst, &mut dst_scope_txn) {
                 recorder.write(records::BindOutcome(false));
                 trace!("could not bind {:?}", bind_key);
                 continue;
             }
 
-            dst_scope_txn.commit(&mut recorder);
-            recorder.write(records::BindOutcome(true));
+            dst_scope_txn.commit(&mut recorder_dst);
+            recorder_dst.write(records::BindOutcome(true));
 
             recorder.write(records::EventFired(bind_key.into()));
             actually_fired_events.push(EventKey::Bind(bind_key));
@@ -466,16 +441,20 @@ impl<'a> Runner<'a> {
 
             let mut unmatched_envelopes = 0;
 
-            for (proxy_key, proxy) in self.proxies.iter_mut() {
-                trace!(" try_recv at proxies[{:?}]", proxy_key);
-                let Some(envelope) = proxy.try_recv().await else {
+            let proxy_keys = self.proxies.keys().collect::<Vec<_>>();
+            for receiving_proxy_key in proxy_keys {
+                trace!(" try_recv at proxies[{:?}]", receiving_proxy_key);
+
+                let receiving_proxy_addr = self.proxies[receiving_proxy_key].addr();
+                let Some(envelope) = self.proxies[receiving_proxy_key].try_recv().await else {
                     continue;
                 };
 
                 let envelope_message_name = envelope.message().name();
 
                 let sent_from = envelope.sender();
-                let sent_to_opt = Some(proxy.addr()).filter(|_| proxy_key != self.main_proxy_key);
+                let sent_to_opt = Some(receiving_proxy_addr)
+                    .filter(|_| receiving_proxy_key != self.main_proxy_key);
 
                 trace!("  from: {:?}", sent_from);
                 trace!("  to:   {:?}", sent_to_opt);
@@ -510,53 +489,52 @@ impl<'a> Runner<'a> {
 
                     let marshaller = marshalling.resolve(&match_type).expect("bad FQN");
 
-                    if let Some(from_name) = match_from {
-                        trace!("expecting source: {:?}", from_name);
-                        let bound = scope_txn.bind_actor(from_name, sent_from);
-                        recorder.write(records::BindActorName(from_name.clone(), sent_from, bound));
-
-                        if !bound {
-                            trace!(
-                                "could not bind source [name: {}; addr: {}]",
-                                from_name,
-                                sent_from
-                            );
-
-                            continue;
+                    let actor_address_to_store = if let Some(from_key) = match_from {
+                        if let Some(expected_addr) = self.actors.get(*from_key).copied() {
+                            if expected_addr != sent_from {
+                                recorder.write(records::MatchActorAddress(
+                                    *from_key,
+                                    expected_addr,
+                                    sent_from,
+                                ));
+                                continue;
+                            } else {
+                                None
+                            }
+                        } else {
+                            Some((*from_key, sent_from))
                         }
-                    }
+                    } else {
+                        None
+                    };
 
                     match (match_to, sent_to_opt) {
-                        (Some(bind_to_name), Some(sent_to_address)) => {
+                        (Some(dummy_key), Some(sent_to_address)) => {
                             trace!(
                                 "expecting directed to {:?}, sent to address: {}",
-                                bind_to_name,
+                                dummy_key,
                                 sent_to_address
                             );
-                            let bound = scope_txn.bind_actor(bind_to_name, sent_to_address);
-                            recorder.write(records::BindActorName(
-                                bind_to_name.clone(),
+                            let expected_proxy_key = self.dummies[*dummy_key];
+                            let expected_addr = self.proxies[expected_proxy_key].addr();
+
+                            recorder.write(records::MatchDummyAddress(
+                                *dummy_key,
+                                expected_addr,
                                 sent_to_address,
-                                bound,
                             ));
 
-                            if !bound {
-                                trace!(
-                                    "could not bind destination [name: {}; addr: {}]",
-                                    bind_to_name,
-                                    sent_to_address
-                                );
+                            if sent_to_address != expected_addr {
                                 continue;
                             }
                         }
 
-                        (Some(bind_to_name), None) => {
+                        (Some(dummy_key), None) => {
                             trace!(
                                 "   expected directed to {:?}, got routed message",
-                                bind_to_name
+                                dummy_key
                             );
-                            recorder
-                                .write(records::ExpectedDirectedGotRouted(bind_to_name.clone()));
+                            recorder.write(records::ExpectedDirectedGotRouted(*dummy_key));
                             continue;
                         }
                         (_, _) => (),
@@ -573,6 +551,15 @@ impl<'a> Runner<'a> {
                         continue;
                     };
 
+                    if let Some((actor_key, actor_addr)) = actor_address_to_store {
+                        recorder.write(records::StoreActorAddress(actor_key, actor_addr));
+                        let should_be_none = self.actors.insert(actor_key, actor_addr);
+                        assert!(
+                            should_be_none.is_none(),
+                            "overwritten actor-key: {:?}",
+                            actor_key
+                        );
+                    }
                     scope_txn.commit(&mut recorder);
                     self.envelopes.insert(recv_key, envelope);
                     self.ready_events.remove(&EventKey::Recv(recv_key));
@@ -653,44 +640,19 @@ impl<'a> Runner<'a> {
 
         let send_to_addr_opt = send_to
             .as_ref()
-            .map(|actor_name| {
-                let addr = self.scopes[*scope_key]
-                    .address_of(&actor_name)
-                    .ok_or_else(|| RunError::UnboundName(actor_name.clone()))?;
-                if self.proxies.iter().any(|(_, p)| p.addr() == addr) {
-                    return Err(RunError::DummyName(actor_name.clone()));
-                }
-
-                recorder.write(records::ResolveActorName(actor_name.clone(), addr));
+            .map(|actor_key| {
+                let addr = self
+                    .actors
+                    .get(*actor_key)
+                    .copied()
+                    .ok_or(RunError::UnboundName(*actor_key))?;
+                recorder.write(records::ResolveActorName(*actor_key, addr));
 
                 Ok(addr)
             })
             .transpose()?;
 
-        let proxy = if let Some(addr) = self.scopes[*scope_key].address_of(send_from) {
-            let proxy = self
-                .proxies
-                .values_mut()
-                .find(|p| p.addr() == addr)
-                .ok_or_else(|| RunError::ActorName(send_from.clone()))?;
-
-            recorder.write(records::ResolveActorName(send_from.clone(), proxy.addr()));
-
-            proxy
-        } else {
-            let new_proxy = self.proxies[self.main_proxy_key].subproxy().await;
-            let new_addr = new_proxy.addr();
-            let mut txn = self.scopes[*scope_key].txn();
-            assert!(
-                txn.bind_actor(send_from, new_addr),
-                "this name has just been unbound!"
-            );
-            txn.commit(recorder);
-            recorder.write(records::BindActorName(send_from.clone(), new_addr, true));
-
-            let proxy_key = self.proxies.insert(new_proxy);
-            &mut self.proxies[proxy_key]
-        };
+        let send_from_proxy_key = self.dummies[*send_from];
 
         recorder.write(records::SendMessageType(message_type.clone()));
         recorder.write(records::UsingMsg(message_data.clone()));
@@ -707,6 +669,9 @@ impl<'a> Runner<'a> {
             .map_err(RunError::Marshalling)?;
 
         recorder.write(records::SendTo(send_to_addr_opt));
+
+        let proxy = &mut self.proxies[send_from_proxy_key];
+
         if let Some(dst_addr) = send_to_addr_opt {
             trace!(
                 "sending directly [from: {}; to: {}]: {:?}",
@@ -725,6 +690,7 @@ impl<'a> Runner<'a> {
         }
 
         recorder.write(records::EventFired(event_key.into()));
+
         Ok(vec![EventKey::Send(event_key)])
     }
 
@@ -754,24 +720,7 @@ impl<'a> Runner<'a> {
         recorder.write(records::ProcessRespond(event_key));
 
         let proxy_key = if let Some(respond_from) = respond_from {
-            if let Some(addr) = self.scopes[*scope_key].address_of(respond_from) {
-                self.proxies
-                    .iter()
-                    .find_map(|(k, p)| Some(k).filter(|_| p.addr() == addr))
-                    .ok_or_else(|| RunError::ActorName(respond_from.clone()))?
-            } else {
-                let new_proxy = self.proxies[self.main_proxy_key].subproxy().await;
-                let new_addr = new_proxy.addr();
-                let mut txn = self.scopes[*scope_key].txn();
-                assert!(
-                    txn.bind_actor(respond_from, new_addr),
-                    "this name has just been unbound!"
-                );
-                txn.commit(recorder);
-
-                let proxy_key = self.proxies.insert(new_proxy);
-                proxy_key
-            }
+            self.dummies[*respond_from]
         } else {
             self.main_proxy_key
         };
@@ -865,6 +814,13 @@ impl<'a> Runner<'a> {
             .collect();
         scopes.insert(executable.root_scope_key, Default::default());
 
+        let mut dummies = SecondaryMap::default();
+        for dummy_key in executable.dummies.keys() {
+            let dummy_proxy = proxies[main_proxy_key].subproxy().await;
+            let dummy_proxy_key = proxies.insert(dummy_proxy);
+            dummies.insert(dummy_key, dummy_proxy_key);
+        }
+
         Self {
             executable,
             ready_events,
@@ -873,6 +829,8 @@ impl<'a> Runner<'a> {
             receives,
             main_proxy_key,
             proxies,
+            actors: Default::default(),
+            dummies,
             scopes,
             envelopes: Default::default(),
         }

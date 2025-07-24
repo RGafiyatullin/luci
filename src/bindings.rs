@@ -51,12 +51,6 @@ impl Scope {
         }
     }
 
-    /// Returns bound [Addr] for the specified `name` if there is one.
-    /// Otherwise returns `None`.
-    pub(crate) fn address_of(&self, name: &ActorName) -> Option<Addr> {
-        self.actors.get_by_left(name).copied()
-    }
-
     /// Returns bound [Value] for the specified `key` if there is one.
     /// Otherwise returns `None`.
     fn value_of(&self, key: &str) -> Option<&Value> {
@@ -78,32 +72,6 @@ impl<'a> Txn<'a> {
                 }
             }
         }
-    }
-
-    /// Binds `name` to `addr` and stores in the transaction.
-    pub(crate) fn bind_actor(&mut self, name: &ActorName, addr: Addr) -> bool {
-        if let Some(existing_name) = {
-            let old_opt = self.actors_committed.get_by_right(&addr);
-            let new_opt = self.actors_added.get_by_right(&addr);
-
-            old_opt.or(new_opt)
-        } {
-            return existing_name == name;
-        }
-        if let Some(existing_addr) = {
-            let old_opt = self.actors_committed.get_by_left(name).copied();
-            let new_opt = self.actors_added.get_by_left(name).copied();
-
-            old_opt.or(new_opt)
-        } {
-            assert!(existing_addr != addr);
-            return false;
-        }
-
-        self.actors_added
-            .insert_no_overwrite(name.clone(), addr)
-            .expect("none of the sides resolved before!");
-        true
     }
 
     /// Commits transaction to the [Scope].

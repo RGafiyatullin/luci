@@ -4,7 +4,6 @@ use std::{
     time::Duration,
 };
 
-use bimap::BiHashMap;
 use slotmap::{SecondaryMap, SlotMap};
 
 use crate::{
@@ -133,15 +132,5 @@ struct EventBind {
 #[derive(Debug)]
 enum BindScope {
     Same(KeyScope),
-    Two {
-        src: KeyScope,
-        dst: KeyScope,
-
-        // left: src-scope
-        // right: dst-scope
-        #[deprecated(note = "use either `actors` or `dummies`")]
-        cast: BiHashMap<ActorName, ActorName>,
-        // actors: BiHashMap<ActorName, ActorName>,
-        // dummies: BiHashMap<DummyName, DummyName>,
-    },
+    Two { src: KeyScope, dst: KeyScope },
 }

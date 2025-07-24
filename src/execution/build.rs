@@ -374,9 +374,6 @@ impl Builder {
                             scope: BindScope::Two {
                                 src: this_scope_key,
                                 dst: sub_scope_key,
-                                // actors: def_call.actors.clone().unwrap_or_default(),
-                                // dummies: def_call.dummies.clone().unwrap_or_default(),
-                                cast: Default::default(),
                             },
                         }
                     };
@@ -411,21 +408,6 @@ impl Builder {
                             scope: BindScope::Two {
                                 src: sub_scope_key,
                                 dst: this_scope_key,
-                                // actors: def_call
-                                //     .actors
-                                //     .clone()
-                                //     .unwrap_or_default()
-                                //     .into_iter()
-                                //     .map(|(l, r)| (r, l))
-                                //     .collect(),
-                                // dummies: def_call
-                                //     .dummies
-                                //     .clone()
-                                //     .unwrap_or_default()
-                                //     .into_iter()
-                                //     .map(|(l, r)| (r, l))
-                                //     .collect(),
-                                cast: Default::default(),
                             },
                         }
                     };

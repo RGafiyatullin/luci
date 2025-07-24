@@ -304,16 +304,6 @@ mod display {
                     write!(f, "completed {} ({})", event, self.scope(scope))
                 }
 
-                BindActorName(r::BindActorName(name, addr, true)) => {
-                    write!(f, "SET {} = {}", name, addr)
-                }
-                BindActorName(r::BindActorName(name, addr, false)) => {
-                    write!(f, "NOT SET {} = {}", name, addr)
-                }
-                ResolveActorName(r::ResolveActorName(name, addr)) => {
-                    write!(f, "resolve {} = {}", name, addr)
-                }
-
                 SendMessageType(r::SendMessageType(fqn)) => write!(f, "send {}", fqn),
                 SendTo(r::SendTo(None)) => write!(f, "routed"),
                 SendTo(r::SendTo(Some(addr))) => write!(f, "to:{}", addr),
@@ -339,11 +329,13 @@ mod display {
                 }
 
                 ExpectedDirectedGotRouted(r::ExpectedDirectedGotRouted(name)) => {
-                    write!(f, "expected directed to {}, got routed", name)
+                    write!(f, "expected directed to {:?}, got routed", name)
                 }
 
                 Root => write!(f, "ROOT"),
                 Error(r::Error { reason }) => write!(f, "{}", reason),
+
+                _fix_me => write!(f, "TODO"),
             }
         }
     }
