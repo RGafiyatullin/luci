@@ -4,8 +4,10 @@ types:
   - use: echo::proto::R
     as: R
 
-cast:
+actors:
   - client
+
+dummies:
   - server
 
 events:

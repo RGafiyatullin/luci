@@ -23,9 +23,11 @@ pub struct Scenario {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub subroutines: Vec<DefDeclareSub>,
 
-    // #[deprecated(note = "use either `actors` or `dummies`")]
-    // pub cast: Vec<ActorName>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub actors: Vec<ActorName>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub dummies: Vec<DummyName>,
 
     pub events: Vec<DefEvent>,

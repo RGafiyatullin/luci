@@ -4,8 +4,9 @@ types:
   - use: echo::proto::R
     as:  R
 
-cast:
+actors:
   - actor
+dummies:
   - dummy
 
 events:

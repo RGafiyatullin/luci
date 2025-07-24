@@ -2,7 +2,7 @@ types:
   - use: echo::proto::V
     as:  V
 
-cast:
+dummies:
   - dummy
 
 events:
