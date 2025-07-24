@@ -11,6 +11,12 @@ pub struct ActorName(Arc<str>);
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, derive_more::Display,
 )]
+#[display("D:{_0}")]
+pub struct DummyName(Arc<str>);
+
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, derive_more::Display,
+)]
 #[display("E:{_0}")]
 pub struct EventName(Arc<str>);
 

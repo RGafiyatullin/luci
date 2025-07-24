@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    names::{ActorName, SubroutineName},
+    names::{ActorName, DummyName, SubroutineName},
     scenario::{no_extra::NoExtra, DstPattern},
 };
 
@@ -36,9 +36,13 @@ pub struct DefCallSub {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<DefSubBind>,
 
+    #[deprecated(note = "use either `actors` or `dummies`")]
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cast: Option<BiHashMap<ActorName, ActorName>>,
+
+    pub actors: Option<BiHashMap<ActorName, ActorName>>,
+    pub dummies: Option<BiHashMap<DummyName, DummyName>>,
 
     #[serde(flatten)]
     pub no_extra: NoExtra,

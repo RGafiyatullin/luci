@@ -10,6 +10,8 @@ new_key_type! {
 
 new_key_type! {
     pub struct KeyScope;
+    pub struct KeyActor;
+    pub struct KeyDummy;
 }
 
 new_key_type! {

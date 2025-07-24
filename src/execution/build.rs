@@ -3,20 +3,22 @@
 
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
+    hash::Hash,
     sync::Arc,
 };
 
+use bimap::BiHashMap;
 use serde_json::json;
-use slotmap::SlotMap;
+use slotmap::{SecondaryMap, SlotMap};
 use tracing::{debug, trace};
 
 use crate::{
     execution::{
-        BindScope, EventBind, EventKey, KeyBind, KeyDelay, KeyRecv, KeyRespond, KeyScenario,
-        KeyScope, KeySend, ScopeInfo, SourceCode,
+        ActorInfo, BindScope, DummyInfo, EventBind, EventKey, KeyActor, KeyBind, KeyDelay,
+        KeyDummy, KeyRecv, KeyRespond, KeyScenario, KeyScope, KeySend, ScopeInfo, SourceCode,
     },
     marshalling,
-    names::SubroutineName,
+    names::{DummyName, SubroutineName},
     scenario::{
         DefEventBind, DefEventDelay, DefEventRecv, DefEventRespond, DefEventSend, DstPattern,
         RequiredToBe, SrcMsg,
@@ -43,6 +45,9 @@ pub enum BuildError {
     #[error("unknown actor: {}", _0)]
     UnknownActor(ActorName),
 
+    #[error("unknown actor: {}", _0)]
+    UnknownDummy(DummyName),
+
     #[error("unknown subroutine: {}", _0)]
     UnknownSubroutine(SubroutineName),
 
@@ -57,6 +62,9 @@ pub enum BuildError {
 
     #[error("duplicate actor name: {}", _0)]
     DuplicateActorName(ActorName),
+
+    #[error("duplicate dummy name: {}", _0)]
+    DuplicateDummyName(DummyName),
 
     #[error("invalid data: {}", _0)]
     InvalidData(marshalling::AnError),
@@ -82,9 +90,18 @@ impl Executable {
             scope_key,
             entry_points,
             require: required,
-        } = builder.add_subgraph(&marshalling, source_code, entry_point_key, None)?;
+        } = builder.add_subgraph(
+            &marshalling,
+            source_code,
+            entry_point_key,
+            None,
+            Default::default(),
+            Default::default(),
+        )?;
         let Builder {
             scopes,
+            actors,
+            dummies,
             event_names,
             definition_order,
             events_delay,
@@ -117,6 +134,8 @@ impl Executable {
         Ok(Executable {
             marshalling,
             events,
+            actors,
+            dummies,
             root_scope_key: scope_key,
             scopes,
         })
@@ -143,14 +162,19 @@ fn type_aliases<'a>(
     Ok(aliases)
 }
 
-fn validate_actor_names<'a>(
-    actor_names: impl IntoIterator<Item = &'a ActorName>,
-) -> Result<HashSet<ActorName>, BuildError> {
+fn ensure_uniqueness<'a, N, F>(
+    actor_names: impl IntoIterator<Item = &'a N>,
+    make_error: F,
+) -> Result<HashSet<N>, BuildError>
+where
+    N: Clone + Eq + Hash + 'static,
+    F: FnOnce(N) -> BuildError,
+{
     let mut out = HashSet::new();
 
     for name in actor_names {
         if !out.insert(name.clone()) {
-            return Err(BuildError::DuplicateActorName(name.clone()));
+            return Err(make_error(name.clone()));
         }
     }
 
@@ -172,6 +196,8 @@ fn resolve_event_ids<'a>(
 #[derive(Debug, Default)]
 struct Builder {
     scopes: SlotMap<KeyScope, ScopeInfo>,
+    actors: SlotMap<KeyActor, ActorInfo>,
+    dummies: SlotMap<KeyDummy, DummyInfo>,
 
     event_names: HashMap<EventKey, (KeyScope, EventName)>,
 
@@ -200,6 +226,8 @@ impl Builder {
         sources: &SourceCode,
         source_key: KeyScenario,
         invoked_as: Option<(KeyScope, EventName, SubroutineName)>,
+        mut actor_mapping: BiHashMap<ActorName, KeyActor>,
+        mut dummy_mapping: BiHashMap<DummyName, KeyDummy>,
     ) -> Result<SubgraphAdded, BuildError> {
         let this_source = &sources[source_key];
 
@@ -209,16 +237,58 @@ impl Builder {
             trace!("- {:?} -> {:?}", a, fqn);
         }
 
-        debug!("checking actor-names...");
-        let actors = validate_actor_names(&this_source.scenario.cast)?;
-        for actor_name in &actors {
-            trace!("- {:?}", actor_name);
-        }
-
         let this_scope_key = self.scopes.insert(ScopeInfo {
             source_key,
             invoked_as,
         });
+
+        debug!("checking actor-names...");
+        // let actors = ensure_uniqueness(&this_source.scenario.cast, BuildError::DuplicateActorName)?;
+
+        let actor_names =
+            ensure_uniqueness(&this_source.scenario.actors, BuildError::DuplicateActorName)?;
+        let dummy_names = ensure_uniqueness(
+            &this_source.scenario.dummies,
+            BuildError::DuplicateDummyName,
+        )?;
+
+        let mut actors = HashMap::new();
+        let mut dummies = HashMap::new();
+
+        for actor_name in &actor_names {
+            if let Some(key) = actor_mapping.get_by_left(actor_name) {
+                self.actors[*key]
+                    .known_as
+                    .insert(this_scope_key, actor_name.clone());
+                actors.insert(actor_name.clone(), *key);
+            } else {
+                let mut known_as = SecondaryMap::default();
+                known_as.insert(this_scope_key, actor_name.clone());
+                let key = self.actors.insert(ActorInfo { known_as });
+                let overwritted = actor_mapping
+                    .insert(actor_name.clone(), key)
+                    .did_overwrite();
+                assert!(!overwritted);
+                actors.insert(actor_name.clone(), key);
+            }
+        }
+        for dummy_name in &dummy_names {
+            if let Some(key) = dummy_mapping.get_by_left(dummy_name) {
+                self.dummies[*key]
+                    .known_as
+                    .insert(this_scope_key, dummy_name.clone());
+                dummies.insert(dummy_name.clone(), *key);
+            } else {
+                let mut known_as = SecondaryMap::default();
+                known_as.insert(this_scope_key, dummy_name.clone());
+                let key = self.dummies.insert(DummyInfo { known_as });
+                let overwritten = dummy_mapping
+                    .insert(dummy_name.clone(), key)
+                    .did_overwrite();
+                assert!(!overwritten);
+                dummies.insert(dummy_name.clone(), key);
+            }
+        }
 
         let mut this_scope_name_to_key = HashMap::new();
         let mut this_scope_entry_points = BTreeSet::new();
@@ -244,6 +314,27 @@ impl Builder {
                         .ok_or_else(|| {
                             BuildError::UnknownSubroutine(def_call.subroutine_name.clone())
                         })?;
+
+                    let mut sub_actor_mapping = BiHashMap::new();
+                    let mut sub_dummy_mapping = BiHashMap::new();
+
+                    for (this_name, sub_name) in
+                        def_call.actors.clone().unwrap_or_default().into_iter()
+                    {
+                        let Some(key) = actors.get(&this_name) else {
+                            return Err(BuildError::UnknownActor(this_name));
+                        };
+                        sub_actor_mapping.insert(sub_name, *key);
+                    }
+                    for (this_name, sub_name) in
+                        def_call.dummies.clone().unwrap_or_default().into_iter()
+                    {
+                        let Some(key) = dummies.get(&this_name) else {
+                            return Err(BuildError::UnknownDummy(this_name));
+                        };
+                        sub_dummy_mapping.insert(sub_name, *key);
+                    }
+
                     let SubgraphAdded {
                         scope_key: sub_scope_key,
                         entry_points: sub_entry_points,
@@ -257,6 +348,8 @@ impl Builder {
                             this_name.clone(),
                             def_call.subroutine_name.clone(),
                         )),
+                        sub_actor_mapping,
+                        sub_dummy_mapping,
                     )?;
 
                     // create two bind nodes:
@@ -281,7 +374,9 @@ impl Builder {
                             scope: BindScope::Two {
                                 src: this_scope_key,
                                 dst: sub_scope_key,
-                                actors: def_call.cast.clone().unwrap_or_default(),
+                                // actors: def_call.actors.clone().unwrap_or_default(),
+                                // dummies: def_call.dummies.clone().unwrap_or_default(),
+                                cast: Default::default(),
                             },
                         }
                     };
@@ -316,13 +411,21 @@ impl Builder {
                             scope: BindScope::Two {
                                 src: sub_scope_key,
                                 dst: this_scope_key,
-                                actors: def_call
-                                    .cast
-                                    .clone()
-                                    .unwrap_or_default()
-                                    .into_iter()
-                                    .map(|(l, r)| (r, l))
-                                    .collect(),
+                                // actors: def_call
+                                //     .actors
+                                //     .clone()
+                                //     .unwrap_or_default()
+                                //     .into_iter()
+                                //     .map(|(l, r)| (r, l))
+                                //     .collect(),
+                                // dummies: def_call
+                                //     .dummies
+                                //     .clone()
+                                //     .unwrap_or_default()
+                                //     .into_iter()
+                                //     .map(|(l, r)| (r, l))
+                                //     .collect(),
+                                cast: Default::default(),
                             },
                         }
                     };
@@ -391,15 +494,9 @@ impl Builder {
                         .cloned()
                         .ok_or(BuildError::UnknownAlias(message_type.clone()))?;
 
-                    for actor_name in to.as_ref().into_iter().chain(from) {
-                        if !actors.contains(actor_name) {
-                            return Err(BuildError::UnknownActor(actor_name.clone()));
-                        }
-                    }
-
                     let key = self.events_recv.insert(EventRecv {
-                        from: from.clone(),
-                        to: to.clone(),
+                        from: resolve_name_opt(&actors, from.as_ref(), BuildError::UnknownActor)?,
+                        to: resolve_name_opt(&dummies, to.as_ref(), BuildError::UnknownDummy)?,
                         fqn: type_fqn,
                         payload_matchers: [message_data.clone()]
                             .into_iter()
@@ -429,10 +526,6 @@ impl Builder {
                         .expect("we do not delete items from `recv`; neither we store keys that are unrelated to our collections")
                         .fqn.clone();
 
-                    if let Some(bad_actor) = from.as_ref().filter(|a| !actors.contains(a)) {
-                        return Err(BuildError::UnknownActor(bad_actor.clone()));
-                    }
-
                     if marshalling
                         .resolve(&request_fqn)
                         .is_none_or(|m| m.response().is_none())
@@ -443,7 +536,11 @@ impl Builder {
                     let key = self.events_respond.insert(EventRespond {
                         respond_to: *recv_key,
                         request_type: request_fqn,
-                        respond_from: from.clone(),
+                        respond_from: resolve_name_opt(
+                            &dummies,
+                            from.as_ref(),
+                            BuildError::UnknownDummy,
+                        )?,
                         payload: data.clone(),
                         scope_key: this_scope_key,
                     });
@@ -464,15 +561,19 @@ impl Builder {
                         .cloned()
                         .ok_or(BuildError::UnknownAlias(message_type.clone()))?;
 
-                    for actor_name in to.as_ref().into_iter().chain([from]) {
-                        if !actors.contains(&actor_name) {
-                            return Err(BuildError::UnknownActor(actor_name.clone()));
+                    if let Some(to_actor) = to.as_ref() {
+                        if !actor_names.contains(to_actor) {
+                            return Err(BuildError::UnknownActor(to_actor.clone()));
                         }
+                    }
+                    if !dummy_names.contains(from) {
+                        return Err(BuildError::UnknownDummy(from.clone()));
                     }
 
                     let key = self.events_send.insert(EventSend {
-                        from: from.clone(),
-                        to: to.clone(),
+                        from: resolve_name_opt(&dummies, Some(from), BuildError::UnknownDummy)?
+                            .unwrap(),
+                        to: resolve_name_opt(&actors, to.as_ref(), BuildError::UnknownActor)?,
                         fqn: type_fqn,
                         payload: message_data.clone(),
                         scope_key: this_scope_key,
@@ -528,4 +629,24 @@ impl Builder {
             require: this_scope_requires,
         })
     }
+}
+
+fn resolve_name_opt<N, K, F>(
+    names: &HashMap<N, K>,
+    name_opt: Option<&N>,
+    make_error: F,
+) -> Result<Option<K>, BuildError>
+where
+    K: Copy,
+    N: Clone + Hash + Eq,
+    F: FnOnce(N) -> BuildError,
+{
+    name_opt
+        .map(|name| {
+            names
+                .get(name)
+                .copied()
+                .ok_or_else(|| make_error(name.clone()))
+        })
+        .transpose()
 }
