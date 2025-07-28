@@ -167,10 +167,14 @@ impl<'a> LoaderContext<'a> {
 
     fn load_inner(&mut self, parent_keys: &mut Vec<KeyScenario>) -> Result<KeyScenario, LoadError> {
         let effective_path = self.choose_effective_path()?;
-        let source_key = self.read_scenario(effective_path.as_ref())?;
+        let (source_key, is_new) = self.read_scenario(effective_path.as_ref())?;
 
         if parent_keys.iter().any(|pk| *pk == source_key) {
             return Err(LoadError::SourceFileCyclicDependency(effective_path));
+        }
+
+        if !is_new {
+            return Ok(source_key);
         }
 
         let source = &self.sources.sources[source_key];
@@ -227,9 +231,9 @@ impl<'a> LoaderContext<'a> {
         Ok(effective_path)
     }
 
-    fn read_scenario(&mut self, effective_path: &Path) -> Result<KeyScenario, LoadError> {
+    fn read_scenario(&mut self, effective_path: &Path) -> Result<(KeyScenario, bool), LoadError> {
         if let Some(key) = self.sources.by_effective_path.get(effective_path).copied() {
-            Ok(key)
+            Ok((key, false))
         } else {
             let source_code = std::fs::read_to_string(effective_path).map_err(LoadError::Io)?;
             let scenario: Scenario =
@@ -243,7 +247,7 @@ impl<'a> LoaderContext<'a> {
             let key = self.sources.sources.insert(source);
             self.sources.by_effective_path.insert(source_file, key);
 
-            Ok(key)
+            Ok((key, true))
         }
     }
 }

@@ -10,10 +10,22 @@ Ok(
         {
             "tests/source_loading/04-diamond/a.yaml": Source {
                 source_file: "tests/source_loading/04-diamond/a.yaml",
-                subs: {},
+                subs: {
+                    SubroutineName(
+                        "c",
+                    ),
+                },
                 scenario: Scenario {
                     types: [],
-                    subroutines: [],
+                    subroutines: [
+                        DefDeclareSub {
+                            file_name: "c.yaml",
+                            subroutine_name: SubroutineName(
+                                "c",
+                            ),
+                            no_extra: NoExtra,
+                        },
+                    ],
                     actors: [],
                     dummies: [],
                     events: [],
@@ -62,6 +74,18 @@ Ok(
                             no_extra: NoExtra,
                         },
                     ],
+                    actors: [],
+                    dummies: [],
+                    events: [],
+                    no_extra: NoExtra,
+                },
+            },
+            "tests/source_loading/04-diamond/c.yaml": Source {
+                source_file: "tests/source_loading/04-diamond/c.yaml",
+                subs: {},
+                scenario: Scenario {
+                    types: [],
+                    subroutines: [],
                     actors: [],
                     dummies: [],
                     events: [],
