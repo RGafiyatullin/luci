@@ -1,3 +1,6 @@
+subroutines:
+  - load: c.yaml
+    as: c
 actors: []
 dummies: []
 events: []
