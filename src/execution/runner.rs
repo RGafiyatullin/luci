@@ -8,6 +8,7 @@ use slotmap::{new_key_type, SecondaryMap, SlotMap};
 use tokio::time::Instant;
 use tracing::{debug, info, trace, warn};
 
+use crate::bindings::Scope;
 use crate::execution::{
     BindScope, EventBind, EventDelay, EventKey, EventRecv, EventRespond, EventSend, Executable,
     KeyActor, KeyDelay, KeyDummy, KeyRecv, KeyRespond, KeyScope, KeySend, Report,
@@ -110,11 +111,22 @@ struct Receives {
 impl Executable {
     /// Returns a [Runner] to run the test corresponding to this [Executable]
     /// and specified `blueprint` and `config`.
-    pub async fn start<C>(&self, blueprint: Blueprint, config: C) -> Runner<'_>
+    pub async fn start<C>(
+        &self,
+        blueprint: Blueprint,
+        config: C,
+        root_scope_values: impl IntoIterator<Item = (String, serde_json::Value)>,
+    ) -> Runner<'_>
     where
         C: for<'de> serde::de::Deserializer<'de>,
     {
-        Runner::new(self, blueprint, config).await
+        Runner::new(
+            self,
+            blueprint,
+            config,
+            root_scope_values.into_iter().collect(),
+        )
+        .await
     }
 }
 
@@ -774,7 +786,12 @@ impl<'a> Runner<'a> {
 }
 
 impl<'a> Runner<'a> {
-    async fn new<C>(executable: &'a Executable, blueprint: Blueprint, config: C) -> Self
+    async fn new<C>(
+        executable: &'a Executable,
+        blueprint: Blueprint,
+        config: C,
+        root_scope_values: HashMap<String, serde_json::Value>,
+    ) -> Self
     where
         C: for<'de> serde::de::Deserializer<'de>,
     {
@@ -820,7 +837,9 @@ impl<'a> Runner<'a> {
             .iter()
             .map(|(key, _info)| (key, Default::default()))
             .collect();
-        scopes.insert(executable.root_scope_key, Default::default());
+
+        let root_scope: Scope = Scope::from_values(root_scope_values);
+        scopes.insert(executable.root_scope_key, root_scope);
 
         let mut dummies = SecondaryMap::default();
         for dummy_key in executable.dummies.keys() {

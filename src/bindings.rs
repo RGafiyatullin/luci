@@ -41,6 +41,14 @@ pub(crate) struct Txn<'a> {
 }
 
 impl Scope {
+    /// Creates a [Scope] with the provided values.
+    pub(crate) fn from_values(values: HashMap<String, Value>) -> Self {
+        Self {
+            values,
+            actors: Default::default(),
+        }
+    }
+
     /// Creates a [Txn] on the current state of the [Scope].
     pub(crate) fn txn(&mut self) -> Txn {
         Txn {

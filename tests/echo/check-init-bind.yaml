@@ -1,0 +1,36 @@
+events:
+  - id: require-argument
+    bind:
+      dst:
+        - $FIRST
+        - $SECOND
+      src:
+        bind:
+          - $ARG_1
+          - $ARG_2
+
+  - id: correct-values
+    require: reached
+    happens_after:
+      - require-argument
+    bind:
+      dst:
+        - $FIRST
+        - $SECOND
+      src:
+        bind:
+          - one
+          - two
+  
+  - id: incorrect-values
+    require: unreached
+    happens_after:
+      - require-argument
+    bind:
+      dst:
+        - $FIRST
+        - $SECOND
+      src:
+        bind:
+          - 1
+          - 2

@@ -49,20 +49,35 @@ pub mod echo {
 
 #[tokio::test]
 async fn bind_node() {
-    run_scenario("tests/echo/bind-node.yaml").await;
+    run_scenario("tests/echo/bind-node.yaml", []).await;
 }
 
 #[tokio::test]
 async fn marshalling() {
-    run_scenario("tests/echo/marshalling.yaml").await;
+    run_scenario("tests/echo/marshalling.yaml", []).await;
 }
 
 #[tokio::test]
 async fn request_response() {
-    run_scenario("tests/echo/request-response.yaml").await;
+    run_scenario("tests/echo/request-response.yaml", []).await;
 }
 
-async fn run_scenario(scenario_file: &str) {
+#[tokio::test]
+async fn check_init_bind() {
+    run_scenario(
+        "tests/echo/check-init-bind.yaml",
+        [
+            ("$ARG_1".into(), json!("one")),
+            ("$ARG_2".into(), json!("two")),
+        ],
+    )
+    .await;
+}
+
+async fn run_scenario(
+    scenario_file: &str,
+    args: impl IntoIterator<Item = (String, serde_json::Value)>,
+) {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .with_max_level(tracing::Level::TRACE)
@@ -79,7 +94,7 @@ async fn run_scenario(scenario_file: &str) {
         .expect("SourceLoader::load");
     let executable = Executable::build(marshalling, &sources, key_main).expect("building graph");
     let report = executable
-        .start(echo::blueprint(), json!(null))
+        .start(echo::blueprint(), json!(null), args)
         .await
         .run()
         .await

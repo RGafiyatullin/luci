@@ -62,7 +62,7 @@ async fn run_scenario(scenario_file: &str) {
         .expect("SourceLoader::load");
     let executable = Executable::build(marshalling, &sources, key_main).expect("building graph");
     let report = executable
-        .start(echo::blueprint(), json!(null))
+        .start(echo::blueprint(), json!(null), [])
         .await
         .run()
         .await

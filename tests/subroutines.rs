@@ -117,7 +117,7 @@ async fn run_scenario(scenario_file: &str, search_path: &[&str]) {
         .expect("SourceLoader::load");
     let executable = Executable::build(marshalling, &sources, key_main).expect("building graph");
     let report = executable
-        .start(socialite::blueprint(), json!(null))
+        .start(socialite::blueprint(), json!(null), [])
         .await
         .run()
         .await
