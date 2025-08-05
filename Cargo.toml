@@ -16,6 +16,8 @@ path = "src/bin/luci_graph.rs"
 
 [dependencies]
 bimap = { version = "^0.6", features = ["serde"] }
+clap = { version = "^4", features = ["derive"] }
+dot-writer = { version = "^0.1" }
 derive_more = { version = "^2.0.1", features = ["debug", "from"] }
 futures = "^0.3"
 ghost = "^0.1"
@@ -30,8 +32,6 @@ thiserror = "^1"
 tokio = { version = "^1", features = ["test-util", "time"] }
 tracing = "^0.1"
 tracing-subscriber = "^0.3"
-clap = { version = "^4", features = ["derive"] }
-dot-writer = { version = "^0.1" }
 
 elfo = { version = "0.2.0-alpha.18", features = ["test-util"] }
 elfo-configurer = { version = "0.2.0-alpha.18" }
