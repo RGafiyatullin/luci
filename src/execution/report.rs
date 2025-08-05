@@ -256,12 +256,12 @@ mod display {
                 },
 
                 ReadyBindKeys(r::ReadyBindKeys(ks)) => {
-                    write!(f, "ready binds: [")?;
+                    write!(f, "\x1b[90mready binds: [")?;
                     for k in ks {
                         let (scope, event) = self.executable.event_name((*k).into()).unwrap();
                         write!(f, " {}({}) ", event, self.scope(scope))?;
                     }
-                    write!(f, "]")
+                    write!(f, "]\x1b[0m")
                 },
                 ReadyRecvKeys(r::ReadyRecvKeys(ks)) => {
                     write!(f, "\x1b[90mready recvs: [")?;
