@@ -288,8 +288,12 @@ mod display {
                 ProcessSend(r::ProcessSend(k)) => write!(f, "process send {:?}", k),
                 ProcessRespond(r::ProcessRespond(k)) => write!(f, "process resp {:?}", k),
 
-                BindSrcScope(r::BindSrcScope(k)) => write!(f, "src scope {}", self.scope(*k)),
-                BindDstScope(r::BindDstScope(k)) => write!(f, "dst scope {}", self.scope(*k)),
+                BindSrcScope(r::BindSrcScope(k)) => {
+                    write!(f, "\x1b[92msrc scope\x1b[0m {}", self.scope(*k))
+                },
+                BindDstScope(r::BindDstScope(k)) => {
+                    write!(f, "\x1b[92mdst scope\x1b[0m {}", self.scope(*k))
+                },
 
                 MatchActorAddress(r::MatchActorAddress(ka, ks, exp, act)) if exp == act => {
                     let actor_name = &self.executable.actors[*ka].known_as[*ks];
