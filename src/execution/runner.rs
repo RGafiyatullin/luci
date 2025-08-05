@@ -561,9 +561,9 @@ impl<'a> Runner<'a> {
                         marshaller.match_inbound_message(&envelope, m, &mut scope_txn)
                     });
 
-                    recorder.write(records::BindOutcome(bound));
                     if !bound {
                         trace!("   marshaller couldn't bind");
+                        recorder.write(records::BindOutcome(false));
                         continue;
                     };
 
@@ -579,6 +579,8 @@ impl<'a> Runner<'a> {
                         );
                     }
                     scope_txn.commit(&mut recorder);
+                    recorder.write(records::BindOutcome(true));
+
                     self.envelopes.insert(recv_key, envelope);
                     self.ready_events.remove(&EventKey::Recv(recv_key));
                     self.receives.remove_by_key(recv_key);
