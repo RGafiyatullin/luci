@@ -72,6 +72,12 @@ impl<'a> fmt::Display for BuildError<'a> {
     }
 }
 
+impl<'a> fmt::Debug for BuildError<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
 pub(super) struct DisplayRecordKind<'a> {
     kind:        &'a RecordKind,
     executable:  &'a Executable,

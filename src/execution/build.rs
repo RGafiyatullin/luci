@@ -22,7 +22,7 @@ use crate::scenario::{
     DefEventSend, DefTypeAlias, DstPattern, RequiredToBe, SrcMsg,
 };
 
-#[derive(Debug, thiserror::Error)]
+#[derive(thiserror::Error)]
 pub struct BuildError<'a> {
     pub(super) reason:  BuildErrorInner,
     pub(super) scopes:  SlotMap<KeyScope, ScopeInfo>,
