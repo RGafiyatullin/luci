@@ -12,6 +12,7 @@ mod keys;
 pub use keys::*;
 
 mod build;
+mod display;
 mod names;
 mod report;
 pub(crate) mod runner;
