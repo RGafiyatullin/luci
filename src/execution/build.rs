@@ -39,8 +39,8 @@ pub enum BuildError {
     #[error("unknown actor: {} (@ {:?})", _0, _1)]
     UnknownDummy(DummyName, KeyScope),
 
-    #[error("unknown subroutine: {}", _0)]
-    UnknownSubroutine(SubroutineName),
+    #[error("unknown subroutine: {} (@ {:?})", _0, _1)]
+    UnknownSubroutine(SubroutineName, KeyScope),
 
     #[error("unknown FQN: {}", _0)]
     UnknownFqn(String),
@@ -316,7 +316,10 @@ impl Builder {
                         .get(&def_call.subroutine_name)
                         .copied()
                         .ok_or_else(|| {
-                            BuildError::UnknownSubroutine(def_call.subroutine_name.clone())
+                            BuildError::UnknownSubroutine(
+                                def_call.subroutine_name.clone(),
+                                this_scope_key,
+                            )
                         })?;
 
                     let mut sub_actor_mapping = BiHashMap::new();
