@@ -1,70 +1,19 @@
 use std::fmt;
 
+use slotmap::SlotMap;
+
+use crate::execution::build::{BuildError, BuildErrorInner};
 use crate::execution::runner::ReadyEventKey;
-use crate::execution::{BuildError, Executable, KeyScope, SourceCode};
+use crate::execution::sources::SingleScenarioSource;
+use crate::execution::{Executable, KeyScenario, KeyScope, ScopeInfo, SourceCode};
 use crate::recorder::{records as r, Record, RecordKind, RecordLog};
 use crate::scenario::SrcMsg;
-
-#[derive(Debug, thiserror::Error)]
-pub struct DisplayBuildError<'a> {
-    error:       BuildError,
-    executable:  &'a Executable,
-    source_code: &'a SourceCode,
-}
 
 pub(super) struct DisplayRecord<'a> {
     pub(super) record:      &'a Record,
     pub(super) log:         &'a RecordLog,
     pub(super) executable:  &'a Executable,
     pub(super) source_code: &'a SourceCode,
-}
-
-impl BuildError {
-    pub fn into_pretty<'a>(
-        self,
-        executable: &'a Executable,
-        source_code: &'a SourceCode,
-    ) -> DisplayBuildError<'a> {
-        DisplayBuildError {
-            error: self,
-            executable,
-            source_code,
-        }
-    }
-}
-
-impl<'a> fmt::Display for DisplayBuildError<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use BuildError::*;
-
-        let Self {
-            error,
-            executable,
-            source_code,
-        } = self;
-
-        let scope = *match error {
-            UnknownEvent(_, k) => k,
-            NotARequest(_, k) => k,
-            UnknownActor(_, k) => k,
-            UnknownDummy(_, k) => k,
-            UnknownSubroutine(_, k) => k,
-            UnknownFqn(_, k) => k,
-            UnknownAlias(_, k) => k,
-            DuplicateAlias(_, k) => k,
-            DuplicateEventName(_, k) => k,
-            DuplicateActorName(_, k) => k,
-            DuplicateDummyName(_, k) => k,
-        };
-
-        let display_scope = DisplayScope {
-            scope,
-            executable,
-            source_code,
-        };
-
-        write!(f, "{} ({})", error, display_scope)
-    }
 }
 
 impl<'a> fmt::Display for DisplayRecord<'a> {
@@ -95,6 +44,34 @@ impl<'a> fmt::Display for DisplayRecord<'a> {
     }
 }
 
+impl<'a> fmt::Display for BuildError<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use BuildErrorInner::*;
+
+        let Self {
+            reason,
+            scopes,
+            sources,
+        } = self;
+
+        let scope = *match reason {
+            UnknownEvent(_, k) => k,
+            NotARequest(_, k) => k,
+            UnknownActor(_, k) => k,
+            UnknownDummy(_, k) => k,
+            UnknownSubroutine(_, k) => k,
+            UnknownFqn(_, k) => k,
+            UnknownAlias(_, k) => k,
+            DuplicateAlias(_, k) => k,
+            DuplicateEventName(_, k) => k,
+            DuplicateActorName(_, k) => k,
+            DuplicateDummyName(_, k) => k,
+        };
+
+        fmt_scope_recursively(f, scope, scopes, sources)
+    }
+}
+
 pub(super) struct DisplayRecordKind<'a> {
     kind:        &'a RecordKind,
     executable:  &'a Executable,
@@ -119,16 +96,12 @@ impl<'a> DisplayRecordKind<'a> {
 
 impl<'a> fmt::Display for DisplayScope<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let this_scope = &self.executable.scopes[self.scope];
-        let this_source = &self.source_code.sources[this_scope.source_key].source_file;
-        write!(f, "in {:?} ", &this_source)?;
-
-        let mut invoked_as = this_scope.invoked_as.as_ref();
-        while let Some((scope, event_name, _subroutine_name)) = invoked_as.take() {
-            write!(f, "< {} ", event_name)?;
-            invoked_as = self.executable.scopes[*scope].invoked_as.as_ref();
-        }
-        Ok(())
+        fmt_scope_recursively(
+            f,
+            self.scope,
+            &self.executable.scopes,
+            &self.source_code.sources,
+        )
     }
 }
 
@@ -346,4 +319,22 @@ impl<'a> fmt::Display for DisplayRecordKind<'a> {
             // _fix_me => write!(f, "TODO"),
         }
     }
+}
+
+pub(super) fn fmt_scope_recursively(
+    f: &mut fmt::Formatter<'_>,
+    this_scope_key: KeyScope,
+    scopes: &SlotMap<KeyScope, ScopeInfo>,
+    sources: &SlotMap<KeyScenario, SingleScenarioSource>,
+) -> fmt::Result {
+    let this_scope = &scopes[this_scope_key];
+    let this_source = &sources[this_scope.source_key].source_file;
+    write!(f, "in {:?} ", &this_source)?;
+
+    let mut invoked_as = this_scope.invoked_as.as_ref();
+    while let Some((scope, event_name, _subroutine_name)) = invoked_as.take() {
+        write!(f, "< {} ", event_name)?;
+        invoked_as = scopes[*scope].invoked_as.as_ref();
+    }
+    Ok(())
 }
