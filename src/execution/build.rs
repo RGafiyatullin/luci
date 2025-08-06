@@ -42,8 +42,8 @@ pub enum BuildError {
     #[error("unknown subroutine: {} (@ {:?})", _0, _1)]
     UnknownSubroutine(SubroutineName, KeyScope),
 
-    #[error("unknown FQN: {}", _0)]
-    UnknownFqn(String),
+    #[error("unknown FQN: {} (@ {:?})", _0, _1)]
+    UnknownFqn(String, KeyScope),
 
     #[error("unknown alias: {}", _0)]
     UnknownAlias(MessageName),
@@ -134,6 +134,7 @@ impl Executable {
 
 fn type_aliases<'a>(
     marshalling: &MarshallingRegistry,
+    scope_key: KeyScope,
     imports: impl IntoIterator<Item = &'a DefTypeAlias>,
 ) -> Result<HashMap<MessageName, Arc<str>>, BuildError> {
     use std::collections::hash_map::Entry::Vacant;
@@ -144,7 +145,10 @@ fn type_aliases<'a>(
         };
         let _marshaller = marshalling
             .resolve(&import.type_name)
-            .ok_or(BuildError::UnknownFqn(import.type_name.to_owned()))?;
+            .ok_or(BuildError::UnknownFqn(
+                import.type_name.to_owned(),
+                scope_key,
+            ))?;
 
         entry.insert(import.type_name.as_str().into());
     }
@@ -222,16 +226,16 @@ impl Builder {
     ) -> Result<SubgraphAdded, BuildError> {
         let this_source = &sources[source_key];
 
-        debug!("storing type-aliases...");
-        let type_aliases = type_aliases(&marshalling, &this_source.scenario.types)?;
-        for (a, fqn) in &type_aliases {
-            trace!("- {:?} -> {:?}", a, fqn);
-        }
-
         let this_scope_key = self.scopes.insert(ScopeInfo {
             source_key,
             invoked_as,
         });
+
+        debug!("storing type-aliases...");
+        let type_aliases = type_aliases(&marshalling, this_scope_key, &this_source.scenario.types)?;
+        for (a, fqn) in &type_aliases {
+            trace!("- {:?} -> {:?}", a, fqn);
+        }
 
         let actor_names =
             ensure_uniqueness(&this_source.scenario.actors, BuildError::DuplicateActorName)?;
