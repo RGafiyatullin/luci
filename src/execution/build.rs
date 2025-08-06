@@ -27,8 +27,8 @@ pub enum BuildError {
     #[error("unknown event: {} (@ {:?})", _0, _1)]
     UnknownEvent(EventName, KeyScope),
 
-    #[error("duplicate event: {}", _0)]
-    DuplicateEventName(EventName),
+    #[error("duplicate event: {} (@ {:?})", _0, _1)]
+    DuplicateEventName(EventName, KeyScope),
 
     #[error("not a request: {}", _0)]
     NotARequest(EventName),
@@ -628,7 +628,10 @@ impl Builder {
             trace!("  done: {:?} -> {:?}-{:?}", this_name, head_key, tail_key);
 
             if this_scope_name_to_key.insert(this_name, tail_key).is_some() {
-                return Err(BuildError::DuplicateEventName(this_name.clone()));
+                return Err(BuildError::DuplicateEventName(
+                    this_name.clone(),
+                    this_scope_key,
+                ));
             }
             self.definition_order.push(head_key);
             self.definition_order.push(tail_key);
