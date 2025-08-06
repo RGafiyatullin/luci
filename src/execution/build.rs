@@ -48,8 +48,8 @@ pub enum BuildError {
     #[error("unknown alias: {}", _0)]
     UnknownAlias(MessageName),
 
-    #[error("duplicate alias: {}", _0)]
-    DuplicateAlias(MessageName),
+    #[error("duplicate alias: {} (@ {:?})", _0, _1)]
+    DuplicateAlias(MessageName, KeyScope),
 
     #[error("duplicate actor name: {}", _0)]
     DuplicateActorName(ActorName),
@@ -141,7 +141,10 @@ fn type_aliases<'a>(
     let mut aliases = HashMap::new();
     for import in imports {
         let Vacant(entry) = aliases.entry(import.type_alias.to_owned()) else {
-            return Err(BuildError::DuplicateAlias(import.type_alias.clone()));
+            return Err(BuildError::DuplicateAlias(
+                import.type_alias.clone(),
+                scope_key,
+            ));
         };
         let _marshaller = marshalling
             .resolve(&import.type_name)
