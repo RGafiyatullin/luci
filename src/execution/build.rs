@@ -30,8 +30,8 @@ pub enum BuildError {
     #[error("duplicate event: {} (@ {:?})", _0, _1)]
     DuplicateEventName(EventName, KeyScope),
 
-    #[error("not a request: {}", _0)]
-    NotARequest(EventName),
+    #[error("not a request: {} (@ {:?})", _0, _1)]
+    NotARequest(EventName, KeyScope),
 
     #[error("unknown actor: {} (@ {:?})", _0, _1)]
     UnknownActor(ActorName, KeyScope),
@@ -519,7 +519,7 @@ impl Builder {
                         .get(&to)
                         .ok_or(BuildError::UnknownEvent(to.clone(), this_scope_key))?;
                     let EventKey::Recv(recv_key) = causing_event_key else {
-                        return Err(BuildError::NotARequest(to.clone()));
+                        return Err(BuildError::NotARequest(to.clone(), this_scope_key));
                     };
                     let request_fqn = self
                         .events_recv
@@ -535,7 +535,7 @@ impl Builder {
                         .resolve(&request_fqn)
                         .is_none_or(|m| m.response().is_none())
                     {
-                        return Err(BuildError::NotARequest(to.clone()));
+                        return Err(BuildError::NotARequest(to.clone(), this_scope_key));
                     }
 
                     let key = self.events_respond.insert(EventRespond {
