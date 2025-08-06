@@ -33,11 +33,11 @@ pub enum BuildError {
     #[error("not a request: {}", _0)]
     NotARequest(EventName),
 
-    #[error("unknown actor: {}", _0)]
-    UnknownActor(ActorName),
+    #[error("unknown actor: {} ({:?})", _0, _1)]
+    UnknownActor(ActorName, KeyScope),
 
-    #[error("unknown actor: {}", _0)]
-    UnknownDummy(DummyName),
+    #[error("unknown actor: {} ({:?})", _0, _1)]
+    UnknownDummy(DummyName, KeyScope),
 
     #[error("unknown subroutine: {}", _0)]
     UnknownSubroutine(SubroutineName),
@@ -264,7 +264,7 @@ impl Builder {
         }
         for (actor_name, key) in actor_mapping {
             error!("unknown actor in mapping: {} -> {:?}", actor_name, key);
-            return Err(BuildError::UnknownActor(actor_name))
+            return Err(BuildError::UnknownActor(actor_name, this_scope_key))
         }
 
         for dummy_name in &dummy_names {
@@ -289,7 +289,7 @@ impl Builder {
         }
         for (dummy_name, key) in dummy_mapping {
             error!("unknown dummy in mapping: {} -> {:?}", dummy_name, key);
-            return Err(BuildError::UnknownDummy(dummy_name))
+            return Err(BuildError::UnknownDummy(dummy_name, this_scope_key))
         }
 
         let mut this_scope_name_to_key = HashMap::new();
@@ -324,7 +324,7 @@ impl Builder {
                         def_call.actors.clone().unwrap_or_default().into_iter()
                     {
                         let Some(key) = actors.get(&this_name) else {
-                            return Err(BuildError::UnknownActor(this_name));
+                            return Err(BuildError::UnknownActor(this_name, this_scope_key));
                         };
                         sub_actor_mapping.insert(sub_name, *key);
                     }
@@ -332,7 +332,7 @@ impl Builder {
                         def_call.dummies.clone().unwrap_or_default().into_iter()
                     {
                         let Some(key) = dummies.get(&this_name) else {
-                            return Err(BuildError::UnknownDummy(this_name));
+                            return Err(BuildError::UnknownDummy(this_name, this_scope_key));
                         };
                         sub_dummy_mapping.insert(sub_name, *key);
                     }
@@ -484,11 +484,13 @@ impl Builder {
                     let key = self.events_recv.insert(EventRecv {
                         from:             resolve_name_opt(
                             &actors,
+                            this_scope_key,
                             from.as_ref(),
                             BuildError::UnknownActor,
                         )?,
                         to:               resolve_name_opt(
                             &dummies,
+                            this_scope_key,
                             to.as_ref(),
                             BuildError::UnknownDummy,
                         )?,
@@ -539,6 +541,7 @@ impl Builder {
                         request_type: request_fqn,
                         respond_from: resolve_name_opt(
                             &dummies,
+                            this_scope_key,
                             from.as_ref(),
                             BuildError::UnknownDummy,
                         )?,
@@ -564,22 +567,24 @@ impl Builder {
 
                     if let Some(to_actor) = to.as_ref() {
                         if !actor_names.contains(to_actor) {
-                            return Err(BuildError::UnknownActor(to_actor.clone()));
+                            return Err(BuildError::UnknownActor(to_actor.clone(), this_scope_key));
                         }
                     }
                     if !dummy_names.contains(from) {
-                        return Err(BuildError::UnknownDummy(from.clone()));
+                        return Err(BuildError::UnknownDummy(from.clone(), this_scope_key));
                     }
 
                     let key = self.events_send.insert(EventSend {
                         from:      resolve_name_opt(
                             &dummies,
+                            this_scope_key,
                             Some(from),
                             BuildError::UnknownDummy,
                         )?
                         .unwrap(),
                         to:        resolve_name_opt(
                             &actors,
+                            this_scope_key,
                             to.as_ref(),
                             BuildError::UnknownActor,
                         )?,
@@ -642,20 +647,21 @@ impl Builder {
 
 fn resolve_name_opt<N, K, F>(
     names: &HashMap<N, K>,
+    scope_key: KeyScope,
     name_opt: Option<&N>,
     make_error: F,
 ) -> Result<Option<K>, BuildError>
 where
     K: Copy,
     N: Clone + Hash + Eq,
-    F: FnOnce(N) -> BuildError,
+    F: FnOnce(N, KeyScope) -> BuildError,
 {
     name_opt
         .map(|name| {
             names
                 .get(name)
                 .copied()
-                .ok_or_else(|| make_error(name.clone()))
+                .ok_or_else(|| make_error(name.clone(), scope_key))
         })
         .transpose()
 }
