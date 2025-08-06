@@ -68,8 +68,9 @@ impl<'a> fmt::Display for BuildError<'a> {
             DuplicateDummyName(_, k) => k,
         };
 
-        write!(f, "{}", reason)?;
-        fmt_scope_recursively(f, scope, scopes, sources)
+        write!(f, "{} (", reason)?;
+        fmt_scope_recursively(f, scope, scopes, sources)?;
+        write!(f, ")")
     }
 }
 
