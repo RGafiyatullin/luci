@@ -7,7 +7,7 @@ use std::sync::Arc;
 use bimap::BiHashMap;
 use serde_json::json;
 use slotmap::{SecondaryMap, SlotMap};
-use tracing::{debug, trace};
+use tracing::{debug, error, trace, warn};
 
 use crate::execution::{
     ActorInfo, BindScope, DummyInfo, EventBind, EventDelay, EventKey, EventRecv, EventRespond,
@@ -243,38 +243,53 @@ impl Builder {
         let mut dummies = HashMap::new();
 
         for actor_name in &actor_names {
-            if let Some(key) = actor_mapping.get_by_left(actor_name) {
-                self.actors[*key]
+            if let Some((_, key)) = actor_mapping.remove_by_left(actor_name) {
+                self.actors[key]
                     .known_as
                     .insert(this_scope_key, actor_name.clone());
-                actors.insert(actor_name.clone(), *key);
+                actors.insert(actor_name.clone(), key);
             } else {
+                if self.scopes[this_scope_key].invoked_as.is_some() {
+                    warn!(
+                        "actor {} is not mapped. This might not be what you meant.",
+                        actor_name
+                    );
+                }
+
                 let mut known_as = SecondaryMap::default();
                 known_as.insert(this_scope_key, actor_name.clone());
                 let key = self.actors.insert(ActorInfo { known_as });
-                let overwritted = actor_mapping
-                    .insert(actor_name.clone(), key)
-                    .did_overwrite();
-                assert!(!overwritted);
                 actors.insert(actor_name.clone(), key);
             }
         }
+        for (actor_name, key) in actor_mapping {
+            error!("unknown actor in mapping: {} -> {:?}", actor_name, key);
+            return Err(BuildError::UnknownActor(actor_name))
+        }
+
         for dummy_name in &dummy_names {
-            if let Some(key) = dummy_mapping.get_by_left(dummy_name) {
-                self.dummies[*key]
+            if let Some((_, key)) = dummy_mapping.remove_by_left(dummy_name) {
+                self.dummies[key]
                     .known_as
                     .insert(this_scope_key, dummy_name.clone());
-                dummies.insert(dummy_name.clone(), *key);
+                dummies.insert(dummy_name.clone(), key);
             } else {
+                if self.scopes[this_scope_key].invoked_as.is_some() {
+                    warn!(
+                        "dummy {} is not mapped. This might not be what you meant.",
+                        dummy_name
+                    );
+                }
+
                 let mut known_as = SecondaryMap::default();
                 known_as.insert(this_scope_key, dummy_name.clone());
                 let key = self.dummies.insert(DummyInfo { known_as });
-                let overwritten = dummy_mapping
-                    .insert(dummy_name.clone(), key)
-                    .did_overwrite();
-                assert!(!overwritten);
                 dummies.insert(dummy_name.clone(), key);
             }
+        }
+        for (dummy_name, key) in dummy_mapping {
+            error!("unknown dummy in mapping: {} -> {:?}", dummy_name, key);
+            return Err(BuildError::UnknownDummy(dummy_name))
         }
 
         let mut this_scope_name_to_key = HashMap::new();
