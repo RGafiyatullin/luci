@@ -43,7 +43,7 @@ pub(super) enum BuildErrorInner {
     #[error("unknown actor: {}", _0)]
     UnknownActor(ActorName, KeyScope),
 
-    #[error("unknown actor: {}", _0)]
+    #[error("unknown dummy: {}", _0)]
     UnknownDummy(DummyName, KeyScope),
 
     #[error("unknown subroutine: {}", _0)]
