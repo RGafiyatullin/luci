@@ -24,8 +24,8 @@ use crate::scenario::{
 
 #[derive(Debug, thiserror::Error)]
 pub enum BuildError {
-    #[error("unknown event: {}", _0)]
-    UnknownEvent(EventName),
+    #[error("unknown event: {} (@ {:?})", _0, _1)]
+    UnknownEvent(EventName, KeyScope),
 
     #[error("duplicate event: {}", _0)]
     DuplicateEventName(EventName),
@@ -33,10 +33,10 @@ pub enum BuildError {
     #[error("not a request: {}", _0)]
     NotARequest(EventName),
 
-    #[error("unknown actor: {} ({:?})", _0, _1)]
+    #[error("unknown actor: {} (@ {:?})", _0, _1)]
     UnknownActor(ActorName, KeyScope),
 
-    #[error("unknown actor: {} ({:?})", _0, _1)]
+    #[error("unknown actor: {} (@ {:?})", _0, _1)]
     UnknownDummy(DummyName, KeyScope),
 
     #[error("unknown subroutine: {}", _0)]
@@ -173,13 +173,14 @@ where
 
 fn resolve_event_ids<'a>(
     idx_keys: &'a HashMap<&'a EventName, EventKey>,
+    scope_key: KeyScope,
     names: &'a [EventName],
 ) -> impl Iterator<Item = Result<EventKey, BuildError>> + 'a {
     names.into_iter().map(move |name: &EventName| {
         idx_keys
             .get(name)
             .copied()
-            .ok_or(BuildError::UnknownEvent(name.clone()))
+            .ok_or(BuildError::UnknownEvent(name.clone(), scope_key))
     })
 }
 
@@ -304,8 +305,9 @@ impl Builder {
             ..
         } in this_source.scenario.events.iter()
         {
-            let prerequisites = resolve_event_ids(&mut this_scope_name_to_key, &prerequisites)
-                .collect::<Result<Vec<_>, _>>()?;
+            let prerequisites =
+                resolve_event_ids(&mut this_scope_name_to_key, this_scope_key, &prerequisites)
+                    .collect::<Result<Vec<_>, _>>()?;
 
             let (head_key, tail_key) = match kind {
                 DefEventKind::Call(def_call) => {
@@ -515,7 +517,7 @@ impl Builder {
 
                     let causing_event_key = this_scope_name_to_key
                         .get(&to)
-                        .ok_or(BuildError::UnknownEvent(to.clone()))?;
+                        .ok_or(BuildError::UnknownEvent(to.clone(), this_scope_key))?;
                     let EventKey::Recv(recv_key) = causing_event_key else {
                         return Err(BuildError::NotARequest(to.clone()));
                     };
