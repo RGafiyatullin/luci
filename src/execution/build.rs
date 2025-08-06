@@ -291,7 +291,7 @@ impl Builder {
                 actors.insert(actor_name.clone(), key);
             }
         }
-        for (actor_name, key) in actor_mapping {
+        if let Some((actor_name, key)) = actor_mapping.into_iter().next() {
             error!("unknown actor in mapping: {} -> {:?}", actor_name, key);
             return Err(BuildErrorInner::UnknownActor(actor_name, this_scope_key))
         }
@@ -316,7 +316,7 @@ impl Builder {
                 dummies.insert(dummy_name.clone(), key);
             }
         }
-        for (dummy_name, key) in dummy_mapping {
+        if let Some((dummy_name, key)) = dummy_mapping.into_iter().next() {
             error!("unknown dummy in mapping: {} -> {:?}", dummy_name, key);
             return Err(BuildErrorInner::UnknownDummy(dummy_name, this_scope_key))
         }
