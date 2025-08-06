@@ -1,15 +1,70 @@
 use std::fmt;
 
 use crate::execution::runner::ReadyEventKey;
-use crate::execution::{Executable, KeyScope, SourceCode};
+use crate::execution::{BuildError, Executable, KeyScope, SourceCode};
 use crate::recorder::{records as r, Record, RecordKind, RecordLog};
 use crate::scenario::SrcMsg;
+
+#[derive(Debug, thiserror::Error)]
+pub struct DisplayBuildError<'a> {
+    error:       BuildError,
+    executable:  &'a Executable,
+    source_code: &'a SourceCode,
+}
 
 pub(super) struct DisplayRecord<'a> {
     pub(super) record:      &'a Record,
     pub(super) log:         &'a RecordLog,
     pub(super) executable:  &'a Executable,
     pub(super) source_code: &'a SourceCode,
+}
+
+impl BuildError {
+    pub fn into_pretty<'a>(
+        self,
+        executable: &'a Executable,
+        source_code: &'a SourceCode,
+    ) -> DisplayBuildError<'a> {
+        DisplayBuildError {
+            error: self,
+            executable,
+            source_code,
+        }
+    }
+}
+
+impl<'a> fmt::Display for DisplayBuildError<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use BuildError::*;
+
+        let Self {
+            error,
+            executable,
+            source_code,
+        } = self;
+
+        let scope = *match error {
+            UnknownEvent(_, k) => k,
+            NotARequest(_, k) => k,
+            UnknownActor(_, k) => k,
+            UnknownDummy(_, k) => k,
+            UnknownSubroutine(_, k) => k,
+            UnknownFqn(_, k) => k,
+            UnknownAlias(_, k) => k,
+            DuplicateAlias(_, k) => k,
+            DuplicateEventName(_, k) => k,
+            DuplicateActorName(_, k) => k,
+            DuplicateDummyName(_, k) => k,
+        };
+
+        let display_scope = DisplayScope {
+            scope,
+            executable,
+            source_code,
+        };
+
+        write!(f, "{} ({})", error, display_scope)
+    }
 }
 
 impl<'a> fmt::Display for DisplayRecord<'a> {

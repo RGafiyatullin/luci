@@ -23,37 +23,37 @@ use crate::scenario::{
 
 #[derive(Debug, thiserror::Error)]
 pub enum BuildError {
-    #[error("unknown event: {} (@ {:?})", _0, _1)]
+    #[error("unknown event: {}", _0)]
     UnknownEvent(EventName, KeyScope),
 
-    #[error("duplicate event: {} (@ {:?})", _0, _1)]
+    #[error("duplicate event: {}", _0)]
     DuplicateEventName(EventName, KeyScope),
 
-    #[error("not a request: {} (@ {:?})", _0, _1)]
+    #[error("not a request: {}", _0)]
     NotARequest(EventName, KeyScope),
 
-    #[error("unknown actor: {} (@ {:?})", _0, _1)]
+    #[error("unknown actor: {}", _0)]
     UnknownActor(ActorName, KeyScope),
 
-    #[error("unknown actor: {} (@ {:?})", _0, _1)]
+    #[error("unknown actor: {}", _0)]
     UnknownDummy(DummyName, KeyScope),
 
-    #[error("unknown subroutine: {} (@ {:?})", _0, _1)]
+    #[error("unknown subroutine: {}", _0)]
     UnknownSubroutine(SubroutineName, KeyScope),
 
-    #[error("unknown FQN: {} (@ {:?})", _0, _1)]
+    #[error("unknown FQN: {}", _0)]
     UnknownFqn(String, KeyScope),
 
-    #[error("unknown alias: {} (@ {:?})", _0, _1)]
+    #[error("unknown alias: {}", _0)]
     UnknownAlias(MessageName, KeyScope),
 
-    #[error("duplicate alias: {} (@ {:?})", _0, _1)]
+    #[error("duplicate alias: {}", _0)]
     DuplicateAlias(MessageName, KeyScope),
 
-    #[error("duplicate actor name: {} (@ {:?})", _0, _1)]
+    #[error("duplicate actor name: {}", _0)]
     DuplicateActorName(ActorName, KeyScope),
 
-    #[error("duplicate dummy name: {} (@ {:?})", _0, _1)]
+    #[error("duplicate dummy name: {}", _0)]
     DuplicateDummyName(DummyName, KeyScope),
 }
 
