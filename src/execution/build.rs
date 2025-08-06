@@ -14,7 +14,6 @@ use crate::execution::{
     EventSend, Events, Executable, KeyActor, KeyBind, KeyDelay, KeyDummy, KeyRecv, KeyRespond,
     KeyScenario, KeyScope, KeySend, ScopeInfo, SourceCode,
 };
-use crate::marshalling;
 use crate::marshalling::MarshallingRegistry;
 use crate::names::{ActorName, DummyName, EventName, MessageName, SubroutineName};
 use crate::scenario::{
@@ -51,14 +50,11 @@ pub enum BuildError {
     #[error("duplicate alias: {} (@ {:?})", _0, _1)]
     DuplicateAlias(MessageName, KeyScope),
 
-    #[error("duplicate actor name: {}", _0)]
-    DuplicateActorName(ActorName),
+    #[error("duplicate actor name: {} (@ {:?})", _0, _1)]
+    DuplicateActorName(ActorName, KeyScope),
 
-    #[error("duplicate dummy name: {}", _0)]
-    DuplicateDummyName(DummyName),
-
-    #[error("invalid data: {}", _0)]
-    InvalidData(marshalling::AnError),
+    #[error("duplicate dummy name: {} (@ {:?})", _0, _1)]
+    DuplicateDummyName(DummyName, KeyScope),
 }
 
 impl Executable {
@@ -161,17 +157,18 @@ fn type_aliases<'a>(
 
 fn ensure_uniqueness<'a, N, F>(
     actor_names: impl IntoIterator<Item = &'a N>,
+    scope_key: KeyScope,
     make_error: F,
 ) -> Result<HashSet<N>, BuildError>
 where
     N: Clone + Eq + Hash + 'static,
-    F: FnOnce(N) -> BuildError,
+    F: FnOnce(N, KeyScope) -> BuildError,
 {
     let mut out = HashSet::new();
 
     for name in actor_names {
         if !out.insert(name.clone()) {
-            return Err(make_error(name.clone()));
+            return Err(make_error(name.clone(), scope_key));
         }
     }
 
@@ -240,10 +237,14 @@ impl Builder {
             trace!("- {:?} -> {:?}", a, fqn);
         }
 
-        let actor_names =
-            ensure_uniqueness(&this_source.scenario.actors, BuildError::DuplicateActorName)?;
+        let actor_names = ensure_uniqueness(
+            &this_source.scenario.actors,
+            this_scope_key,
+            BuildError::DuplicateActorName,
+        )?;
         let dummy_names = ensure_uniqueness(
             &this_source.scenario.dummies,
+            this_scope_key,
             BuildError::DuplicateDummyName,
         )?;
 
