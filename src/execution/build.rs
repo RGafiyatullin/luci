@@ -24,13 +24,13 @@ use crate::scenario::{
 
 #[derive(thiserror::Error)]
 pub struct BuildError<'a> {
-    pub(super) reason:  BuildErrorInner,
+    pub(super) reason:  BuildErrorReason,
     pub(super) scopes:  SlotMap<KeyScope, ScopeInfo>,
     pub(super) sources: &'a SlotMap<KeyScenario, SingleScenarioSource>,
 }
 
 #[derive(Debug, thiserror::Error)]
-pub(super) enum BuildErrorInner {
+pub(super) enum BuildErrorReason {
     #[error("unknown event: {}", _0)]
     UnknownEvent(EventName, KeyScope),
 
@@ -151,12 +151,12 @@ fn type_aliases<'a>(
     marshalling: &MarshallingRegistry,
     scope_key: KeyScope,
     imports: impl IntoIterator<Item = &'a DefTypeAlias>,
-) -> Result<HashMap<MessageName, Arc<str>>, BuildErrorInner> {
+) -> Result<HashMap<MessageName, Arc<str>>, BuildErrorReason> {
     use std::collections::hash_map::Entry::Vacant;
     let mut aliases = HashMap::new();
     for import in imports {
         let Vacant(entry) = aliases.entry(import.type_alias.to_owned()) else {
-            return Err(BuildErrorInner::DuplicateAlias(
+            return Err(BuildErrorReason::DuplicateAlias(
                 import.type_alias.clone(),
                 scope_key,
             ));
@@ -164,7 +164,7 @@ fn type_aliases<'a>(
         let _marshaller =
             marshalling
                 .resolve(&import.type_name)
-                .ok_or(BuildErrorInner::UnknownFqn(
+                .ok_or(BuildErrorReason::UnknownFqn(
                     import.type_name.to_owned(),
                     scope_key,
                 ))?;
@@ -179,10 +179,10 @@ fn ensure_uniqueness<'a, N, F>(
     actor_names: impl IntoIterator<Item = &'a N>,
     scope_key: KeyScope,
     make_error: F,
-) -> Result<HashSet<N>, BuildErrorInner>
+) -> Result<HashSet<N>, BuildErrorReason>
 where
     N: Clone + Eq + Hash + 'static,
-    F: FnOnce(N, KeyScope) -> BuildErrorInner,
+    F: FnOnce(N, KeyScope) -> BuildErrorReason,
 {
     let mut out = HashSet::new();
 
@@ -199,12 +199,12 @@ fn resolve_event_ids<'a>(
     idx_keys: &'a HashMap<&'a EventName, EventKey>,
     scope_key: KeyScope,
     names: &'a [EventName],
-) -> impl Iterator<Item = Result<EventKey, BuildErrorInner>> + 'a {
+) -> impl Iterator<Item = Result<EventKey, BuildErrorReason>> + 'a {
     names.into_iter().map(move |name: &EventName| {
         idx_keys
             .get(name)
             .copied()
-            .ok_or(BuildErrorInner::UnknownEvent(name.clone(), scope_key))
+            .ok_or(BuildErrorReason::UnknownEvent(name.clone(), scope_key))
     })
 }
 
@@ -243,7 +243,7 @@ impl Builder {
         invoked_as: Option<(KeyScope, EventName, SubroutineName)>,
         mut actor_mapping: BiHashMap<ActorName, KeyActor>,
         mut dummy_mapping: BiHashMap<DummyName, KeyDummy>,
-    ) -> Result<SubgraphAdded, BuildErrorInner> {
+    ) -> Result<SubgraphAdded, BuildErrorReason> {
         let this_source = &sources[source_key];
 
         let this_scope_key = self.scopes.insert(ScopeInfo {
@@ -260,12 +260,12 @@ impl Builder {
         let actor_names = ensure_uniqueness(
             &this_source.scenario.actors,
             this_scope_key,
-            BuildErrorInner::DuplicateActorName,
+            BuildErrorReason::DuplicateActorName,
         )?;
         let dummy_names = ensure_uniqueness(
             &this_source.scenario.dummies,
             this_scope_key,
-            BuildErrorInner::DuplicateDummyName,
+            BuildErrorReason::DuplicateDummyName,
         )?;
 
         let mut actors = HashMap::new();
@@ -293,7 +293,7 @@ impl Builder {
         }
         if let Some((actor_name, key)) = actor_mapping.into_iter().next() {
             error!("unknown actor in mapping: {} -> {:?}", actor_name, key);
-            return Err(BuildErrorInner::UnknownActor(actor_name, this_scope_key))
+            return Err(BuildErrorReason::UnknownActor(actor_name, this_scope_key))
         }
 
         for dummy_name in &dummy_names {
@@ -318,7 +318,7 @@ impl Builder {
         }
         if let Some((dummy_name, key)) = dummy_mapping.into_iter().next() {
             error!("unknown dummy in mapping: {} -> {:?}", dummy_name, key);
-            return Err(BuildErrorInner::UnknownDummy(dummy_name, this_scope_key))
+            return Err(BuildErrorReason::UnknownDummy(dummy_name, this_scope_key))
         }
 
         let mut this_scope_name_to_key = HashMap::new();
@@ -344,7 +344,7 @@ impl Builder {
                         .get(&def_call.subroutine_name)
                         .copied()
                         .ok_or_else(|| {
-                            BuildErrorInner::UnknownSubroutine(
+                            BuildErrorReason::UnknownSubroutine(
                                 def_call.subroutine_name.clone(),
                                 this_scope_key,
                             )
@@ -357,7 +357,7 @@ impl Builder {
                         def_call.actors.clone().unwrap_or_default().into_iter()
                     {
                         let Some(key) = actors.get(&this_name) else {
-                            return Err(BuildErrorInner::UnknownActor(this_name, this_scope_key));
+                            return Err(BuildErrorReason::UnknownActor(this_name, this_scope_key));
                         };
                         sub_actor_mapping.insert(sub_name, *key);
                     }
@@ -365,7 +365,7 @@ impl Builder {
                         def_call.dummies.clone().unwrap_or_default().into_iter()
                     {
                         let Some(key) = dummies.get(&this_name) else {
-                            return Err(BuildErrorInner::UnknownDummy(this_name, this_scope_key));
+                            return Err(BuildErrorReason::UnknownDummy(this_name, this_scope_key));
                         };
                         sub_dummy_mapping.insert(sub_name, *key);
                     }
@@ -511,7 +511,7 @@ impl Builder {
                     } = def_recv;
 
                     let type_fqn = type_aliases.get(message_type).cloned().ok_or(
-                        BuildErrorInner::UnknownAlias(message_type.clone(), this_scope_key),
+                        BuildErrorReason::UnknownAlias(message_type.clone(), this_scope_key),
                     )?;
 
                     let key = self.events_recv.insert(EventRecv {
@@ -519,13 +519,13 @@ impl Builder {
                             &actors,
                             this_scope_key,
                             from.as_ref(),
-                            BuildErrorInner::UnknownActor,
+                            BuildErrorReason::UnknownActor,
                         )?,
                         to:               resolve_name_opt(
                             &dummies,
                             this_scope_key,
                             to.as_ref(),
-                            BuildErrorInner::UnknownDummy,
+                            BuildErrorReason::UnknownDummy,
                         )?,
                         fqn:              type_fqn,
                         payload_matchers: [message_data.clone()]
@@ -548,9 +548,9 @@ impl Builder {
 
                     let causing_event_key = this_scope_name_to_key
                         .get(&to)
-                        .ok_or(BuildErrorInner::UnknownEvent(to.clone(), this_scope_key))?;
+                        .ok_or(BuildErrorReason::UnknownEvent(to.clone(), this_scope_key))?;
                     let EventKey::Recv(recv_key) = causing_event_key else {
-                        return Err(BuildErrorInner::NotARequest(to.clone(), this_scope_key));
+                        return Err(BuildErrorReason::NotARequest(to.clone(), this_scope_key));
                     };
                     let request_fqn = self
                         .events_recv
@@ -566,7 +566,7 @@ impl Builder {
                         .resolve(&request_fqn)
                         .is_none_or(|m| m.response().is_none())
                     {
-                        return Err(BuildErrorInner::NotARequest(to.clone(), this_scope_key));
+                        return Err(BuildErrorReason::NotARequest(to.clone(), this_scope_key));
                     }
 
                     let key = self.events_respond.insert(EventRespond {
@@ -576,7 +576,7 @@ impl Builder {
                             &dummies,
                             this_scope_key,
                             from.as_ref(),
-                            BuildErrorInner::UnknownDummy,
+                            BuildErrorReason::UnknownDummy,
                         )?,
                         payload:      data.clone(),
                         scope_key:    this_scope_key,
@@ -594,19 +594,19 @@ impl Builder {
                     } = def_send;
 
                     let type_fqn = type_aliases.get(message_type).cloned().ok_or(
-                        BuildErrorInner::UnknownAlias(message_type.clone(), this_scope_key),
+                        BuildErrorReason::UnknownAlias(message_type.clone(), this_scope_key),
                     )?;
 
                     if let Some(to_actor) = to.as_ref() {
                         if !actor_names.contains(to_actor) {
-                            return Err(BuildErrorInner::UnknownActor(
+                            return Err(BuildErrorReason::UnknownActor(
                                 to_actor.clone(),
                                 this_scope_key,
                             ));
                         }
                     }
                     if !dummy_names.contains(from) {
-                        return Err(BuildErrorInner::UnknownDummy(from.clone(), this_scope_key));
+                        return Err(BuildErrorReason::UnknownDummy(from.clone(), this_scope_key));
                     }
 
                     let key = self.events_send.insert(EventSend {
@@ -614,14 +614,14 @@ impl Builder {
                             &dummies,
                             this_scope_key,
                             Some(from),
-                            BuildErrorInner::UnknownDummy,
+                            BuildErrorReason::UnknownDummy,
                         )?
                         .unwrap(),
                         to:        resolve_name_opt(
                             &actors,
                             this_scope_key,
                             to.as_ref(),
-                            BuildErrorInner::UnknownActor,
+                            BuildErrorReason::UnknownActor,
                         )?,
                         fqn:       type_fqn,
                         payload:   message_data.clone(),
@@ -661,7 +661,7 @@ impl Builder {
             trace!("  done: {:?} -> {:?}-{:?}", this_name, head_key, tail_key);
 
             if this_scope_name_to_key.insert(this_name, tail_key).is_some() {
-                return Err(BuildErrorInner::DuplicateEventName(
+                return Err(BuildErrorReason::DuplicateEventName(
                     this_name.clone(),
                     this_scope_key,
                 ));
@@ -688,11 +688,11 @@ fn resolve_name_opt<N, K, F>(
     scope_key: KeyScope,
     name_opt: Option<&N>,
     make_error: F,
-) -> Result<Option<K>, BuildErrorInner>
+) -> Result<Option<K>, BuildErrorReason>
 where
     K: Copy,
     N: Clone + Hash + Eq,
-    F: FnOnce(N, KeyScope) -> BuildErrorInner,
+    F: FnOnce(N, KeyScope) -> BuildErrorReason,
 {
     name_opt
         .map(|name| {

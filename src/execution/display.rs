@@ -2,7 +2,7 @@ use std::fmt;
 
 use slotmap::SlotMap;
 
-use crate::execution::build::{BuildError, BuildErrorInner};
+use crate::execution::build::{BuildError, BuildErrorReason};
 use crate::execution::runner::ReadyEventKey;
 use crate::execution::sources::SingleScenarioSource;
 use crate::execution::{Executable, KeyScenario, KeyScope, ScopeInfo, SourceCode};
@@ -46,7 +46,7 @@ impl<'a> fmt::Display for DisplayRecord<'a> {
 
 impl<'a> fmt::Display for BuildError<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use BuildErrorInner::*;
+        use BuildErrorReason::*;
 
         let Self {
             reason,
