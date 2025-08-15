@@ -1,7 +1,9 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use elfo::Addr;
 use serde_json::Value;
+use tokio::time::Instant;
 
 use crate::execution::runner::ReadyEventKey;
 use crate::execution::{
@@ -89,3 +91,9 @@ pub(crate) struct MatchingRecv(pub KeyRecv);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ExpectedDirectedGotRouted(pub KeyDummy);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ValidFrom(pub Instant);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TooEarly(pub Duration);

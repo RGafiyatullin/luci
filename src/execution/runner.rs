@@ -105,7 +105,8 @@ struct Delays {
 
 #[derive(Default)]
 struct Receives {
-    deadlines: BTreeSet<(Instant, KeyRecv)>,
+    valid_from: SecondaryMap<KeyRecv, Instant>,
+    valid_trhu: BTreeSet<(Instant, KeyRecv)>,
 }
 
 impl Executable {
@@ -495,7 +496,8 @@ impl<'a> Runner<'a> {
                         from: match_from,
                         to: match_to,
                         payload_matchers,
-                        timeout: _,
+                        after: _,
+                        before: _,
                         scope_key,
                     } = &events.recv[recv_key];
 
@@ -567,6 +569,17 @@ impl<'a> Runner<'a> {
                         continue;
                     };
 
+                    let valid_from = self.receives.remove_by_key(recv_key);
+                    recorder.write(records::ValidFrom(valid_from));
+
+                    if let Some(too_early) = valid_from
+                        .checked_duration_since(Instant::now())
+                        .filter(|d| !d.is_zero())
+                    {
+                        recorder.write(records::TooEarly(too_early));
+                        continue;
+                    }
+
                     if let Some((actor_key, actor_addr)) = actor_address_to_store {
                         recorder.write(records::StoreActorAddress(
                             actor_key, *scope_key, actor_addr,
@@ -583,7 +596,6 @@ impl<'a> Runner<'a> {
 
                     self.envelopes.insert(recv_key, envelope);
                     self.ready_events.remove(&EventKey::Recv(recv_key));
-                    self.receives.remove_by_key(recv_key);
                     actually_fired_events.push(EventKey::Recv(recv_key));
 
                     recorder.write(records::EventFired(recv_key.into()));
@@ -868,19 +880,25 @@ impl<'a> Runner<'a> {
 
 impl Receives {
     fn insert(&mut self, now: Instant, key: KeyRecv, recv_event: &EventRecv) {
-        if let Some(timeout) = recv_event.timeout {
+        self.valid_from.insert(
+            key,
+            now.checked_add(recv_event.after)
+                .expect("exceeded the range of the Instant"),
+        );
+
+        if let Some(timeout) = recv_event.before {
             let deadline = now.checked_add(timeout).expect("oh don't be ridiculous!");
-            let new_entry = self.deadlines.insert((deadline, key));
+            let new_entry = self.valid_trhu.insert((deadline, key));
             assert!(new_entry);
         }
     }
 
     fn select_timed_out(&mut self, now: Instant) -> impl Iterator<Item = KeyRecv> + use<'_> {
         std::iter::repeat_with(move || {
-            let (deadline, _) = self.deadlines.first().copied()?;
+            let (deadline, _) = self.valid_trhu.first().copied()?;
             if deadline < now {
                 let (_, key) = self
-                    .deadlines
+                    .valid_trhu
                     .pop_first()
                     .expect("we've just seen it be there!");
                 Some(key)
@@ -891,8 +909,13 @@ impl Receives {
         .map_while(std::convert::identity)
     }
 
-    fn remove_by_key(&mut self, key: KeyRecv) {
-        self.deadlines.retain(|(_deadline, k)| *k != key);
+    fn remove_by_key(&mut self, key: KeyRecv) -> Instant {
+        let valid_from = self
+            .valid_from
+            .remove(key)
+            .expect("recv-key should have existed");
+        self.valid_trhu.retain(|(_deadline, k)| *k != key);
+        valid_from
     }
 }
 

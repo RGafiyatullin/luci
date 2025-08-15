@@ -74,6 +74,8 @@ pub(crate) enum RecordKind {
     EnvelopeReceived(records::EnvelopeReceived),
     MatchingRecv(records::MatchingRecv),
     ExpectedDirectedGotRouted(records::ExpectedDirectedGotRouted),
+    ValidFrom(records::ValidFrom),
+    TooEarly(records::TooEarly),
 }
 
 impl RecordLog {

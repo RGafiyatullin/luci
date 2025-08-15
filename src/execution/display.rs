@@ -322,6 +322,10 @@ impl<'a> fmt::Display for DisplayRecordKind<'a> {
                 write!(f, "expected directed to {:?}, got routed", name)
             },
 
+            ValidFrom(r::ValidFrom(i)) => write!(f, "valid from {:?}", i),
+
+            TooEarly(r::TooEarly(d)) => write!(f, "\x1b[31mtoo early\x1b[0m ({:?} till okay)", d),
+
             Root => write!(f, "ROOT"),
             Error(r::Error { reason }) => write!(f, "{}", reason),
             // _fix_me => write!(f, "TODO"),
