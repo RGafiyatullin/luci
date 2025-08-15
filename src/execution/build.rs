@@ -506,7 +506,8 @@ impl Builder {
                         also_match_data,
                         from,
                         to,
-                        before: timeout,
+                        before,
+                        after,
                         no_extra: _,
                     } = def_recv;
 
@@ -532,7 +533,8 @@ impl Builder {
                             .into_iter()
                             .chain(also_match_data.into_iter().cloned())
                             .collect(),
-                        timeout:          *timeout,
+                        after:            *after,
+                        before:           *before,
                         scope_key:        this_scope_key,
                     });
                     let ek_recv = EventKey::Recv(key);

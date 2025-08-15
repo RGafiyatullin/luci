@@ -96,7 +96,8 @@ struct EventRecv {
     from:             Option<KeyActor>,
     to:               Option<KeyDummy>,
     fqn:              Arc<str>,
-    timeout:          Option<Duration>,
+    after:            Duration,
+    before:           Option<Duration>,
     payload_matchers: Vec<DstPattern>,
 }
 
