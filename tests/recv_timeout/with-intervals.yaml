@@ -29,7 +29,8 @@ events:
       to: dummy
       type: Hi
       data: ~
-      timeout: 1s100ms
+      after: 900ms
+      before: 1s100ms
   
   - id: actor-does-not-say-bye-within-15s
     require: unreached
@@ -38,7 +39,8 @@ events:
       to: dummy
       type: Bye
       data: ~
-      timeout: 15s
+      after: 10s
+      before: 20s
 
   - id: actor-does-not-say-bye-within-30s
     require: unreached
@@ -47,7 +49,8 @@ events:
       to: dummy
       type: Bye
       data: ~
-      timeout: 30s
+      after: 20s
+      before: 30s
   
   - id: actor-does-not-say-bye-within-45s
     require: unreached
@@ -56,13 +59,15 @@ events:
       to: dummy
       type: Bye
       data: ~
-      timeout: 45s
+      after: 40s
+      before: 50s
 
   - id: actor-says-bye
-    require: reached
+    require: unreached
     recv:
       from: actor
       to: dummy
       type: Bye
       data: ~
-      timeout: 62s
+      after: 65s
+      before: 70s

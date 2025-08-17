@@ -46,6 +46,11 @@ async fn with_timeouts() {
     run_scenario("tests/recv_timeout/with-timeouts.yaml").await;
 }
 
+#[tokio::test]
+async fn with_intervals() {
+    run_scenario("tests/recv_timeout/with-intervals.yaml").await;
+}
+
 async fn run_scenario(scenario_file: &str) {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
