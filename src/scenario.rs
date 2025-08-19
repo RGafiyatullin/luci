@@ -126,12 +126,12 @@ pub struct DefEventRecv {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
     #[serde(alias = "timeout")]
-    pub before: Option<Duration>,
+    pub before_duration: Option<Duration>,
 
     #[serde(with = "humantime_serde")]
     #[serde(skip_serializing_if = "Duration::is_zero")]
     #[serde(default)]
-    pub after: Duration,
+    pub after_duration: Duration,
 
     #[serde(flatten)]
     pub no_extra: NoExtra,

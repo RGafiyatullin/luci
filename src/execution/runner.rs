@@ -496,8 +496,8 @@ impl<'a> Runner<'a> {
                         from: match_from,
                         to: match_to,
                         payload_matchers,
-                        after: _,
-                        before: _,
+                        after_duration: _,
+                        before_duration: _,
                         scope_key,
                     } = &events.recv[recv_key];
 
@@ -882,11 +882,11 @@ impl Receives {
     fn insert(&mut self, now: Instant, key: KeyRecv, recv_event: &EventRecv) {
         self.valid_from.insert(
             key,
-            now.checked_add(recv_event.after)
+            now.checked_add(recv_event.after_duration)
                 .expect("exceeded the range of the Instant"),
         );
 
-        if let Some(timeout) = recv_event.before {
+        if let Some(timeout) = recv_event.before_duration {
             let deadline = now.checked_add(timeout).expect("oh don't be ridiculous!");
             let new_entry = self.valid_thru.insert((deadline, key));
             assert!(new_entry);

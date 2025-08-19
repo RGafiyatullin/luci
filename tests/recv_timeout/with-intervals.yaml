@@ -29,8 +29,8 @@ events:
       to: dummy
       type: Hi
       data: ~
-      after: 900ms
-      before: 1s100ms
+      after_duration: 900ms
+      before_duration: 1s100ms
   
   - id: actor-does-not-say-bye-between-10s-and-20s
     require: unreached
@@ -39,8 +39,8 @@ events:
       to: dummy
       type: Bye
       data: ~
-      after: 10s
-      before: 20s
+      after_duration: 10s
+      before_duration: 20s
 
   - id: actor-does-not-say-bye-between-20s-and-30s
     require: unreached
@@ -49,8 +49,8 @@ events:
       to: dummy
       type: Bye
       data: ~
-      after: 20s
-      before: 30s
+      after_duration: 20s
+      before_duration: 30s
   
   - id: actor-does-not-say-bye-between-40s-and-50s
     require: unreached
@@ -59,8 +59,8 @@ events:
       to: dummy
       type: Bye
       data: ~
-      after: 40s
-      before: 50s
+      after_duration: 40s
+      before_duration: 50s
 
   - id: actor-says-bye-between-65s-and-70s
     require: unreached
@@ -69,5 +69,5 @@ events:
       to: dummy
       type: Bye
       data: ~
-      after: 65s
-      before: 70s
+      after_duration: 65s
+      before_duration: 70s
