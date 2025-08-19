@@ -106,7 +106,7 @@ struct Delays {
 #[derive(Default)]
 struct Receives {
     valid_from: SecondaryMap<KeyRecv, Instant>,
-    valid_trhu: BTreeSet<(Instant, KeyRecv)>,
+    valid_thru: BTreeSet<(Instant, KeyRecv)>,
 }
 
 impl Executable {
@@ -888,17 +888,17 @@ impl Receives {
 
         if let Some(timeout) = recv_event.before {
             let deadline = now.checked_add(timeout).expect("oh don't be ridiculous!");
-            let new_entry = self.valid_trhu.insert((deadline, key));
+            let new_entry = self.valid_thru.insert((deadline, key));
             assert!(new_entry);
         }
     }
 
     fn select_timed_out(&mut self, now: Instant) -> impl Iterator<Item = KeyRecv> + use<'_> {
         std::iter::repeat_with(move || {
-            let (deadline, _) = self.valid_trhu.first().copied()?;
+            let (deadline, _) = self.valid_thru.first().copied()?;
             if deadline < now {
                 let (_, key) = self
-                    .valid_trhu
+                    .valid_thru
                     .pop_first()
                     .expect("we've just seen it be there!");
                 Some(key)
@@ -914,7 +914,7 @@ impl Receives {
             .valid_from
             .remove(key)
             .expect("recv-key should have existed");
-        self.valid_trhu.retain(|(_deadline, k)| *k != key);
+        self.valid_thru.retain(|(_deadline, k)| *k != key);
         valid_from
     }
 }
