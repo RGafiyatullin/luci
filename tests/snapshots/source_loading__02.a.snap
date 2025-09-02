@@ -4,6 +4,6 @@ expression: outcome
 ---
 Err(
     SourceFileCyclicDependency(
-        "tests/source_loading/02-direct-cyclic-inclusion.yaml",
+        "tests/source_loading/02-direct-cyclic-inclusion.luci.yaml",
     ),
 )

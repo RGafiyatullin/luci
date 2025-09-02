@@ -49,23 +49,23 @@ pub mod echo {
 
 #[tokio::test]
 async fn bind_node() {
-    run_scenario("tests/echo/bind-node.yaml", []).await;
+    run_scenario("tests/echo/bind-node.luci.yaml", []).await;
 }
 
 #[tokio::test]
 async fn marshalling() {
-    run_scenario("tests/echo/marshalling.yaml", []).await;
+    run_scenario("tests/echo/marshalling.luci.yaml", []).await;
 }
 
 #[tokio::test]
 async fn request_response() {
-    run_scenario("tests/echo/request-response.yaml", []).await;
+    run_scenario("tests/echo/request-response.luci.yaml", []).await;
 }
 
 #[tokio::test]
 async fn check_init_bind() {
     run_scenario(
-        "tests/echo/check-init-bind.yaml",
+        "tests/echo/check-init-bind.luci.yaml",
         [
             ("$ARG_1".into(), json!("one")),
             ("$ARG_2".into(), json!("two")),
