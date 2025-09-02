@@ -152,6 +152,11 @@ impl<'a> Runner<'a> {
             event_key_opt
         } {
             debug!("firing: {:?}", event_key);
+            if std::env::var("LUCI_STEP_BY_STEP").is_ok_and(|one| one == "1") {
+                println!("=== ENTER TO CONTINUE ===");
+                let mut line = String::new();
+                let _ = std::io::stdin().read_line(&mut line);
+            }
 
             let fired_events = self.fire_event(&mut recorder, event_key).await?;
 
