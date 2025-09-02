@@ -355,7 +355,7 @@ impl<'a> Runner<'a> {
             tmp
         };
 
-        trace!("ready_bind_keys: {:#?}", ready_bind_keys);
+        trace!("ready_bind_keys: {:?}", ready_bind_keys);
         recorder.write(records::ReadyBindKeys(ready_bind_keys.clone()));
 
         let mut actually_fired_events = vec![];
@@ -453,7 +453,7 @@ impl<'a> Runner<'a> {
                 tmp
             };
 
-            trace!("ready_recv_keys: {:#?}", ready_recv_keys);
+            trace!("ready_recv_keys: {:?}", ready_recv_keys);
             recorder.write(records::ReadyRecvKeys(ready_recv_keys.clone()));
 
             let mut unmatched_envelopes = 0;
