@@ -142,8 +142,8 @@ impl<'a> Runner<'a> {
         let mut record_log = RecordLog::new();
         let mut recorder = record_log.recorder();
 
-        let mut unreached = self.executable.events.required.clone();
-        let mut reached = HashMap::new();
+        let mut required_events = self.executable.events.required.clone();
+        let mut reached_events = HashSet::new();
 
         while let Some(event_key) = {
             // NOTE: if we do not introduce a variable `event_key_opt` here, the `self`
@@ -175,29 +175,26 @@ impl<'a> Runner<'a> {
             }
 
             for event_id in fired_events {
-                let Some(r) = unreached.remove(&event_id) else {
-                    continue;
-                };
-                reached.insert(event_id, r);
+                reached_events.insert(event_id);
             }
         }
 
-        let reached = reached
-            .into_iter()
-            // XXX: are we expecting only the root-scope's names here?
-            // FIXME: no we are not, names can come from different places.
-            .map(|(k, v)| (self.event_name(k).expect("bad event-key").1.clone(), v))
-            .collect();
-        let unreached = unreached
-            .into_iter()
-            // XXX: are we expecting only the root-scope's names here?
-            // FIXME: no we are not, names can come from different places.
-            .map(|(k, v)| (self.event_name(k).expect("bad event-key").1.clone(), v))
-            .collect();
+        // let reached = reached
+        //     .into_iter()
+        //     // XXX: are we expecting only the root-scope's names here?
+        //     // FIXME: no we are not, names can come from different places.
+        //     .map(|(k, v)| (self.event_name(k).expect("bad event-key").1.clone(), v))
+        //     .collect();
+        // let unreached = unreached
+        //     .into_iter()
+        //     // XXX: are we expecting only the root-scope's names here?
+        //     // FIXME: no we are not, names can come from different places.
+        //     .map(|(k, v)| (self.event_name(k).expect("bad event-key").1.clone(), v))
+        //     .collect();
 
         Ok(Report {
-            reached,
-            unreached,
+            reached_events,
+            required_events,
             record_log,
         })
     }

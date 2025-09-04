@@ -126,5 +126,5 @@ async fn run_scenario(scenario_file: &str, search_path: &[&str]) {
     report
         .dump_record_log(std::io::stderr().lock(), &sources, &executable)
         .expect("ew...");
-    assert!(report.is_ok(), "{}", report.message());
+    assert!(report.is_ok(), "{}", report.message(&executable, &sources));
 }

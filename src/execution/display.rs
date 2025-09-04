@@ -1,19 +1,144 @@
-use std::fmt;
+use std::collections::{HashMap, HashSet};
+use std::fmt::{self, Display};
 
 use slotmap::SlotMap;
 
 use crate::execution::build::{BuildError, BuildErrorReason};
 use crate::execution::runner::ReadyEventKey;
 use crate::execution::sources::SingleScenarioSource;
-use crate::execution::{Executable, KeyScenario, KeyScope, ScopeInfo, SourceCode};
+use crate::execution::{
+    EventKey, Executable, KeyScenario, KeyScope, Report, ScopeInfo, SourceCode,
+};
 use crate::recorder::{records as r, Record, RecordKind, RecordLog};
-use crate::scenario::SrcMsg;
+use crate::scenario::{RequiredToBe, SrcMsg};
 
 pub(super) struct DisplayRecord<'a> {
     pub(super) record:      &'a Record,
     pub(super) log:         &'a RecordLog,
     pub(super) executable:  &'a Executable,
     pub(super) source_code: &'a SourceCode,
+}
+
+pub(super) struct DisplayReport<'a> {
+    pub(super) report:      &'a Report,
+    pub(super) executable:  &'a Executable,
+    pub(super) source_code: &'a SourceCode,
+}
+
+impl<'a> fmt::Display for DisplayReport<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            report,
+            executable,
+            source_code,
+        } = self;
+
+        let mut key_requires_value = HashMap::new();
+        for (&k, dependants) in executable.events.key_unblocks_values.iter() {
+            for d in dependants.iter().copied() {
+                key_requires_value
+                    .entry(d)
+                    .or_insert(HashSet::new())
+                    .insert(k);
+            }
+        }
+
+        fn failed_to_reach(
+            io: &mut impl fmt::Write,
+            depth: usize,
+            event_key: EventKey,
+            key_requires_value: &HashMap<EventKey, HashSet<EventKey>>,
+            report: &Report,
+            executable: &Executable,
+            source_code: &SourceCode,
+        ) -> fmt::Result {
+            let event_name = event_full_name(event_key, executable, source_code);
+            write!(io, "{:1$}", "", depth)?;
+            writeln!(io, "- \x1b[31m{event_name}\x1b[0m")?;
+
+            for prerequisite in key_requires_value
+                .get(&event_key)
+                .into_iter()
+                .flatten()
+                .copied()
+            {
+                if report.reached_events.contains(&prerequisite) {
+                    let prerequisite_name = event_full_name(prerequisite, executable, source_code);
+                    write!(io, "{:1$}", "", depth + 1)?;
+                    writeln!(io, "+ \x1b[32m{prerequisite_name}\x1b[0m")?;
+                } else {
+                    failed_to_reach(
+                        io,
+                        depth + 1,
+                        prerequisite,
+                        key_requires_value,
+                        report,
+                        executable,
+                        source_code,
+                    )?;
+                }
+            }
+
+            Ok(())
+        }
+
+        fn event_full_name(
+            ek: EventKey,
+            executable: &Executable,
+            source_code: &SourceCode,
+        ) -> String {
+            if let Some((scope, event_name)) = executable.event_name(ek) {
+                format!(
+                    "{event_name} @ {}",
+                    DisplayScope {
+                        scope,
+                        executable,
+                        source_code
+                    }
+                )
+            } else {
+                format!("{ek:?}")
+            }
+        }
+
+        writeln!(f, "REPORT")?;
+
+        // let colour = if failure { "\x1b[31m" } else { "\x1b[32m" };
+        let colour_red = "\x1b[31m";
+        let colour_green = "\x1b[32m";
+        let colour_reset = "\x1b[0m";
+
+        for (&ek, &r) in self.report.required_events.iter() {
+            let en = event_full_name(ek, &self.executable, &self.source_code);
+            match (r, self.report.reached_events.contains(&ek)) {
+                (RequiredToBe::Reached, false) => {
+                    failed_to_reach(
+                        f,
+                        1,
+                        ek,
+                        &key_requires_value,
+                        &self.report,
+                        self.executable,
+                        self.source_code,
+                    )?
+                },
+                (RequiredToBe::Unreached, true) => {
+                    writeln!(f, " + {colour_red}{en}{colour_reset}")?
+                },
+
+                (RequiredToBe::Reached, true) => {
+                    writeln!(f, " + {colour_green}{en}{colour_reset}")?
+                },
+                (RequiredToBe::Unreached, false) => {
+                    writeln!(f, " - {colour_green}{en}{colour_reset}")?
+                },
+
+                _ => (),
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl<'a> fmt::Display for DisplayRecord<'a> {

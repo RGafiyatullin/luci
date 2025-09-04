@@ -101,5 +101,5 @@ async fn run_scenario(
         .expect("runner.run");
 
     let _ = report.dump_record_log(std::io::stderr().lock(), &sources, &executable);
-    assert!(report.is_ok(), "{}", report.message());
+    assert!(report.is_ok(), "{}", report.message(&executable, &sources));
 }
