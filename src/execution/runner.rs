@@ -152,6 +152,11 @@ impl<'a> Runner<'a> {
             event_key_opt
         } {
             debug!("firing: {:?}", event_key);
+            if std::env::var("LUCI_STEP_BY_STEP").is_ok_and(|one| one == "1") {
+                println!("=== ENTER TO CONTINUE ===");
+                let mut line = String::new();
+                let _ = std::io::stdin().read_line(&mut line);
+            }
 
             let fired_events = self.fire_event(&mut recorder, event_key).await?;
 
@@ -350,7 +355,7 @@ impl<'a> Runner<'a> {
             tmp
         };
 
-        trace!("ready_bind_keys: {:#?}", ready_bind_keys);
+        trace!("ready_bind_keys: {:?}", ready_bind_keys);
         recorder.write(records::ReadyBindKeys(ready_bind_keys.clone()));
 
         let mut actually_fired_events = vec![];
@@ -448,7 +453,7 @@ impl<'a> Runner<'a> {
                 tmp
             };
 
-            trace!("ready_recv_keys: {:#?}", ready_recv_keys);
+            trace!("ready_recv_keys: {:?}", ready_recv_keys);
             recorder.write(records::ReadyRecvKeys(ready_recv_keys.clone()));
 
             let mut unmatched_envelopes = 0;
