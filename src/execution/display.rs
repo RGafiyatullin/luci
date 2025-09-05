@@ -25,7 +25,7 @@ pub(super) struct DisplayReport<'a> {
     pub(super) source_code: &'a SourceCode,
 }
 
-impl<'a> fmt::Display for DisplayReport<'a> {
+impl fmt::Display for DisplayReport<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self {
             report,
@@ -44,6 +44,7 @@ impl<'a> fmt::Display for DisplayReport<'a> {
             }
         }
 
+        #[allow(clippy::too_many_arguments)]
         fn failed_to_reach(
             io: &mut impl fmt::Write,
             visited: &mut HashSet<EventKey>,
@@ -149,7 +150,7 @@ impl<'a> fmt::Display for DisplayReport<'a> {
     }
 }
 
-impl<'a> fmt::Display for DisplayRecord<'a> {
+impl fmt::Display for DisplayRecord<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self {
             record,
@@ -177,7 +178,7 @@ impl<'a> fmt::Display for DisplayRecord<'a> {
     }
 }
 
-impl<'a> fmt::Display for BuildError<'a> {
+impl fmt::Display for BuildError<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use BuildErrorReason::*;
 
@@ -207,7 +208,7 @@ impl<'a> fmt::Display for BuildError<'a> {
     }
 }
 
-impl<'a> fmt::Debug for BuildError<'a> {
+impl fmt::Debug for BuildError<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self, f)
     }
@@ -235,7 +236,7 @@ impl<'a> DisplayRecordKind<'a> {
     }
 }
 
-impl<'a> fmt::Display for DisplayScope<'a> {
+impl fmt::Display for DisplayScope<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt_scope_recursively(
             f,
@@ -246,7 +247,7 @@ impl<'a> fmt::Display for DisplayScope<'a> {
     }
 }
 
-impl<'a> fmt::Display for DisplayRecordKind<'a> {
+impl fmt::Display for DisplayRecordKind<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use RecordKind::*;
 

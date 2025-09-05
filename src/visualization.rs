@@ -20,7 +20,7 @@ pub fn draw_scenario(scenario: &Scenario, verbose: bool) -> String {
         .iter()
         .filter(|event| seen_ids.insert(event.id.clone()))
     {
-        draw_node(&mut digraph, &event, verbose);
+        draw_node(&mut digraph, event, verbose);
     }
 
     for event in &scenario.events {

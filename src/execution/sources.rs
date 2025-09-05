@@ -108,7 +108,6 @@ impl SourceCodeLoader {
     pub fn reset_search_path(self) -> Self {
         Self {
             search_path: vec![],
-            ..self
         }
     }
 
@@ -134,7 +133,7 @@ impl SourceCodeLoader {
         let mut sources: SourceCode = Default::default();
         let mut context = LoaderContext {
             search_path: &self.search_path,
-            this_dir:    &Path::new("."),
+            this_dir:    Path::new("."),
             this_file:   &main,
             sources:     &mut sources,
         };
@@ -159,7 +158,7 @@ impl Default for SourceCodeLoader {
     }
 }
 
-impl<'a> LoaderContext<'a> {
+impl LoaderContext<'_> {
     fn load(&mut self) -> Result<KeyScenario, LoadError> {
         let mut parent_keys: Vec<KeyScenario> = vec![];
         self.load_inner(&mut parent_keys)
@@ -279,19 +278,19 @@ impl<'a, T> PopOnDrop<'a, T> {
         Self(vec)
     }
 }
-impl<'a, T> Deref for PopOnDrop<'a, T> {
+impl<T> Deref for PopOnDrop<'_, T> {
     type Target = Vec<T>;
 
     fn deref(&self) -> &Self::Target {
         self.0
     }
 }
-impl<'a, T> DerefMut for PopOnDrop<'a, T> {
+impl<T> DerefMut for PopOnDrop<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.0
     }
 }
-impl<'a, T> Drop for PopOnDrop<'a, T> {
+impl<T> Drop for PopOnDrop<'_, T> {
     fn drop(&mut self) {
         self.0.pop();
     }

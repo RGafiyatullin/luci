@@ -67,7 +67,7 @@ impl Scope {
     }
 }
 
-impl<'a> Txn<'a> {
+impl Txn<'_> {
     /// Binds `key` to `value` and stores in the transaction.
     pub(crate) fn bind_value(&mut self, key: &str, value: &Value) -> bool {
         if let Some(defined_in_state) = self.values_committed.get(key) {
@@ -106,7 +106,7 @@ pub(crate) fn bind_to_pattern(value: Value, pattern: &DstPattern, bindings: &mut
             (_, Value::String(wildcard)) if wildcard == "$_" => true,
 
             (value, Value::String(var_name)) if var_name.starts_with('$') => {
-                bindings.bind_value(&var_name, &value)
+                bindings.bind_value(var_name, &value)
             },
 
             (Value::Null, Value::Null) => true,
@@ -144,7 +144,7 @@ pub(crate) fn render(template: Value, bindings: &bindings::Scope) -> Result<Valu
             bindings
                 .value_of(&var_name)
                 .cloned()
-                .ok_or_else(|| BindError::UnboundValue(var_name))
+                .ok_or(BindError::UnboundValue(var_name))
         },
         Value::Array(items) => {
             Ok(Value::Array(
@@ -180,7 +180,7 @@ mod tests {
 
     #[test]
     fn test_01() {
-        let mut record_log = RecordLog::new();
+        let mut record_log = RecordLog::create();
         let mut recorder = record_log.recorder();
         let mut scope = Scope::new();
         assert!(scope.value_of("a").is_none());

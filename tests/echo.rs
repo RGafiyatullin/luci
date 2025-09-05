@@ -36,7 +36,7 @@ pub mod echo {
                     let _ = ctx.send_to(sender, v).await;
                 },
                 (r @ proto::R, t) => {
-                    let _ = ctx.respond(t, r.0);
+                    ctx.respond(t, r.0);
                 },
             })
         }

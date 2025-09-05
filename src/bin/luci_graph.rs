@@ -33,7 +33,7 @@ fn main() {
     match args.output_file {
         Some(path) => {
             let mut file = File::create(path).expect("Failed to create output file");
-            file.write(result.as_bytes())
+            file.write_all(result.as_bytes())
                 .expect("Failed to write to output file");
         },
         None => {

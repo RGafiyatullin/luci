@@ -101,7 +101,7 @@ pub mod pinger {
                 },
                 proto::Ping { req_id } => {
                     info!("replying to a ping #{} from {}", req_id, sender);
-                    let _ = ctx.send_to(sender, proto::Pong { req_id });
+                    let _ = ctx.send_to(sender, proto::Pong { req_id }).await;
                 },
                 proto::Pong => {
                     info!("received a pong");

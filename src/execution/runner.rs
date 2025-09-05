@@ -131,7 +131,7 @@ impl Executable {
     }
 }
 
-impl<'a> Runner<'a> {
+impl Runner<'_> {
     /// Runs the test for which the runner was set up.
     ///
     /// Returns;
@@ -139,7 +139,7 @@ impl<'a> Runner<'a> {
     ///   completed without errors, either successfully or not.
     /// - [RunError] in case of any errors during the test run.
     pub async fn run(mut self) -> Result<Report, RunError> {
-        let mut record_log = RecordLog::new();
+        let mut record_log = RecordLog::create();
         let mut recorder = record_log.recorder();
 
         let required_events = self.executable.events.required.clone();
@@ -257,7 +257,7 @@ impl<'a> Runner<'a> {
                 .names
                 .get(&event_key)
                 .expect("invalid event-key in ready-events?");
-            assert!(self.key_requires_values.get(&event_key).is_none());
+            assert!(!self.key_requires_values.contains_key(&event_key));
 
             debug!("firing {:?}...", event_name);
         } else {
@@ -286,7 +286,7 @@ impl<'a> Runner<'a> {
     }
 }
 
-impl<'a> Runner<'a> {
+impl Runner<'_> {
     fn process_dependencies_of_fired_events(
         &mut self,
         actually_fired_events: impl IntoIterator<Item = EventKey>,
@@ -505,7 +505,7 @@ impl<'a> Runner<'a> {
 
                     let mut scope_txn = self.scopes[*scope_key].txn();
 
-                    let marshaller = marshalling.resolve(&match_type).expect("bad FQN");
+                    let marshaller = marshalling.resolve(match_type).expect("bad FQN");
 
                     let actor_address_to_store = if let Some(from_key) = match_from {
                         if let Some(expected_addr) = self.actors.get(*from_key).copied() {
@@ -694,11 +694,11 @@ impl<'a> Runner<'a> {
         let marshaller = self
             .executable
             .marshalling
-            .resolve(&message_type)
+            .resolve(message_type)
             .expect("invalid FQN");
 
         let any_message = marshaller
-            .marshal_outbound_message(&marshalling, &self.scopes[*scope_key], message_data.clone())
+            .marshal_outbound_message(marshalling, &self.scopes[*scope_key], message_data.clone())
             .map_err(RunError::Marshalling)?;
         // TODO: maybe print only the third element of the triple?
         recorder.write(records::UsingValue(
@@ -764,7 +764,7 @@ impl<'a> Runner<'a> {
         let request_marshaller = self
             .executable
             .marshalling
-            .resolve(&request_fqn)
+            .resolve(request_fqn)
             .expect("invalid FQN");
         let response_marshaller = request_marshaller
             .response()
@@ -789,7 +789,7 @@ impl<'a> Runner<'a> {
             .respond(
                 responding_proxy,
                 token,
-                &marshalling,
+                marshalling,
                 &self.scopes[*scope_key],
                 message_data.clone(),
             )

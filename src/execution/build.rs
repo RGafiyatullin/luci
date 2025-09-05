@@ -200,7 +200,7 @@ fn resolve_event_ids<'a>(
     scope_key: KeyScope,
     names: &'a [EventName],
 ) -> impl Iterator<Item = Result<EventKey, BuildErrorReason>> + 'a {
-    names.into_iter().map(move |name: &EventName| {
+    names.iter().map(move |name: &EventName| {
         idx_keys
             .get(name)
             .copied()
@@ -252,7 +252,7 @@ impl Builder {
         });
 
         debug!("storing type-aliases...");
-        let type_aliases = type_aliases(&marshalling, this_scope_key, &this_source.scenario.types)?;
+        let type_aliases = type_aliases(marshalling, this_scope_key, &this_source.scenario.types)?;
         for (a, fqn) in &type_aliases {
             trace!("- {:?} -> {:?}", a, fqn);
         }
@@ -334,7 +334,7 @@ impl Builder {
         } in this_source.scenario.events.iter()
         {
             let prerequisites =
-                resolve_event_ids(&mut this_scope_name_to_key, this_scope_key, &prerequisites)
+                resolve_event_ids(&this_scope_name_to_key, this_scope_key, prerequisites)
                     .collect::<Result<Vec<_>, _>>()?;
 
             let (head_key, tail_key) = match kind {
@@ -531,7 +531,7 @@ impl Builder {
                         fqn:              type_fqn,
                         payload_matchers: [message_data.clone()]
                             .into_iter()
-                            .chain(also_match_data.into_iter().cloned())
+                            .chain(also_match_data.iter().cloned())
                             .collect(),
                         after_duration:   *after_duration,
                         before_duration:  *before_duration,
