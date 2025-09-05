@@ -38,17 +38,17 @@ pub mod echo {
 
 #[tokio::test]
 async fn no_timeouts() {
-    run_scenario("tests/recv_timeout/no-timeouts.yaml").await;
+    run_scenario("tests/recv_timeout/no-timeouts.luci.yaml").await;
 }
 
 #[tokio::test]
 async fn with_timeouts() {
-    run_scenario("tests/recv_timeout/with-timeouts.yaml").await;
+    run_scenario("tests/recv_timeout/with-timeouts.luci.yaml").await;
 }
 
 #[tokio::test]
 async fn with_intervals() {
-    run_scenario("tests/recv_timeout/with-intervals.yaml").await;
+    run_scenario("tests/recv_timeout/with-intervals.luci.yaml").await;
 }
 
 async fn run_scenario(scenario_file: &str) {

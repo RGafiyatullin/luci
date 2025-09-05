@@ -71,9 +71,9 @@ mod test {
     #[test]
     fn output_snapshot() {
         let args = super::Args {
-            scenario_file: Some("tests/luci_graph/sample.yml".into()),
-            output_file:   None,
-            verbose:       true,
+            scenario_file: Some("tests/luci_graph/sample.luci.yml".into()),
+            output_file: None,
+            verbose: true,
         };
         let result = run(&args);
 

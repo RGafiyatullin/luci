@@ -26,7 +26,7 @@ events:
       to: server
       type: R
       data: $PAYLOAD
-  
+
   - id: server-responds-to-R
     require: reached
     happens_after:

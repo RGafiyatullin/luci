@@ -92,8 +92,8 @@ Ok(
                     no_extra: NoExtra,
                 },
             },
-            "tests/source_loading/04-diamond.yaml": Source {
-                source_file: "tests/source_loading/04-diamond.yaml",
+            "tests/source_loading/04-diamond.luci.yaml": Source {
+                source_file: "tests/source_loading/04-diamond.luci.yaml",
                 subs: {
                     SubroutineName(
                         "b-left",

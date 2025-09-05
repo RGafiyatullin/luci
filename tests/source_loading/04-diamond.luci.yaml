@@ -1,8 +1,9 @@
 subroutines:
-  - load: b-left.yaml
+  - load: b-left.luci.yaml
     as: b-left
-  - load: b-right.yaml
+  - load: b-right.luci.yaml
     as: b-right
 actors: []
 dummies: []
 events: []
+

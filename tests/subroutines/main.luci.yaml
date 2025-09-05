@@ -9,7 +9,7 @@ types:
     as: Gulp
 
 subroutines:
-  - load: smalltalk.yaml
+  - load: smalltalk.luci.yaml
     as: smalltalk
 actors:
   - guest
@@ -34,7 +34,7 @@ events:
       from: guest
       type: MayI
       data: ~
-  
+
   - id: guest-is-welcome
     happens_after:
       - guest-arrives-to-the-party
@@ -62,7 +62,7 @@ events:
       from: guest
       type: Gulp
       data: ~
-  
+
   - id: guest-leaves-the-party-willingly
     happens_after:
       - guest-accepts-the-offer
@@ -71,4 +71,3 @@ events:
       from: guest
       type: SeeYou
       data: ~
-
