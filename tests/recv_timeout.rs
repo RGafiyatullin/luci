@@ -76,5 +76,5 @@ async fn run_scenario(scenario_file: &str) {
     report
         .dump_record_log(std::io::stderr().lock(), &sources, &executable)
         .unwrap();
-    assert!(report.is_ok(), "{}", report.message());
+    assert!(report.is_ok(), "{}", report.message(&executable, &sources));
 }

@@ -101,7 +101,7 @@ pub mod pinger {
                 },
                 proto::Ping { req_id } => {
                     info!("replying to a ping #{} from {}", req_id, sender);
-                    let _ = ctx.send_to(sender, proto::Pong { req_id });
+                    let _ = ctx.send_to(sender, proto::Pong { req_id }).await;
                 },
                 proto::Pong => {
                     info!("received a pong");
@@ -152,5 +152,5 @@ async fn run_scenario(scenario_file: &str) {
         .expect("runner.run");
 
     let _ = report.dump_record_log(std::io::stderr().lock(), &sources, &executable);
-    assert!(report.is_ok(), "{}", report.message());
+    assert!(report.is_ok(), "{}", report.message(&executable, &sources));
 }

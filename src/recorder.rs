@@ -79,7 +79,7 @@ pub(crate) enum RecordKind {
 }
 
 impl RecordLog {
-    pub fn new() -> Self {
+    pub fn create() -> Self {
         let t_zero = (StdInstant::now(), RtInstant::now());
         Self {
             t_zero,

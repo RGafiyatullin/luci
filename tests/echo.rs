@@ -36,7 +36,7 @@ pub mod echo {
                     let _ = ctx.send_to(sender, v).await;
                 },
                 (r @ proto::R, t) => {
-                    let _ = ctx.respond(t, r.0);
+                    ctx.respond(t, r.0);
                 },
             })
         }
@@ -101,5 +101,5 @@ async fn run_scenario(
         .expect("runner.run");
 
     let _ = report.dump_record_log(std::io::stderr().lock(), &sources, &executable);
-    assert!(report.is_ok(), "{}", report.message());
+    assert!(report.is_ok(), "{}", report.message(&executable, &sources));
 }

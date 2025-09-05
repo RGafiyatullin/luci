@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use slotmap::SlotMap;
@@ -5,9 +6,11 @@ use slotmap::SlotMap;
 use crate::execution::build::{BuildError, BuildErrorReason};
 use crate::execution::runner::ReadyEventKey;
 use crate::execution::sources::SingleScenarioSource;
-use crate::execution::{Executable, KeyScenario, KeyScope, ScopeInfo, SourceCode};
+use crate::execution::{
+    EventKey, Executable, KeyScenario, KeyScope, Report, ScopeInfo, SourceCode,
+};
 use crate::recorder::{records as r, Record, RecordKind, RecordLog};
-use crate::scenario::SrcMsg;
+use crate::scenario::{RequiredToBe, SrcMsg};
 
 pub(super) struct DisplayRecord<'a> {
     pub(super) record:      &'a Record,
@@ -16,7 +19,138 @@ pub(super) struct DisplayRecord<'a> {
     pub(super) source_code: &'a SourceCode,
 }
 
-impl<'a> fmt::Display for DisplayRecord<'a> {
+pub(super) struct DisplayReport<'a> {
+    pub(super) report:      &'a Report,
+    pub(super) executable:  &'a Executable,
+    pub(super) source_code: &'a SourceCode,
+}
+
+impl fmt::Display for DisplayReport<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            report,
+            executable,
+            source_code,
+        } = self;
+
+        let mut visited = HashSet::new();
+        let mut key_requires_value = HashMap::new();
+        for (&k, dependants) in executable.events.key_unblocks_values.iter() {
+            for d in dependants.iter().copied() {
+                key_requires_value
+                    .entry(d)
+                    .or_insert(HashSet::new())
+                    .insert(k);
+            }
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn failed_to_reach(
+            io: &mut impl fmt::Write,
+            visited: &mut HashSet<EventKey>,
+            depth: usize,
+            event_key: EventKey,
+            key_requires_value: &HashMap<EventKey, HashSet<EventKey>>,
+            report: &Report,
+            executable: &Executable,
+            source_code: &SourceCode,
+        ) -> fmt::Result {
+            let event_name = event_full_name(event_key, executable, source_code);
+            write!(io, "{:1$}", "", depth)?;
+            writeln!(io, "- \x1b[31m{event_name}\x1b[0m")?;
+
+            if !visited.insert(event_key) {
+                write!(io, "{:1$}", "", depth + 1)?;
+                writeln!(io, "...")?;
+                return Ok(())
+            }
+
+            for prerequisite in key_requires_value
+                .get(&event_key)
+                .into_iter()
+                .flatten()
+                .copied()
+            {
+                if report.reached_events.contains(&prerequisite) {
+                    let prerequisite_name = event_full_name(prerequisite, executable, source_code);
+                    write!(io, "{:1$}", "", depth + 1)?;
+                    writeln!(io, "+ \x1b[32m{prerequisite_name}\x1b[0m")?;
+                } else {
+                    failed_to_reach(
+                        io,
+                        visited,
+                        depth + 1,
+                        prerequisite,
+                        key_requires_value,
+                        report,
+                        executable,
+                        source_code,
+                    )?;
+                }
+            }
+
+            Ok(())
+        }
+
+        fn event_full_name(
+            ek: EventKey,
+            executable: &Executable,
+            source_code: &SourceCode,
+        ) -> String {
+            if let Some((scope, event_name)) = executable.event_name(ek) {
+                format!(
+                    "{event_name} @ {}",
+                    DisplayScope {
+                        scope,
+                        executable,
+                        source_code
+                    }
+                )
+            } else {
+                format!("{ek:?}")
+            }
+        }
+
+        writeln!(f, "REPORT")?;
+
+        // let colour = if failure { "\x1b[31m" } else { "\x1b[32m" };
+        let colour_red = "\x1b[31m";
+        let colour_green = "\x1b[32m";
+        let colour_reset = "\x1b[0m";
+
+        for (&ek, &r) in report.required_events.iter() {
+            let en = event_full_name(ek, executable, source_code);
+            match (r, report.reached_events.contains(&ek)) {
+                (RequiredToBe::Reached, false) => {
+                    failed_to_reach(
+                        f,
+                        &mut visited,
+                        1,
+                        ek,
+                        &key_requires_value,
+                        report,
+                        executable,
+                        source_code,
+                    )?
+                },
+                (RequiredToBe::Unreached, true) => {
+                    writeln!(f, " + {colour_red}{en}{colour_reset}")?
+                },
+
+                (RequiredToBe::Reached, true) => {
+                    writeln!(f, " + {colour_green}{en}{colour_reset}")?
+                },
+                (RequiredToBe::Unreached, false) => {
+                    writeln!(f, " - {colour_green}{en}{colour_reset}")?
+                },
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl fmt::Display for DisplayRecord<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self {
             record,
@@ -44,7 +178,7 @@ impl<'a> fmt::Display for DisplayRecord<'a> {
     }
 }
 
-impl<'a> fmt::Display for BuildError<'a> {
+impl fmt::Display for BuildError<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use BuildErrorReason::*;
 
@@ -74,7 +208,7 @@ impl<'a> fmt::Display for BuildError<'a> {
     }
 }
 
-impl<'a> fmt::Debug for BuildError<'a> {
+impl fmt::Debug for BuildError<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self, f)
     }
@@ -102,7 +236,7 @@ impl<'a> DisplayRecordKind<'a> {
     }
 }
 
-impl<'a> fmt::Display for DisplayScope<'a> {
+impl fmt::Display for DisplayScope<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt_scope_recursively(
             f,
@@ -113,7 +247,7 @@ impl<'a> fmt::Display for DisplayScope<'a> {
     }
 }
 
-impl<'a> fmt::Display for DisplayRecordKind<'a> {
+impl fmt::Display for DisplayRecordKind<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use RecordKind::*;
 

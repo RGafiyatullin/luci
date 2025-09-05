@@ -1,78 +1,43 @@
-use std::collections::HashMap;
-use std::io;
+use std::collections::{HashMap, HashSet};
+use std::{fmt, io};
 
-use crate::execution::{display, Executable, SourceCode};
-use crate::names::EventName;
+use crate::execution::{display, EventKey, Executable, SourceCode};
 use crate::recorder::{KeyRecord, RecordKind, RecordLog};
 use crate::scenario::RequiredToBe;
 
 #[derive(Debug, Clone)]
 pub struct Report {
-    pub reached:    HashMap<EventName, RequiredToBe>,
-    pub unreached:  HashMap<EventName, RequiredToBe>,
-    pub record_log: RecordLog,
+    pub reached_events:  HashSet<EventKey>,
+    pub required_events: HashMap<EventKey, RequiredToBe>,
+    pub record_log:      RecordLog,
 }
 
 impl Report {
     pub fn is_ok(&self) -> bool {
-        self.reached
+        let reached_necessary = self
+            .required_events
             .iter()
-            .all(|(_, r)| matches!(r, RequiredToBe::Reached))
-            && self
-                .unreached
-                .iter()
-                .all(|(_, r)| matches!(r, RequiredToBe::Unreached))
+            .filter(|(_, r)| matches!(r, RequiredToBe::Reached))
+            .all(|(e, _)| self.reached_events.contains(e));
+        let avoided_restricted = self
+            .required_events
+            .iter()
+            .filter(|(_, r)| matches!(r, RequiredToBe::Unreached))
+            .all(|(e, _)| !self.reached_events.contains(e));
+
+        reached_necessary && avoided_restricted
     }
 
-    pub fn message(&self) -> String {
-        let r_r = self
-            .reached
-            .iter()
-            .filter(|(_, r)| matches!(r, RequiredToBe::Reached))
-            .count();
-        let r_u = self
-            .reached
-            .iter()
-            .filter(|(_, r)| matches!(r, RequiredToBe::Unreached))
-            .count();
-        let u_r = self
-            .unreached
-            .iter()
-            .filter(|(_, r)| matches!(r, RequiredToBe::Reached))
-            .count();
-        let u_u = self
-            .unreached
-            .iter()
-            .filter(|(_, r)| matches!(r, RequiredToBe::Unreached))
-            .count();
-
-        let mut out = format!(
-            r#"
-Reached:
-    Ok:  {r_r}
-    Err: {r_u}
-Unreached:
-    Ok:  {u_u}
-    Err: {u_r}
-"#
-        );
-
-        for (e, _) in self
-            .unreached
-            .iter()
-            .filter(|(_, r)| matches!(r, RequiredToBe::Reached))
-        {
-            out.push_str(format!("! unreached {}\n", { e }).as_str());
+    pub fn message<'a>(
+        &'a self,
+        executable: &'a Executable,
+        source_code: &'a SourceCode,
+    ) -> impl fmt::Display + 'a {
+        display::DisplayReport {
+            report: self,
+            executable,
+            source_code,
         }
-        for (e, _) in self
-            .reached
-            .iter()
-            .filter(|(_, r)| matches!(r, RequiredToBe::Unreached))
-        {
-            out.push_str(format!("! reached   {}\n", { e }).as_str());
-        }
-
-        out
     }
 
     pub fn dump_record_log(
