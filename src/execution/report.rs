@@ -17,12 +17,12 @@ impl Report {
         let reached_necessary = self
             .required_events
             .iter()
-            .filter(|(e, r)| matches!(r, RequiredToBe::Reached))
+            .filter(|(_, r)| matches!(r, RequiredToBe::Reached))
             .all(|(e, _)| self.reached_events.contains(e));
         let avoided_restricted = self
             .required_events
             .iter()
-            .filter(|(e, r)| matches!(r, RequiredToBe::Unreached))
+            .filter(|(_, r)| matches!(r, RequiredToBe::Unreached))
             .all(|(e, _)| !self.reached_events.contains(e));
 
         reached_necessary && avoided_restricted

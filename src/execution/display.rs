@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::fmt::{self, Display};
+use std::fmt;
 
 use slotmap::SlotMap;
 
@@ -33,6 +33,7 @@ impl<'a> fmt::Display for DisplayReport<'a> {
             source_code,
         } = self;
 
+        let mut visited = HashSet::new();
         let mut key_requires_value = HashMap::new();
         for (&k, dependants) in executable.events.key_unblocks_values.iter() {
             for d in dependants.iter().copied() {
@@ -45,6 +46,7 @@ impl<'a> fmt::Display for DisplayReport<'a> {
 
         fn failed_to_reach(
             io: &mut impl fmt::Write,
+            visited: &mut HashSet<EventKey>,
             depth: usize,
             event_key: EventKey,
             key_requires_value: &HashMap<EventKey, HashSet<EventKey>>,
@@ -55,6 +57,12 @@ impl<'a> fmt::Display for DisplayReport<'a> {
             let event_name = event_full_name(event_key, executable, source_code);
             write!(io, "{:1$}", "", depth)?;
             writeln!(io, "- \x1b[31m{event_name}\x1b[0m")?;
+
+            if !visited.insert(event_key) {
+                write!(io, "{:1$}", "", depth + 1)?;
+                writeln!(io, "...")?;
+                return Ok(())
+            }
 
             for prerequisite in key_requires_value
                 .get(&event_key)
@@ -69,6 +77,7 @@ impl<'a> fmt::Display for DisplayReport<'a> {
                 } else {
                     failed_to_reach(
                         io,
+                        visited,
                         depth + 1,
                         prerequisite,
                         key_requires_value,
@@ -108,18 +117,19 @@ impl<'a> fmt::Display for DisplayReport<'a> {
         let colour_green = "\x1b[32m";
         let colour_reset = "\x1b[0m";
 
-        for (&ek, &r) in self.report.required_events.iter() {
-            let en = event_full_name(ek, &self.executable, &self.source_code);
-            match (r, self.report.reached_events.contains(&ek)) {
+        for (&ek, &r) in report.required_events.iter() {
+            let en = event_full_name(ek, executable, source_code);
+            match (r, report.reached_events.contains(&ek)) {
                 (RequiredToBe::Reached, false) => {
                     failed_to_reach(
                         f,
+                        &mut visited,
                         1,
                         ek,
                         &key_requires_value,
-                        &self.report,
-                        self.executable,
-                        self.source_code,
+                        report,
+                        executable,
+                        source_code,
                     )?
                 },
                 (RequiredToBe::Unreached, true) => {
@@ -132,8 +142,6 @@ impl<'a> fmt::Display for DisplayReport<'a> {
                 (RequiredToBe::Unreached, false) => {
                     writeln!(f, " - {colour_green}{en}{colour_reset}")?
                 },
-
-                _ => (),
             }
         }
 
