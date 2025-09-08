@@ -93,7 +93,7 @@ mod socialite {
     }
 }
 
-#[test_case("main.yaml", &["tests/subroutines"])]
+#[test_case("main.luci.yaml", &["tests/subroutines"])]
 #[tokio::test]
 async fn run_scenario(scenario_file: &str, search_path: &[&str]) {
     let _ = tracing_subscriber::fmt()

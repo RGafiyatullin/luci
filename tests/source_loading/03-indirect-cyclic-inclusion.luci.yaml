@@ -1,0 +1,7 @@
+subroutines:
+  - load: 03-indirect-cyclic-inclusion/call-me-back.luci.yaml
+    as: the-sub
+actors: []
+dummies: []
+events: []
+

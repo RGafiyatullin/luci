@@ -1,6 +1,0 @@
-subroutines:
-  - load: 03-indirect-cyclic-inclusion/call-me-back.yaml
-    as:   the-sub
-actors: []
-dummies: []
-events: []

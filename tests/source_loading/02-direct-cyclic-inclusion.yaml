@@ -1,6 +1,0 @@
-subroutines:
-  - load: 02-direct-cyclic-inclusion.yaml
-    as: myself
-actors: []
-dummies: []
-events: []

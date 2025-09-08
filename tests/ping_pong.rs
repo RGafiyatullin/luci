@@ -60,15 +60,13 @@ pub mod pinger {
         info!("ping client started");
 
         ctx.send(proto::Bro).await.expect("send-hello");
-        ctx.attach(elfo::stream::Stream::generate(|mut emitter| {
-            async move {
-                loop {
-                    info!("TICK: before sleep");
-                    tokio::time::sleep(proto::TIMEOUT).await;
-                    info!("TICK: after sleep, before emit");
-                    emitter.emit(proto::Tick).await;
-                    info!("TICK: after emit");
-                }
+        ctx.attach(elfo::stream::Stream::generate(|mut emitter| async move {
+            loop {
+                info!("TICK: before sleep");
+                tokio::time::sleep(proto::TIMEOUT).await;
+                info!("TICK: after sleep, before emit");
+                emitter.emit(proto::Tick).await;
+                info!("TICK: after emit");
             }
         }));
 
@@ -120,12 +118,12 @@ pub mod pinger {
 
 #[tokio::test]
 async fn test_no_peers() {
-    run_scenario("tests/ping_pong/test-no-peers.yaml").await
+    run_scenario("tests/ping_pong/test-no-peers.luci.yaml").await
 }
 
 #[tokio::test]
 async fn test_one_peer() {
-    run_scenario("tests/ping_pong/test-one-peer.yaml").await
+    run_scenario("tests/ping_pong/test-one-peer.luci.yaml").await
 }
 
 async fn run_scenario(scenario_file: &str) {

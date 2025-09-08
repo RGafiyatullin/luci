@@ -8,8 +8,8 @@ Ok(
             1v1,
         ),
         {
-            "tests/source_loading/00-the-simplest-case.yaml": Source {
-                source_file: "tests/source_loading/00-the-simplest-case.yaml",
+            "tests/source_loading/00-the-simplest-case.luci.yaml": Source {
+                source_file: "tests/source_loading/00-the-simplest-case.luci.yaml",
                 subs: {},
                 scenario: Scenario {
                     types: [],
@@ -20,8 +20,8 @@ Ok(
                     no_extra: NoExtra,
                 },
             },
-            "tests/source_loading/01-one-inclusion.yaml": Source {
-                source_file: "tests/source_loading/01-one-inclusion.yaml",
+            "tests/source_loading/01-one-inclusion.luci.yaml": Source {
+                source_file: "tests/source_loading/01-one-inclusion.luci.yaml",
                 subs: {
                     SubroutineName(
                         "f00",
@@ -31,7 +31,7 @@ Ok(
                     types: [],
                     subroutines: [
                         DefDeclareSub {
-                            file_name: "00-the-simplest-case.yaml",
+                            file_name: "00-the-simplest-case.luci.yaml",
                             subroutine_name: SubroutineName(
                                 "f00",
                             ),
