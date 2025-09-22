@@ -51,6 +51,12 @@ async fn with_intervals() {
     run_scenario("tests/recv_timeout/with-intervals.yaml").await;
 }
 
+#[tokio::test]
+#[ignore = "minimal demo of the problem"]
+async fn time_resolution_nuisance() {
+    run_scenario("tests/recv_timeout/time-resolution-nuisance.luci.yaml").await;
+}
+
 async fn run_scenario(scenario_file: &str) {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
