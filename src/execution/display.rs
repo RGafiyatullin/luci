@@ -5,12 +5,12 @@ use slotmap::SlotMap;
 
 use crate::execution::build::{BuildError, BuildErrorReason};
 use crate::execution::runner::ReadyEventKey;
-use crate::execution::sources::SingleScenarioSource;
 use crate::execution::{
     EventKey, Executable, KeyScenario, KeyScope, Report, ScopeInfo, SourceCode,
 };
 use crate::recorder::{records as r, Record, RecordKind, RecordLog};
 use crate::scenario::{RequiredToBe, SrcMsg};
+use crate::sources::SingleScenarioSource;
 
 pub(super) struct DisplayRecord<'a> {
     pub(super) record:      &'a Record,

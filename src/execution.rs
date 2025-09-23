@@ -16,12 +16,12 @@ mod display;
 mod names;
 mod report;
 pub(crate) mod runner;
-mod sources;
 
 pub use build::BuildError;
 pub use report::Report;
 pub use runner::{RunError, Runner};
-pub use sources::{SourceCode, SourceCodeLoader};
+
+pub use crate::sources::{SourceCode, SourceCodeLoader};
 
 /// A key corresponding to some event during test execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::From)]
