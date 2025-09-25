@@ -5,7 +5,7 @@ use tokio::time::Instant;
 
 use crate::execution::{EventDelay, EventRecv, KeyDelay, KeyRecv};
 
-const RECV_RESOLUTION_DIVISOR: u32 = 10;
+const RECV_RESOLUTION_DIVISOR: u32 = 1000;
 
 #[derive(Default)]
 pub(crate) struct ReceivesAndDelays {

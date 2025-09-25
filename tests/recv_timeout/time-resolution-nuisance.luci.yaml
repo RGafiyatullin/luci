@@ -38,5 +38,5 @@ events:
       to: dummy
       type: Hi
       data: ~
-      after_duration: 0s999ms
-      before_duration: 1s001ms
+      after_duration: 1s000ms
+      before_duration: 1s003ms
