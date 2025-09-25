@@ -1,5 +1,4 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
-use std::time::Duration;
 
 use elfo::_priv::MessageKind;
 use elfo::test::Proxy;
@@ -9,9 +8,10 @@ use tokio::time::Instant;
 use tracing::{debug, info, trace, warn};
 
 use crate::bindings::Scope;
+use crate::execution::receives_and_delays::{KeyDelayOrRecv, ReceivesAndDelays};
 use crate::execution::{
-    BindScope, EventBind, EventDelay, EventKey, EventRecv, EventRespond, EventSend, Executable,
-    KeyActor, KeyDelay, KeyDummy, KeyRecv, KeyRespond, KeyScope, KeySend, Report,
+    BindScope, EventBind, EventKey, EventRecv, EventRespond, EventSend, Executable, KeyActor,
+    KeyDummy, KeyRecv, KeyRespond, KeyScope, KeySend, Report,
 };
 use crate::names::{ActorName, EventName};
 use crate::recorder::{records, RecordLog, Recorder};
@@ -89,24 +89,12 @@ pub struct Runner<'a> {
     actors:         SecondaryMap<KeyActor, Addr>,
 
     envelopes: HashMap<KeyRecv, Envelope>,
-    delays:    Delays,
-    receives:  Receives,
+
+    receives_and_delays: ReceivesAndDelays,
 }
 
 new_key_type! {
     struct ProxyKey;
-}
-
-#[derive(Default)]
-struct Delays {
-    deadlines: BTreeSet<(Instant, KeyDelay, Duration)>,
-    steps:     BTreeSet<(Duration, KeyDelay, Instant)>,
-}
-
-#[derive(Default)]
-struct Receives {
-    valid_from: SecondaryMap<KeyRecv, Instant>,
-    valid_thru: BTreeSet<(Instant, KeyRecv)>,
 }
 
 impl Executable {
@@ -313,10 +301,18 @@ impl Runner<'_> {
 
                         match dependent_key {
                             EventKey::Delay(k) => {
-                                self.delays.insert(Instant::now(), k, &events.delay[k])
+                                self.receives_and_delays.insert_delay(
+                                    Instant::now(),
+                                    k,
+                                    &events.delay[k],
+                                );
                             },
                             EventKey::Recv(k) => {
-                                self.receives.insert(Instant::now(), k, &events.recv[k])
+                                self.receives_and_delays.insert_recv(
+                                    Instant::now(),
+                                    k,
+                                    &events.recv[k],
+                                );
                             },
                             _ => (),
                         }
@@ -425,11 +421,22 @@ impl Runner<'_> {
         'recv_or_delay: loop {
             self.proxies[self.main_proxy_key].sync().await;
 
-            for timed_out_recv_key in self.receives.select_timed_out(Instant::now()) {
-                recorder.write(records::TimedOutRecvKey(timed_out_recv_key));
-                trace!("recv timed out: {:?}", timed_out_recv_key);
-                self.ready_events
-                    .remove(&EventKey::Recv(timed_out_recv_key));
+            for ripe_key in self.receives_and_delays.select_ripe_keys(Instant::now()) {
+                match ripe_key {
+                    KeyDelayOrRecv::Recv(key) => {
+                        recorder.write(records::TimedOutRecvKey(key));
+                        trace!("recv timed out: {:?}", key);
+                        self.ready_events.remove(&EventKey::Recv(key));
+                    },
+                    KeyDelayOrRecv::Delay(key) => {
+                        trace!("delay done: {:?}", key);
+                        self.ready_events.remove(&EventKey::Delay(key));
+                        actually_fired_events.push(EventKey::Delay(key));
+                    },
+                }
+            }
+            if !actually_fired_events.is_empty() {
+                break 'recv_or_delay;
             }
 
             trace!(" receiving...");
@@ -571,7 +578,7 @@ impl Runner<'_> {
                         continue;
                     };
 
-                    let valid_from = self.receives.remove_by_key(recv_key);
+                    let valid_from = self.receives_and_delays.remove_recv_by_key(recv_key);
                     recorder.write(records::ValidFrom(valid_from));
 
                     if let Some(too_early) = valid_from
@@ -615,25 +622,15 @@ impl Runner<'_> {
             match (actually_fired_events.is_empty(), unmatched_envelopes == 0) {
                 (true, true) => {
                     let now = Instant::now();
-                    let (sleep_until, expired_keys) = self.delays.next(now);
+                    let Some(sleep_until) = self.receives_and_delays.next_sleep_until(now) else {
+                        break 'recv_or_delay
+                    };
 
                     trace!(
                         "nothing to do — sleeping for {:?}...",
                         sleep_until.checked_duration_since(now),
                     );
-
                     tokio::time::sleep_until(sleep_until).await;
-
-                    let some_keys_expired = !expired_keys.is_empty();
-
-                    for delay_key in expired_keys {
-                        self.ready_events.remove(&EventKey::Delay(delay_key));
-                        actually_fired_events.push(EventKey::Delay(delay_key));
-                    }
-
-                    if some_keys_expired || sleep_until == now {
-                        break 'recv_or_delay;
-                    }
                 },
                 (true, false) => {
                     trace!("no fired events, but some unhandled envelopes");
@@ -816,16 +813,19 @@ impl<'a> Runner<'a> {
         let mut proxies: SlotMap<ProxyKey, Proxy> = Default::default();
         let main_proxy_key = proxies.insert(main_proxy);
 
-        let mut delays = Delays::default();
-        let mut receives = Receives::default();
+        let mut receives_and_delays = ReceivesAndDelays::default();
 
         let ready_events = executable.events.entry_points.clone();
 
         let now = Instant::now();
         for k in ready_events.iter().copied() {
             match k {
-                EventKey::Delay(k) => delays.insert(now, k, &executable.events.delay[k]),
-                EventKey::Recv(k) => receives.insert(now, k, &executable.events.recv[k]),
+                EventKey::Delay(k) => {
+                    receives_and_delays.insert_delay(now, k, &executable.events.delay[k]);
+                },
+                EventKey::Recv(k) => {
+                    receives_and_delays.insert_recv(now, k, &executable.events.recv[k]);
+                },
                 _ => (),
             }
         }
@@ -868,8 +868,7 @@ impl<'a> Runner<'a> {
             executable,
             ready_events,
             key_requires_values,
-            delays,
-            receives,
+            receives_and_delays,
             main_proxy_key,
             proxies,
             actors: Default::default(),
@@ -877,94 +876,5 @@ impl<'a> Runner<'a> {
             scopes,
             envelopes: Default::default(),
         }
-    }
-}
-
-impl Receives {
-    fn insert(&mut self, now: Instant, key: KeyRecv, recv_event: &EventRecv) {
-        self.valid_from.insert(
-            key,
-            now.checked_add(recv_event.after_duration)
-                .expect("exceeded the range of the Instant"),
-        );
-
-        if let Some(timeout) = recv_event.before_duration {
-            let deadline = now.checked_add(timeout).expect("oh don't be ridiculous!");
-            let new_entry = self.valid_thru.insert((deadline, key));
-            assert!(new_entry);
-        }
-    }
-
-    fn select_timed_out(&mut self, now: Instant) -> impl Iterator<Item = KeyRecv> + use<'_> {
-        std::iter::repeat_with(move || {
-            let (deadline, _) = self.valid_thru.first().copied()?;
-            if deadline < now {
-                let (_, key) = self
-                    .valid_thru
-                    .pop_first()
-                    .expect("we've just seen it be there!");
-                Some(key)
-            } else {
-                None
-            }
-        })
-        .map_while(std::convert::identity)
-    }
-
-    fn remove_by_key(&mut self, key: KeyRecv) -> Instant {
-        let valid_from = self
-            .valid_from
-            .remove(key)
-            .expect("recv-key should have existed");
-        self.valid_thru.retain(|(_deadline, k)| *k != key);
-        valid_from
-    }
-}
-
-impl Delays {
-    fn next(&mut self, now: Instant) -> (Instant, Vec<KeyDelay>) {
-        let mut expired = vec![];
-
-        assert_eq!(self.deadlines.len(), self.steps.len());
-
-        let closest_deadline = loop {
-            let Some(&(deadline, key, step)) = self.deadlines.first() else {
-                break now;
-            };
-            if deadline < now {
-                self.deadlines.remove(&(deadline, key, step));
-                self.steps.remove(&(step, key, deadline));
-
-                expired.push(key);
-            } else {
-                break deadline;
-            }
-        };
-
-        assert_eq!(self.deadlines.len(), self.steps.len());
-
-        let smallest_step = self
-            .steps
-            .first()
-            .map_or(Duration::ZERO, |(step, ..)| *step);
-
-        let effective_deadline = now
-            .checked_add(smallest_step)
-            .unwrap_or(now)
-            .min(closest_deadline);
-
-        (effective_deadline, expired)
-    }
-
-    fn insert(&mut self, now: Instant, key: KeyDelay, delay_event: &EventDelay) {
-        let delay_for = delay_event.delay_for;
-        let step = delay_event.delay_step;
-
-        let deadline = now.checked_add(delay_for).expect("please pretty please");
-
-        let new_d_entry = self.deadlines.insert((deadline, key, step));
-        let new_s_entry = self.steps.insert((step, key, deadline));
-
-        assert!(new_d_entry && new_s_entry);
     }
 }
