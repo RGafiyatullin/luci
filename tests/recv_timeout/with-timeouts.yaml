@@ -23,13 +23,15 @@ events:
         literal: ~
     
   - id: actor-says-hi-back
+    happens_after:
+      - dummy-says-hi-to-actor
     require: reached
     recv:
       from: actor
       to: dummy
       type: Hi
       data: ~
-      timeout: 1s100ms
+      timeout: 1s003ms
   
   - id: actor-does-not-say-bye-within-15s
     require: unreached

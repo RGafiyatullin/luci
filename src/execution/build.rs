@@ -9,7 +9,6 @@ use serde_json::json;
 use slotmap::{SecondaryMap, SlotMap};
 use tracing::{debug, error, trace, warn};
 
-use crate::execution::sources::SingleScenarioSource;
 use crate::execution::{
     ActorInfo, BindScope, DummyInfo, EventBind, EventDelay, EventKey, EventRecv, EventRespond,
     EventSend, Events, Executable, KeyActor, KeyBind, KeyDelay, KeyDummy, KeyRecv, KeyRespond,
@@ -21,6 +20,7 @@ use crate::scenario::{
     DefEvent, DefEventBind, DefEventDelay, DefEventKind, DefEventRecv, DefEventRespond,
     DefEventSend, DefTypeAlias, DstPattern, RequiredToBe, SrcMsg,
 };
+use crate::sources::SingleScenarioSource;
 
 #[derive(thiserror::Error)]
 pub struct BuildError<'a> {
