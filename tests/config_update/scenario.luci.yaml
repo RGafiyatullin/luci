@@ -1,0 +1,60 @@
+types:
+  - use: config_update::proto::Ping
+    as: Ping
+  - use: config_update::proto::Pong
+    as: Pong
+  - use: elfo_core::messages::UpdateConfig
+    as: UpdateConfig
+
+actors:
+  - actor
+dummies:
+  - dummy
+
+events:
+  - id: rq-1
+    send:
+      type: Ping
+      from: dummy
+      data:
+        bind: ~
+  
+  - id: rs-1
+    require: reached
+    happens_after:
+      - rq-1
+    recv:
+      type: Pong
+      from: actor
+      data:
+        value: $VALUE_1
+
+  - id: update-config
+    happens_after:
+      - rs-1
+    send:
+      type: UpdateConfig
+      from: dummy
+      data:
+        inject: update-config
+
+  - id: rq-2
+    happens_after:
+      - update-config
+    send:
+      type: Ping
+      from: dummy
+      data:
+        bind: ~
+  
+  - id: rs-2
+    require: reached
+    happens_after:
+      - rq-2
+    recv:
+      type: Pong
+      from: actor
+      data:
+        value: $VALUE_2
+
+
