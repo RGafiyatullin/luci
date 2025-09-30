@@ -1,0 +1,7 @@
+subroutines:
+  - load: 00-the-simplest-case.luci.yaml
+    as: f00
+actors: []
+dummies: []
+events: []
+

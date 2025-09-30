@@ -8,8 +8,8 @@ Ok(
             1v1,
         ),
         {
-            "./tests/source_loading/00-the-simplest-case.yaml": Source {
-                source_file: "./tests/source_loading/00-the-simplest-case.yaml",
+            "./tests/source_loading/00-the-simplest-case.luci.yaml": Source {
+                source_file: "./tests/source_loading/00-the-simplest-case.luci.yaml",
                 subs: {},
                 scenario: Scenario {
                     types: [],

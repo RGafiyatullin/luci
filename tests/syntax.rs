@@ -16,7 +16,7 @@ use test_case::test_case;
 #[test_case("08-with-single-delay", Some(vec![]))]
 #[test_case("09-with-single-call", None)]
 fn run(name: &str, build_executable_with_messages: Option<Vec<(&str, bool)>>) {
-    let file = format!("tests/syntax/{name}.yaml");
+    let file = format!("tests/syntax/{name}.luci.yaml");
     let yaml = std::fs::read_to_string(&file).expect("fs::read_to_string");
     let scenario: Scenario = serde_yaml::from_str(&yaml).expect("yaml::from_str<Scenario>");
 

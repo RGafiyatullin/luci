@@ -1,0 +1,22 @@
+name: Validate scenarios
+
+on:
+  push:
+    paths:
+      - "**/*.luci.yaml"
+      - "schema.yaml"
+  pull_request:
+    paths:
+      - "**/*.luci.yaml"
+      - "schema.yaml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cardinalby/schema-validator-action@v3
+        with:
+          file: "**/*.luci.yaml"
+          schema: "schema.yaml"
+          mode: default

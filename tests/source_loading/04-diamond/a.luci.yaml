@@ -1,6 +1,7 @@
 subroutines:
-  - load: c.yaml
+  - load: c.luci.yaml
     as: c
 actors: []
 dummies: []
 events: []
+
