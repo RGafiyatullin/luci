@@ -8,8 +8,8 @@ Ok(
             1v1,
         ),
         {
-            "tests/source_loading/04-diamond/a.yaml": Source {
-                source_file: "tests/source_loading/04-diamond/a.yaml",
+            "tests/source_loading/04-diamond/a.luci.yaml": Source {
+                source_file: "tests/source_loading/04-diamond/a.luci.yaml",
                 subs: {
                     SubroutineName(
                         "c",
@@ -19,7 +19,7 @@ Ok(
                     types: [],
                     subroutines: [
                         DefDeclareSub {
-                            file_name: "c.yaml",
+                            file_name: "c.luci.yaml",
                             subroutine_name: SubroutineName(
                                 "c",
                             ),
@@ -32,8 +32,8 @@ Ok(
                     no_extra: NoExtra,
                 },
             },
-            "tests/source_loading/04-diamond/b-left.yaml": Source {
-                source_file: "tests/source_loading/04-diamond/b-left.yaml",
+            "tests/source_loading/04-diamond/b-left.luci.yaml": Source {
+                source_file: "tests/source_loading/04-diamond/b-left.luci.yaml",
                 subs: {
                     SubroutineName(
                         "a",
@@ -43,7 +43,7 @@ Ok(
                     types: [],
                     subroutines: [
                         DefDeclareSub {
-                            file_name: "a.yaml",
+                            file_name: "a.luci.yaml",
                             subroutine_name: SubroutineName(
                                 "a",
                             ),
@@ -56,8 +56,8 @@ Ok(
                     no_extra: NoExtra,
                 },
             },
-            "tests/source_loading/04-diamond/b-right.yaml": Source {
-                source_file: "tests/source_loading/04-diamond/b-right.yaml",
+            "tests/source_loading/04-diamond/b-right.luci.yaml": Source {
+                source_file: "tests/source_loading/04-diamond/b-right.luci.yaml",
                 subs: {
                     SubroutineName(
                         "a",
@@ -67,7 +67,7 @@ Ok(
                     types: [],
                     subroutines: [
                         DefDeclareSub {
-                            file_name: "a.yaml",
+                            file_name: "a.luci.yaml",
                             subroutine_name: SubroutineName(
                                 "a",
                             ),
@@ -80,8 +80,8 @@ Ok(
                     no_extra: NoExtra,
                 },
             },
-            "tests/source_loading/04-diamond/c.yaml": Source {
-                source_file: "tests/source_loading/04-diamond/c.yaml",
+            "tests/source_loading/04-diamond/c.luci.yaml": Source {
+                source_file: "tests/source_loading/04-diamond/c.luci.yaml",
                 subs: {},
                 scenario: Scenario {
                     types: [],
@@ -106,14 +106,14 @@ Ok(
                     types: [],
                     subroutines: [
                         DefDeclareSub {
-                            file_name: "b-left.yaml",
+                            file_name: "b-left.luci.yaml",
                             subroutine_name: SubroutineName(
                                 "b-left",
                             ),
                             no_extra: NoExtra,
                         },
                         DefDeclareSub {
-                            file_name: "b-right.yaml",
+                            file_name: "b-right.luci.yaml",
                             subroutine_name: SubroutineName(
                                 "b-right",
                             ),
