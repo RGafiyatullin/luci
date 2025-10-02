@@ -399,16 +399,13 @@ impl Builder {
                     // output-bind).
 
                     let event_bind_in = {
-                        let (dst, src) = if let Some(def_bind_in) = def_call.input.as_ref() {
-                            (
-                                def_bind_in.dst.clone(),
-                                SrcMsg::Bind(def_bind_in.src.clone()),
-                            )
+                        let src = if let Some(def_bind_in) = def_call.input.as_ref() {
+                            SrcMsg::Bind(def_bind_in.clone())
                         } else {
-                            (DstPattern(json!(null)), SrcMsg::Literal(json!(null)))
+                            SrcMsg::Literal(json!(null))
                         };
                         EventBind {
-                            dst,
+                            dst: DstPattern(json!("$INPUT")),
                             src,
                             scope: BindScope::Two {
                                 src: this_scope_key,
@@ -433,17 +430,14 @@ impl Builder {
                     }
 
                     let event_bind_out = {
-                        let (dst, src) = if let Some(def_bind_out) = def_call.output.as_ref() {
-                            (
-                                def_bind_out.dst.clone(),
-                                SrcMsg::Bind(def_bind_out.src.clone()),
-                            )
+                        let dst = if let Some(def_bind_out) = def_call.output.as_ref() {
+                            DstPattern(def_bind_out.clone())
                         } else {
-                            (DstPattern(json!(null)), SrcMsg::Literal(json!(null)))
+                            DstPattern(json!("$_"))
                         };
                         EventBind {
                             dst,
-                            src,
+                            src: SrcMsg::Bind(json!("$OUTPUT")),
                             scope: BindScope::Two {
                                 src: sub_scope_key,
                                 dst: this_scope_key,
